@@ -27,5 +27,8 @@
 | D-023 | 2026-11-15 | Disconnected edits: keep both versions as branches; object owner chooses or merges per frame/keyframe; non-overlapping frames merge automatically | Project owner | OQ-03 |
 | D-024 | 2026-11-15 | Owner can transfer ownership; supervisor can reassign ownership (audited); supervisor can override locks **only when the lock holder is offline/idle** (Claude's reading of two ticked options; owner may correct) | Project owner | OQ-04, OQ-05 |
 | D-025 | 2026-11-15 | External freelancers: supported as normal artist accounts, removed manually by an admin | Project owner | OQ-06 |
+| D-026 | 2026-11-15 | Architecture approved: `ARCHITECTURE.md` and ADR-0001..ADR-0010 accepted as the basis for Phase 4 code | Project owner ("Approved, continue building") | OQ-18 |
+| D-027 | 2026-11-15 | Project data in one SQLite database per project + content-addressed cache; Nuke script holds only a link (ADR-0005) | Project owner (approved recommendation) | OQ-19 |
+| D-028 | 2026-11-15 | Git history is not rewritten; Apache-2.0 attribution for the SAM 2.1 parameter files added in `NOTICE` | Project owner (approved recommendation) | OQ-21 |
 
-No architecture decision has been made. Architecture Decision Records start in Phase 2.
+Architecture decisions: see `docs/adr/` (ADR-0001..0010 Accepted per D-026).

@@ -30,7 +30,6 @@ Updated 2026-11-15.
 | ID | Task | Blocked by |
 |---|---|---|
 | T-011b | In-process inference prototypes, routes B and D (NDK C++) | OQ-01; VS 2022 Build Tools + CMake not installed (OQ-14) |
-| T-050 | Phase 4 core code (src/ layout) | Owner approval of OQ-18/OQ-19 |
 | T-020 | Collaboration architecture | Unblocked by D-022..D-025 (OQ-16/17 minor) |
 
 ## Ready (desk research, can proceed now)

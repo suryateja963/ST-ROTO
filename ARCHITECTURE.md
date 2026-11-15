@@ -1,6 +1,6 @@
 # ST-ROTO Architecture — Proposal
 
-**Status: PROPOSED (Phase 2 draft, 2026-11-15). Not approved. No product code exists yet.**
+**Status: ACCEPTED by the project owner on 2026-11-15 (D-026).** Assumptions marked below must still be verified; when evidence contradicts an ADR, the ADR is revised and re-approved.
 Audience: the project owner (approver) and future contributors.
 Every architectural claim below is either *measured* (linked probe), *decided by the owner* (D-number), or explicitly marked as an *assumption* to be tested.
 

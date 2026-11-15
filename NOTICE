@@ -1,0 +1,18 @@
+ST-ROTO
+Copyright 2026 The ST-ROTO contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+"Nuke" is a trademark of The Foundry Visionmongers Ltd. ST-ROTO is not affiliated with or endorsed by Foundry.
+
+-------------------------------------------------------------------------------
+Third-party material contained in this repository
+-------------------------------------------------------------------------------
+
+SAM 2.1 (Segment Anything Model 2.1), Meta Platforms, Inc. and affiliates.
+https://github.com/facebookresearch/sam2  —  Licensed under the Apache License, Version 2.0.
+Git history (commit f3257b8) contains two small files of numeric parameters extracted from the
+SAM 2.1 tiny and large checkpoints (Hugging Face facebook/sam2.1-hiera-tiny revision de431c40,
+facebook/sam2.1-hiera-large revision 665f8e2a): models/onnx/<model>/video/constants.npz and config.json.
+They were removed from the working tree in commit d5bffac. Model weights are otherwise not distributed
+with this repository; they are downloaded by the user with recorded checksums (models/manifests/).

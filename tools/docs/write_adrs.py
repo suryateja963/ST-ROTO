@@ -61,14 +61,14 @@ ADRS = [
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    index = ["# Architecture Decision Records", "", "All **Proposed** (2026-11-15). None approved yet. See `ARCHITECTURE.md`.", "",
+    index = ["# Architecture Decision Records", "", "All **Accepted** by the project owner on 2026-11-15 (D-026). See `ARCHITECTURE.md`.", "",
              "| ADR | Title | Status |", "|---|---|---|"]
     for num, title, ctx, dec, evid, cons in ADRS:
         fn = f"ADR-{num}.md"
         with open(os.path.join(OUT, fn), "w", encoding="utf-8", newline="\n") as f:
-            f.write(f"# ADR-{num}: {title}\n\n**Status:** Proposed (2026-11-15) · **Decider:** project owner\n\n"
-                    f"## Context\n{ctx}\n\n## Decision (proposed)\n{dec}\n\n## Evidence\n{evid}\n\n## Consequences\n{cons}\n")
-        index.append(f"| [ADR-{num}]({fn}) | {title} | Proposed |")
+            f.write(f"# ADR-{num}: {title}\n\n**Status:** Accepted (2026-11-15, D-026) · **Decider:** project owner\n\n"
+                    f"## Context\n{ctx}\n\n## Decision\n{dec}\n\n## Evidence\n{evid}\n\n## Consequences\n{cons}\n")
+        index.append(f"| [ADR-{num}]({fn}) | {title} | Accepted |")
     with open(os.path.join(OUT, "README.md"), "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(index) + "\n")
     print("wrote", len(ADRS), "ADRs")
