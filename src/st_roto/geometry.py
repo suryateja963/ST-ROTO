@@ -317,9 +317,9 @@ def rasterize_closed(poly: np.ndarray, height: int, width: int) -> np.ndarray:
     ys = np.arange(height) + 0.5
     y0, y1 = p[:, 1][None, :], q[:, 1][None, :]
     cross = ((y0 <= ys[:, None]) & (y1 > ys[:, None])) | ((y1 <= ys[:, None]) & (y0 > ys[:, None]))
-    with np.errstate(divide="ignore", invalid="ignore"):
+    with np.errstate(divide="ignore", invalid="ignore"):          # horizontal edges: never in `cross`, values unused
         t = (ys[:, None] - y0) / (y1 - y0)
-    xs = p[:, 0][None, :] + t * (q[:, 0] - p[:, 0])[None, :]
+        xs = p[:, 0][None, :] + t * (q[:, 0] - p[:, 0])[None, :]
     centres = np.arange(width) + 0.5
     for r in range(height):
         xr = np.sort(xs[r][cross[r]])

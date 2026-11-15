@@ -262,3 +262,13 @@ Knob names measured on Nuke 17.1 (`motionblur_mode`, `global_motionblur`, `globa
 **Validation.** Derived AP1→Rec.709 and AP0→Rec.709 equal the published Bradford matrices (1e-5); all five built-ins equal OCIO's ACES cg config 2.2.0 to < 2e-5. Default transform output unchanged (old results reproducible). Nuke: script in OCIO/ACES cg mode, PNG plates read into ACEScg, auto → OCIO transform recorded, tracking IoU vs truth 0.994–0.995 (same as default mode).
 
 **Own bug caught by a test.** `OcioTransform` converted in place and `np.ascontiguousarray` does not copy an already-contiguous float32 array: it overwrote the caller's frame. My first ad-hoc comparison passed only because it passed a copy. Fixed (explicit copy) + regression test. Also: a test compared 0.9999999999999999 == 1.0 exactly (test bug).
+
+## 2026-11-16 — Split objects and adaptive point counts (T-049); libtorch in Nuke (T-038)
+
+**T-049 measured first.** On the synthetic split frame the truth is two pieces (14,652 and 10,766 px²); the tracker kept only the largest (frame IoU ~0.6). `st_roto.pieces.Sequencer`: main shape follows the piece nearest its previous position; other pieces become part shapes matched by centroid; frames without the piece get a collapsed zero-area key (verified: renders nothing in Nuke and in mattes); point count 'auto' = fewest points with mean fit error ≤ 0.3 px and max ≤ 1.5 px on the first frame. Part shapes carry `part_of` in their generator (`views.main_shape` / `part_shapes`), because shapes created in one batch share a timestamp and sort by random id — my first version picked "shapes[0]" as the main shape, which could have been a part. Re-track: guide mask = main artist key ∪ parts; result parts matched to existing part shapes by centroid; unmatched old parts get collapsed AI keys; hand-drawn extra shapes are never touched. Rename carries `_partN` (found by the GUI test: the part kept the old name).
+
+**Accuracy (GPU, 48 frames, union vs truth).** fixed 12/16/24/32 points: mean 0.9941/0.9944/0.9947/0.9949; auto (0.3 px) picks 12. Split frame 23: 0.990–0.993 for all variants. Node slice test: mean 0.985 → 0.993, worst frame ≥ 0.98. Two Nuke tests assumed 16 points / one shape per object and were updated to the intended behaviour; the slice test threshold was tightened (mean > 0.99, worst > 0.97).
+
+**T-038.** libtorch 2.7.1 (string beside `TORCH_VERSION` / `PT_VERSION`), CUDA 12.8, cuDNN 9.7.1, sm_120, MSVC 2022.
+
+**Tests.** Unit 96/96; Nuke 15/15 (new `test_split_object_parts`: Roto render vs truth ≥ 0.981 on frames 18–28, split frame 0.985); GUI passes (rename → `hero`, `hero_part2`).

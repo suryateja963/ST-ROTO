@@ -121,10 +121,7 @@ class ObjectPanel(QtWidgets.QWidget):
                 return None
         def op(bus):
             store = bus.store
-            ops = [{"op": "update_object", "id": r["id"], "fields": {"name": new_name}}]
-            ops += [{"op": "update_shape", "id": s["id"], "fields": {"name": new_name}}      # shapes named after it
-                    for s in store.shapes(r["id"]) if s["name"] == r["name"]]
-            bus.execute({"op": "batch", "ops": ops})                                       # one undo step
+            bus.execute({"op": "batch", "ops": views.rename_ops(store, r["id"], new_name)})  # one undo step
         return self._do(op)
 
     def toggle_lock(self):

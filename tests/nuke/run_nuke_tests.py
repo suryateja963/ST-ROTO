@@ -112,8 +112,11 @@ def test_st_roto_node_track_slice(res):
     store = ProjectStore(proj)
     objs = store.conn.execute("SELECT * FROM objects").fetchall()
     shapes = store.conn.execute("SELECT * FROM shapes").fetchall()
+    from st_roto import views
+    main = views.main_shape(store, objs[0]["id"])
     res["db"] = {"objects": len(objs), "shapes": len(shapes),
-                 "keys": store.conn.execute("SELECT COUNT(*) FROM shape_keys").fetchone()[0],
+                 "keys": store.conn.execute("SELECT COUNT(*) FROM shape_keys WHERE shape_id = ?", (main["id"],)).fetchone()[0],
+                 "part_shapes": len(views.part_shapes(store, main["id"])),
                  "origins": sorted(set(r["origin"] for r in store.conn.execute("SELECT origin FROM shape_keys"))),
                  "ops": len(store.operations())}
     store.close()
@@ -130,8 +133,10 @@ def test_st_roto_node_track_slice(res):
                         "worst_frame": int(np.argmin(ious)),
                         "mean_excluding_split_frame_23": round(float(np.mean([v for i, v in enumerate(ious) if i != 23])), 4)}
     res["nodes_accessed"] = len(nuke.allNodes())
+    # main shape keyed on every frame; the piece the occluder cuts off around frame 23 is a part shape (T-049),
+    # so the split frame is no longer the worst one (before: IoU ~0.6 there, mean 0.985)
     return (res["db"]["objects"] == 1 and res["db"]["keys"] == n and res["db"]["origins"] == ["ai_generated"]
-            and res["iou_vs_gt"]["mean"] > 0.98)
+            and res["iou_vs_gt"]["mean"] > 0.99 and res["iou_vs_gt"]["min"] > 0.97)
 
 
 def test_repeated_tracking_stable(res):
@@ -297,7 +302,8 @@ def test_import_artist_edits(res):
     ok &= bool(TAG_RE.search(new_label)) and new_label in [it.name for it in layer] \
         and objs.get("hand_drawn", {}).get("origin") == "artist_created"
     # 4. topology change (one point removed in Roto) -> reported, not imported
-    replace(label, read_keys([it for it in layer if it.name == label][0], vh), count=15)
+    current = read_keys([it for it in layer if it.name == label][0], vh)
+    replace(label, current, count=len(next(iter(current.values()))) - 1)     # point count is adaptive (T-049)
     r4 = stnode.resync(g)
     res["topology"] = r4["import"]["skipped"]
     ok &= any(label == s[0] and "point count" in s[1] for s in r4["import"]["skipped"]) and label in r4["conflicts"]
@@ -712,11 +718,58 @@ def test_colour_auto_follows_script(res):
                 and len(ious) == n and min(ious) > 0.98)
 
 
+def test_split_object_parts(res):
+    """T-049: track across the occluder (frames 18-28; the object is cut in two around frame 23) with 'points' =
+    auto. Extra pieces become part shapes; Nuke's own render of the ST_Roto output must match the truth on every
+    frame, including the split frames (before T-049 frame 23 lost its second piece: IoU ~0.6)."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    from st_roto import views, pieces
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vw, vh = meta["w"], meta["h"]
+    f0, f1 = 18, 28
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=f0, last=f1)
+    g = stnode.create(rd, os.path.join(tempfile.mkdtemp(), "split.stroto"))
+    gt18 = cv2.imread(VIDEO + "/gt_%04d.png" % f0, cv2.IMREAD_GRAYSCALE) > 127
+    ys, xs = np.nonzero(gt18)
+    i = int(np.argmin((xs - xs.mean()) ** 2 + (ys - ys.mean()) ** 2))              # a truth pixel near the centre
+    nuke.frame(f0)
+    g["stroto_click"].setValue([xs[i] + 0.5, vh - ys[i] - 0.5]); stnode.on_add_point(g, 1)
+    res["anchors_knob"] = g["stroto_anchors"].value()
+    job = stnode.on_track(g, background=False)
+    res["status"] = g["stroto_status"].value()
+    if job is None or job.status != "done":
+        res["error"] = job.error if job else "no job"; return False
+    store, _ = session.project(g["stroto_project"].value())
+    obj = store.objects(store.conn.execute("SELECT id FROM shots").fetchone()["id"])[0]
+    main = views.main_shape(store, obj["id"])
+    parts = views.part_shapes(store, main["id"])
+    res["shapes"] = {"main_points": main["point_count"], "parts": [(p["name"], p["point_count"]) for p in parts]}
+    res["part_real_frames"] = [sorted(k["frame"] for k in store.keys(p["id"]) if not pieces.is_collapsed(k["points"]))
+                               for p in parts]
+    w = nuke.nodes.Write(file=OUT + "/split.####.tif", file_type="tiff", channels="alpha")
+    w["datatype"].setValue("32 bit float"); w["compression"].setValue("none"); w.setInput(0, g)
+    nuke.execute(w, f0, f1)
+    ious = {}
+    for f in range(f0, f1 + 1):
+        img = cv2.imread(OUT + "/split.%04d.tif" % f, cv2.IMREAD_UNCHANGED)
+        a = (img if img.ndim == 2 else img[:, :, -1]) > 0.5
+        gt = cv2.imread(VIDEO + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE) > 127
+        ious[f] = round(iou(a, gt), 4)
+    res["roto_render_iou_vs_truth"] = ious
+    real = set(f for fr in res["part_real_frames"] for f in fr)
+    res["min_iou_split_frames"] = min(ious[f] for f in real) if real else None
+    return bool(parts and real and min(ious.values()) > 0.95 and res["min_iou_split_frames"] > 0.95)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
          test_export_import_shapes, test_crash_recovery_and_package, test_motion_blur_links,
-         test_colour_auto_follows_script)
+         test_colour_auto_follows_script, test_split_object_parts)
 
 
 def main():

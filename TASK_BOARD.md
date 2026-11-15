@@ -6,6 +6,8 @@ Updated 2026-11-16.
 
 | ID | Task | Evidence |
 |---|---|---|
+| T-049 | Split objects: extra pieces become part shapes (centroid-matched, collapsed zero-area keys where absent, explicit `part_of`), adaptive point counts ('points' = auto, 0.3 px mean fit), Re-track carries parts, rename carries parts. Synthetic split frame IoU ~0.6 → 0.985-0.992; 48-frame mean 0.985 → 0.993 | `src/st_roto/pieces.py`, `research/probes/2026-11-16_pieces/` |
+| T-038 | Nuke 17.1v3 bundles libtorch 2.7.1 (CUDA 12.8, cuDNN 9.7.1, sm_120, MSVC 2022) | `research/probes/2026-11-16_nuke_libtorch/RESULTS.md` |
 | T-045 | Configurable AI input colour: built-in transforms derived from primaries + Bradford (Rec.709, ACEScg, ACES2065-1, Rec.2020, P3-D65, display-encoded), OCIO transforms; node 'AI input colour' (auto follows the script: Nuke default or OCIO working space). Built-ins = OCIO ACES config within 2e-5; ACES mode tracking IoU 0.994-0.995 | `src/st_roto/colour.py`, `tests/unit/test_colour.py`, `tests/nuke` |
 | T-056 | Model registry: export manifests (`models/manifests/<name>.exports.json`, SHA-256 of every loaded file, source revision); every session/constant load verified (licence in production set, owner approval, pinned revision, size + SHA-256); verified stamps per (path,size,mtime); dev escape hatch `ST_ROTO_MODEL_VERIFY=0` | `src/st_roto_ai/registry.py`, `tests/unit/test_registry.py` |
 | T-057 | CI on Node-24 actions (checkout v7, setup-python v7) | `.github/workflows/ci.yml` |
@@ -63,7 +65,6 @@ Updated 2026-11-16.
 | T-075 | Package unpack from inside Nuke (UI), shot relink dialog, source fingerprints (checksums of first/last frame) |
 | T-072 | Learned matting model (hair) — waits for OQ-22 |
 | T-048 | Tracker: resumable state (reverse, multiple objects, corrections done: T-060, T-067) |
-| T-049 | Multi-shape objects (object split into several pieces) and adaptive anchor counts for animated shapes |
 | T-046 | In-memory pixel path Nuke ↔ numpy (avoid disk round-trip) |
 | T-012 | Split requirements register to one ID per bullet |
 | T-030b | Remaining licence texts: Cutie weights, Adobe DIM dataset, SEA-RAFT/RTMPose weights, NVIDIA, PyTorch, DirectML, OpenVINO |
@@ -74,4 +75,3 @@ Updated 2026-11-16.
 | T-035 | Research implications of the five collaboration decisions |
 | T-036 | Identify open benchmark datasets with ground-truth mattes and their licences |
 | T-011a | Route A prototype: export a permissive model to TorchScript, convert to `.cat`, run in Inference node, measured |
-| T-038 | Determine libtorch version bundled with Nuke 17.1v3 |

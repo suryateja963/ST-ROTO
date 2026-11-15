@@ -29,3 +29,38 @@ def shot_shapes(store, shot_id: str) -> list:
     return [dict(r) for r in store.conn.execute(
         "SELECT s.id, s.name, s.object_id, o.name AS object_name FROM shapes s JOIN objects o ON o.id = s.object_id "
         "WHERE o.shot_id = ? ORDER BY s.created_utc, s.id", (shot_id,))]
+
+
+def part_of(shape: dict):
+    """Main shape id if `shape` is an AI part shape (an extra piece of a split object, T-049), else None."""
+    import json
+    try:
+        return (json.loads(shape.get("generator") or "{}") or {}).get("part_of")
+    except ValueError:
+        return None
+
+
+def main_shape(store, object_id: str):
+    """The object's main shape: the first (creation order) that is not a part shape; None without shapes."""
+    shapes = store.shapes(object_id)
+    mains = [s for s in shapes if not part_of(s)]
+    return (mains or shapes or [None])[0]
+
+
+def part_shapes(store, main_id: str) -> list:
+    s = store.row("shapes", main_id)
+    return [p for p in store.shapes(s["object_id"]) if part_of(p) == main_id] if s else []
+
+
+def rename_ops(store, object_id: str, new_name: str) -> list:
+    """Ops renaming an object and the shapes named after it: '<old>' -> '<new>' and AI parts '<old>_part<n>' ->
+    '<new>_part<n>' (T-049). Shapes the artist named differently keep their names."""
+    import re
+    old = store.row("objects", object_id)["name"]
+    ops = [{"op": "update_object", "id": object_id, "fields": {"name": new_name}}]
+    pat = re.compile(r"^%s(_part\d+)?$" % re.escape(old))
+    for s in store.shapes(object_id):
+        m = pat.match(s["name"])
+        if m:
+            ops.append({"op": "update_shape", "id": s["id"], "fields": {"name": new_name + (m.group(1) or "")}})
+    return ops

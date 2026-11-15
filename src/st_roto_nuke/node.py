@@ -31,6 +31,7 @@ from .track import apply_results, models_root, track_object, track_objects
 
 MODELS = ["sam2.1-hiera-tiny", "sam2.1-hiera-large"]
 DEVICES = ["auto", "cpu"]
+POINT_COUNTS = ["auto", "8", "12", "16", "24", "32", "48"]
 _JOBS = {}            # group full name -> last Job
 _INNER = {}           # group full name -> cached Node references (10-node budget: never re-fetch, R-39)
 
@@ -63,6 +64,11 @@ def create(source=None, project_path: str = ""):
     group.addKnob(nuke.Text_Knob("stroto_div2", "AI"))
     group.addKnob(nuke.Enumeration_Knob("stroto_model", "model", MODELS))
     group.addKnob(nuke.Enumeration_Knob("stroto_device", "device", DEVICES))
+    pc = nuke.Enumeration_Knob("stroto_anchors", "points", POINT_COUNTS)
+    pc.setTooltip("Points per shape. auto: the fewest points that follow the object's outline within ~0.3 px on "
+                  "its prompt frame. Pieces the object splits into become extra part shapes.")
+    pc.clearFlag(nuke.STARTLINE)
+    group.addKnob(pc)
     ck = nuke.Enumeration_Knob("stroto_colour", "AI input colour", colour.CHOICES)
     ck.setTooltip("Colour space of the plate as the AI sees it. auto: follow the script (Nuke default = linear sRGB; OCIO = the working space through the script's OCIO config). Recorded with every AI result.")
     group.addKnob(ck)
@@ -228,9 +234,14 @@ def _context(group):
     return {"src": src, "write": write, "roto": roto, "objects": objects, "current": mine[0] if mine else None,
             "first": first, "last": last, "width": int(src.width()), "height": int(src.height()),
             "model": group["stroto_model"].value(), "device": group["stroto_device"].value(),
-            "colour": _colour(group),
+            "colour": _colour(group), "anchors": _anchors(group),
             "project": group["stroto_project"].value(), "object": current,
             "pixel_path": pixels.temp_pixel_path(group.name())}
+
+
+def _anchors(group):
+    v = group["stroto_anchors"].value() if "stroto_anchors" in group.knobs() else "16"     # old nodes: v0 count
+    return "auto" if v == "auto" else int(v)
 
 
 def _colour(group):
@@ -381,7 +392,7 @@ def on_track(group, background: bool = True):
 
     def work(job):
         return track_objects(get_rgb, frames, ctx["objects"], model=ctx["model"], device=ctx["device"], job=job,
-                             colour_transform=ctx["colour"])
+                             colour_transform=ctx["colour"], anchors=ctx["anchors"])
 
     def apply(job):
         result = job.result
@@ -393,9 +404,12 @@ def on_track(group, background: bool = True):
         rep = sync_shot(store, shot_id, ctx["roto"]["curves"], ctx["height"])
         parts = []
         for r, (oid, _) in zip(result["objects"], ids):
-            parts.append("%s%d keys, %d frames without object" % (
-                "" if len(ids) == 1 else r["name"] + ": ", len(r["keys"]), len(r["absent_frames"]))
-                + _review_text(store, oid))
+            extra = (", %d extra piece(s)" % len(r["parts"])) if r.get("parts") else ""
+            if r.get("holes"):
+                extra += ", holes not represented on frames %s" % _ranges(sorted(r["holes"]))
+            parts.append("%s%d keys (%d points)%s, %d frames without object" % (
+                "" if len(ids) == 1 else r["name"] + ": ", len(r["keys"]), r.get("anchors") or 16, extra,
+                len(r["absent_frames"])) + _review_text(store, oid))
         msg = "done: %s; device %s%s" % (" | ".join(parts), result["device"], skipped_note)
         if result["device_fallback"]:
             msg += " (FALLBACK: %s)" % result["device_reason"]
@@ -620,8 +634,10 @@ def _retrack_targets(store, shot_id, current, frames, every_object, plan):
         if not objs:
             raise ValueError("no object named %r (set 'object name')" % current)
     targets, skipped = [], []
+    from st_roto import views
     for o in objs:
-        shapes = store.shapes(o["id"])
+        main = views.main_shape(store, o["id"])
+        shapes = [main] if main else []
         if not shapes:
             if not every_object:
                 raise ValueError("object %r has no shape" % o["name"])

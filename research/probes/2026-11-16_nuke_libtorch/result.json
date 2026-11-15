@@ -1,0 +1,432 @@
+{
+ "torch_cpu.dll": {
+  "version_like": [
+   [
+    "2.7.1",
+    1
+   ]
+  ],
+  "torch_context": [
+   [
+    "e improved?  If so, please report an enhancement request to PyTorch.)",
+    2918
+   ],
+   [
+    " a bug to PyTorch. ",
+    319
+   ],
+   [
+    "a bug to PyTorch. ",
+    186
+   ],
+   [
+    "PyTorch. ",
+    144
+   ],
+   [
+    " to PyTorch. ",
+    137
+   ],
+   [
+    "to PyTorch. ",
+    98
+   ],
+   [
+    "ug to PyTorch. ",
+    75
+   ],
+   [
+    "o PyTorch. ",
+    66
+   ],
+   [
+    " PyTorch. ",
+    63
+   ],
+   [
+    "g to PyTorch. ",
+    57
+   ],
+   [
+    "bug to PyTorch. ",
+    38
+   ],
+   [
+    " bug to PyTorch. ",
+    33
+   ],
+   [
+    "ort a bug to PyTorch. ",
+    31
+   ],
+   [
+    "eport a bug to PyTorch. ",
+    25
+   ],
+   [
+    "rt a bug to PyTorch. ",
+    24
+   ]
+  ],
+  "build_settings": [
+   [
+    "Build settings: ",
+    1
+   ]
+  ],
+  "cuda_arch": [],
+  "git_hash": [
+   [
+    "0001020304050607080910111213141516171819",
+    5
+   ],
+   [
+    "2021222324252627282930313233343536373839",
+    5
+   ],
+   [
+    "4041424344454647484950515253545556575859",
+    5
+   ],
+   [
+    "6061626364656667686970717273747576777879",
+    5
+   ],
+   [
+    "8081828384858687888990919293949596979899",
+    5
+   ],
+   [
+    "73784df0cb25e0748ec9fa1a23c0a49f53c28e22",
+    1
+   ],
+   [
+    "961c151d2e87f2686a955a9be24d316f1362bf21",
+    1
+   ],
+   [
+    "8d263e693366ef8db40acc569cc7d8edf644556d",
+    1
+   ]
+  ],
+  "bytes": 147925480
+ },
+ "c10.dll": {
+  "version_like": [],
+  "torch_context": [
+   [
+    "e improved?  If so, please report an enhancement request to PyTorch.)",
+    75
+   ],
+   [
+    "et_context() INTERNAL ASSERT FAILED at \"X:\\\\.cs\\\\1e04a2\\\\1\\\\PyTorch_src\\\\c10/core/Allocator.h\":192, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "X:\\.cs\\1e04a2\\1\\PyTorch_src\\c10/core/Allocator.h",
+    1
+   ],
+   [
+    "d INTERNAL ASSERT FAILED at \"X:\\\\.cs\\\\1e04a2\\\\1\\\\PyTorch_src\\\\c10/core/Allocator.h\":197, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "X:\\.cs\\1e04a2\\1\\PyTorch_src\\c10\\core\\CPUAllocator.cpp",
+    1
+   ],
+   [
+    "X:\\.cs\\1e04a2\\1\\PyTorch_src\\c10/core/SymNodeImpl.h",
+    1
+   ],
+   [
+    "X:\\.cs\\1e04a2\\1\\PyTorch_src\\c10/core/ConstantSymNodeImpl.h",
+    1
+   ],
+   [
+    "nested_int() INTERNAL ASSERT FAILED at \"X:\\\\.cs\\\\1e04a2\\\\1\\\\PyTorch_src\\\\c10\\\\core\\\\ConstantSymNodeImpl.cpp\":19, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "X:\\.cs\\1e04a2\\1\\PyTorch_src\\c10\\core\\ConstantSymNodeImpl.cpp",
+    1
+   ],
+   [
+    "nested_int() INTERNAL ASSERT FAILED at \"X:\\\\.cs\\\\1e04a2\\\\1\\\\PyTorch_src\\\\c10\\\\core\\\\ConstantSymNodeImpl.cpp\":20, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "nested_int() INTERNAL ASSERT FAILED at \"X:\\\\.cs\\\\1e04a2\\\\1\\\\PyTorch_src\\\\c10\\\\core\\\\ConstantSymNodeImpl.cpp\":21, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "nested_int() INTERNAL ASSERT FAILED at \"X:\\\\.cs\\\\1e04a2\\\\1\\\\PyTorch_src\\\\c10\\\\core\\\\ConstantSymNodeImpl.cpp\":22, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "nested_int() INTERNAL ASSERT FAILED at \"X:\\\\.cs\\\\1e04a2\\\\1\\\\PyTorch_src\\\\c10\\\\core\\\\ConstantSymNodeImpl.cpp\":23, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "nested_int() INTERNAL ASSERT FAILED at \"X:\\\\.cs\\\\1e04a2\\\\1\\\\PyTorch_src\\\\c10\\\\core\\\\ConstantSymNodeImpl.cpp\":24, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "nested_int() INTERNAL ASSERT FAILED at \"X:\\\\.cs\\\\1e04a2\\\\1\\\\PyTorch_src\\\\c10\\\\core\\\\ConstantSymNodeImpl.cpp\":25, please report a bug to PyTorch. ",
+    1
+   ]
+  ],
+  "build_settings": [],
+  "cuda_arch": [],
+  "git_hash": [
+   [
+    "0001020304050607080910111213141516171819",
+    1
+   ],
+   [
+    "2021222324252627282930313233343536373839",
+    1
+   ],
+   [
+    "4041424344454647484950515253545556575859",
+    1
+   ],
+   [
+    "6061626364656667686970717273747576777879",
+    1
+   ],
+   [
+    "8081828384858687888990919293949596979899",
+    1
+   ]
+  ],
+  "bytes": 1016808
+ },
+ "torch_cuda.dll": {
+  "version_like": [
+   [
+    "2.7.1",
+    1
+   ],
+   [
+    "2.4.31",
+    1
+   ],
+   [
+    "2.6.61",
+    1
+   ]
+  ],
+  "torch_context": [
+   [
+    "e improved?  If so, please report an enhancement request to PyTorch.)",
+    1015
+   ],
+   [
+    "422PyTorchMemEffAttention11smem_bufferE[];",
+    29
+   ],
+   [
+    "PyTorch. ",
+    21
+   ],
+   [
+    "ort a bug to PyTorch. ",
+    15
+   ],
+   [
+    "o PyTorch. ",
+    14
+   ],
+   [
+    "sm50N22PyTorchMemEffAttention23",
+    12
+   ],
+   [
+    "to PyTorch. ",
+    11
+   ],
+   [
+    "g to PyTorch. ",
+    11
+   ],
+   [
+    " report a bug to PyTorch. ",
+    11
+   ],
+   [
+    "xt._Z50fmha_cutlassB_bf16_aligned_64x64_k128_dropout_sm80N22PyTorchMemEffAttention23",
+    9
+   ],
+   [
+    "ext._Z49fmha_cutlassB_bf16_aligned_64x64_k32_dropout_sm80N22PyTorchMemEffAttention23",
+    9
+   ],
+   [
+    "ext._Z49fmha_cutlassB_bf16_aligned_64x64_k64_dropout_sm80N22PyTorchMemEffAttention23",
+    9
+   ],
+   [
+    "._Z52fmha_cutlassB_bf16_aligned_64x64_k65536_dropout_sm80N22PyTorchMemEffAttention23",
+    9
+   ],
+   [
+    "ext._Z49fmha_cutlassB_f16_aligned_64x64_k128_dropout_sm80N22PyTorchMemEffAttention23",
+    9
+   ],
+   [
+    "text._Z48fmha_cutlassB_f16_aligned_64x64_k32_dropout_sm80N22PyTorchMemEffAttention23",
+    9
+   ]
+  ],
+  "build_settings": [],
+  "cuda_arch": [
+   [
+    "sm_120",
+    440
+   ],
+   [
+    "sm_50",
+    1
+   ],
+   [
+    "sm_52",
+    1
+   ],
+   [
+    "sm_60",
+    1
+   ],
+   [
+    "sm_61",
+    1
+   ],
+   [
+    "sm_70",
+    1
+   ],
+   [
+    "sm_75",
+    1
+   ],
+   [
+    "sm_86",
+    1
+   ],
+   [
+    "sm_89",
+    1
+   ]
+  ],
+  "git_hash": [
+   [
+    "0001020304050607080910111213141516171819",
+    4
+   ],
+   [
+    "2021222324252627282930313233343536373839",
+    4
+   ],
+   [
+    "4041424344454647484950515253545556575859",
+    4
+   ],
+   [
+    "6061626364656667686970717273747576777879",
+    4
+   ],
+   [
+    "8081828384858687888990919293949596979899",
+    4
+   ],
+   [
+    "961c151d2e87f2686a955a9be24d316f1362bf21",
+    1
+   ]
+  ],
+  "bytes": 1335021032
+ },
+ "torchvision.dll": {
+  "version_like": [
+   [
+    "2.4.6",
+    1
+   ]
+  ],
+  "torch_context": [
+   [
+    "e improved?  If so, please report an enhancement request to PyTorch.)",
+    92
+   ],
+   [
+    "PyTorch splits its backend into two shared libraries: a CPU library and a CUDA library;",
+    1
+   ],
+   [
+    "\\\\include\\\\ATen/core/ivalue.h\":1541, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "\\\\include\\\\ATen/core/ivalue.h\":1546, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "PyTorch is not linked with support for ",
+    1
+   ],
+   [
+    "clude\\\\ATen/core/ivalue_inl.h\":1014, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "clude\\\\ATen/core/ivalue_inl.h\":1025, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "clude\\\\ATen/core/ivalue_inl.h\":1031, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "clude\\\\ATen/core/ivalue_inl.h\":1039, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "clude\\\\ATen/core/ivalue_inl.h\":1040, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "clude\\\\ATen/core/ivalue_inl.h\":1230, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "e/boxing/KernelFunction_impl.h\":265, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "src/dynamo/compiled_autograd.h\":224, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "src/dynamo/compiled_autograd.h\":241, please report a bug to PyTorch. ",
+    1
+   ],
+   [
+    "src/dynamo/compiled_autograd.h\":288, please report a bug to PyTorch. ",
+    1
+   ]
+  ],
+  "build_settings": [],
+  "cuda_arch": [
+   [
+    "sm_120",
+    12
+   ]
+  ],
+  "git_hash": [
+   [
+    "9021d6ebc96fd8b33bb499857a58ac42560c1077",
+    42
+   ]
+  ],
+  "bytes": 8879592
+ }
+}

@@ -42,3 +42,8 @@ Status vocabulary (§5.1): Fully supported · Supported with limitations · Expe
 | AMD GPU | Not yet tested |
 | Intel GPU | Not yet tested |
 | CPU only | Not yet tested |
+
+
+## Measured 2026-11-16 (T-038)
+
+Nuke 17.1v3 (Windows): libtorch **2.7.1**, CUDA runtime 12.8, cuDNN 9.7.1, CUDA kernels incl. sm_120. Evidence: `research/probes/2026-11-16_nuke_libtorch/RESULTS.md`.

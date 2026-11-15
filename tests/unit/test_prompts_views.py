@@ -50,3 +50,16 @@ def test_v1_project_migrates_to_current(tmp_path):
     for t in ("host_exports", "key_reports"):
         assert s2.conn.execute("SELECT name FROM sqlite_master WHERE name=?", (t,)).fetchone() is not None
     s2.close()
+
+
+def test_rename_ops_carry_parts(tmp_path):
+    s = ProjectStore(str(tmp_path / "r.stroto")); bus = CommandBus(s)
+    bus.execute({"op": "create_shot", "row": {"id": "S", "name": "sh"}})
+    bus.execute({"op": "create_object", "row": {"id": "O", "shot_id": "S", "name": "obj"}})
+    for sid, name in (("A", "obj"), ("B", "obj_part2"), ("C", "my hand"), ("D", "objective")):
+        bus.execute({"op": "create_shape", "row": {"id": sid, "object_id": "O", "name": name, "point_count": 2}})
+    bus.execute({"op": "batch", "ops": views.rename_ops(s, "O", "hero")})
+    names = {sh["id"]: sh["name"] for sh in s.shapes("O")}
+    assert names == {"A": "hero", "B": "hero_part2", "C": "my hand", "D": "objective"}
+    assert s.row("objects", "O")["name"] == "hero"
+    s.close()

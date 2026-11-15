@@ -1,0 +1,50 @@
+{
+ "fixed12": {
+  "points": 12,
+  "parts": 1,
+  "mean_iou": 0.9941,
+  "min_iou": 0.9832,
+  "worst_frame": 24,
+  "iou_f23": 0.9903
+ },
+ "fixed16": {
+  "points": 16,
+  "parts": 1,
+  "mean_iou": 0.9944,
+  "min_iou": 0.9826,
+  "worst_frame": 24,
+  "iou_f23": 0.9921
+ },
+ "fixed24": {
+  "points": 24,
+  "parts": 1,
+  "mean_iou": 0.9947,
+  "min_iou": 0.9854,
+  "worst_frame": 24,
+  "iou_f23": 0.9916
+ },
+ "fixed32": {
+  "points": 32,
+  "parts": 1,
+  "mean_iou": 0.9949,
+  "min_iou": 0.9856,
+  "worst_frame": 24,
+  "iou_f23": 0.9927
+ },
+ "auto_0.3": {
+  "points": 12,
+  "parts": 1,
+  "mean_iou": 0.9941,
+  "min_iou": 0.9832,
+  "worst_frame": 24,
+  "iou_f23": 0.9903
+ },
+ "auto_0.2": {
+  "points": 20,
+  "parts": 1,
+  "mean_iou": 0.9946,
+  "min_iou": 0.9847,
+  "worst_frame": 24,
+  "iou_f23": 0.9915
+ }
+}

@@ -12,7 +12,8 @@ import os
 import numpy as np
 
 from st_roto import model as m
-from st_roto.geometry import mask_to_points
+from st_roto import pieces, views
+from st_roto.geometry import mask_to_points  # noqa: F401  (kept for callers)
 from . import colour
 
 ANCHORS = 16
@@ -33,15 +34,18 @@ def _ram_budget(n_objects, total=24, horizon=16):
 
 # ------------------------------------------------------------------------------------------------ track
 def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="auto", job=None, anchors=ANCHORS,
-                  colour_transform=colour.TRANSFORM_ID):
+                  colour_transform=colour.TRANSFORM_ID, parts=True):
     """Track several objects forward in ONE pass (T-067): each frame is rendered and encoded once, every object
     keeps its own tracker memory (st_roto_ai.sam2.Sam2MultiVideo).
 
     frames: ordered list of shot frame numbers. objects: [{"name", "frame", "points": [(x, y), ...], "labels"}];
     each object is tracked from its own prompt frame to the end of `frames`, with exactly the positions and sequence
     length a single-object run over that range uses, so per-object results equal tracking each object alone.
+    anchors: point count of the main shape, or "auto" (chosen on the prompt frame, st_roto.pieces.choose_count).
+    parts: pieces the object splits into become part shapes (T-049).
     Returns {"objects": [per-object result, input order], "device", "device_fallback", "device_reason"}; a
-    per-object result has "name", "keys", "absent_frames", "reports", "generator".
+    per-object result has "name", "keys" (main shape), "parts" ([{frame: points}], collapsed where absent),
+    "anchors", "absent_frames", "holes", "reports", "generator".
     """
     from st_roto_ai.sam2 import Sam2MultiVideo     # AI layer is optional: imported only when tracking is requested
     frames = list(frames)
@@ -60,7 +64,7 @@ def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="a
         runs.append({"name": o["name"], "start": start, "pts": pts, "labels": labels,
                      "trk": multi.add_object(i, num_total_frames=len(frames) - start,
                                              max_frames_in_ram=_ram_budget(len(objects))),
-                     "keys": {}, "absent": [], "reports": {}, "prev": None})
+                     "seq": pieces.Sequencer(count=anchors, parts=parts), "absent": [], "reports": {}, "last": None})
     first = min(r["start"] for r in runs)
     n = len(frames) - first
     try:
@@ -76,10 +80,9 @@ def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="a
                 trk = r["trk"]
                 out = trk.add_points(p, enc, r["pts"], r["labels"]) if p == 0 else trk.track(p, enc)
                 r["reports"][frame] = (out["object_score"], out["iou_pred"])
-                pts = mask_to_points(out["logits"], count=anchors, start_hint=r["prev"]) if out["object_score"] > 0 else []
-                if pts:
-                    r["keys"][frame] = pts
-                    r["prev"] = np.array(pts[0][:2])
+                main = r["seq"].add(frame, out["logits"], ref=r["last"], present=out["object_score"] > 0)
+                if main:
+                    r["last"] = frame
                 else:
                     r["absent"].append(frame)
     finally:
@@ -88,10 +91,14 @@ def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="a
         job.report(1.0, "tracked %d frames, %d object(s)" % (n, len(runs)))
     results = []
     for r in runs:
-        gen = json.dumps({"model": model, "colour": colour.transform_id(colour_transform), "anchors": anchors,
+        seq = r["seq"].result(frames[r["start"]:])
+        count = r["seq"].count if r["seq"].count != "auto" else ANCHORS
+        gen = json.dumps({"model": model, "colour": colour.transform_id(colour_transform), "anchors": count,
+                          "anchors_mode": "auto" if anchors == "auto" else "fixed",
                           "prompts": {"frame": frames[r["start"]], "points": [list(p) for p in r["pts"]],
                                       "labels": r["labels"]}}, sort_keys=True)
-        results.append({"name": r["name"], "keys": r["keys"], "absent_frames": r["absent"], "reports": r["reports"],
+        results.append({"name": r["name"], "keys": seq["main"], "parts": seq["parts"], "anchors": count,
+                        "absent_frames": r["absent"], "holes": seq["holes"], "reports": r["reports"],
                         "generator": gen})
     rep = multi.report
     return {"objects": results, "device": rep.active, "device_fallback": rep.fallback, "device_reason": rep.reason}
@@ -112,14 +119,14 @@ def track_object(get_rgb, frames, click_frame, click_xy, model="sam2.1-hiera-tin
     res = track_objects(get_rgb, frames, [{"name": "", "frame": click_frame, "points": pts, "labels": labels}],
                         model=model, device=device, job=job, anchors=anchors, colour_transform=colour_transform)
     one = res["objects"][0]
-    return {"keys": one["keys"], "absent_frames": one["absent_frames"], "reports": one["reports"],
-            "device": res["device"], "device_fallback": res["device_fallback"],
-            "device_reason": res["device_reason"], "generator": one["generator"]}
+    return dict(one, device=res["device"], device_fallback=res["device_fallback"], device_reason=res["device_reason"])
 
 
 # ------------------------------------------------------------------------------------------------ re-track
 def retrack_plan(store, shape_id, frames):
-    """What a re-track of one shape starts from. Raises ValueError (artist-readable) if there is nothing."""
+    """What a re-track of one object (given by its MAIN shape) starts from. Raises ValueError (artist-readable) if
+    there is nothing. The guide mask on an artist frame is the main shape's artist key united with the object's
+    part shapes at that frame (non-collapsed)."""
     shape = store.row("shapes", shape_id)
     if shape is None:
         raise KeyError("no shape %s" % shape_id)
@@ -131,19 +138,25 @@ def retrack_plan(store, shape_id, frames):
     cond = sorted(set([f for f in artist if f in pos] + ([prompt["frame"]] if prompt and prompt["frame"] in pos else [])))
     if not cond:
         raise ValueError("nothing to track %s from: no artist keys or prompt in this frame range" % shape["name"])
-    return {"shape_id": shape_id, "anchors": int(shape["point_count"]), "artist": artist, "prompt": prompt,
-            "cond": cond, "first": cond[0], "gen": gen}
+    part_keys = {}
+    for s in views.part_shapes(store, shape_id):
+        for k in store.keys(s["id"]):
+            if k["frame"] in artist and not pieces.is_collapsed(k["points"]):
+                part_keys.setdefault(k["frame"], []).append(k["points"])
+    return {"shape_id": shape_id, "object_id": shape["object_id"], "anchors": int(shape["point_count"]),
+            "artist": artist, "part_keys": part_keys, "prompt": prompt, "cond": cond, "first": cond[0], "gen": gen}
 
 
 def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam2.1-hiera-tiny", device="auto",
-                    job=None, colour_transform=colour.TRANSFORM_ID):
-    """Re-track several shapes in ONE pass (T-067). Each shape uses every ARTIST key as a mask prompt (plus its
-    original click prompts, if any) and is tracked forward from its first conditioning frame and in reverse to the
-    first frame of `frames` (master prompt section 11: propagate corrections forward and backward). Each frame is
-    rendered/encoded once per sweep for all shapes; per-shape results equal re-tracking each shape alone.
+                    job=None, colour_transform=colour.TRANSFORM_ID, parts=True):
+    """Re-track several objects (given by their MAIN shape ids) in ONE pass (T-067). Each uses every ARTIST key of
+    its main shape (united with its parts on that frame) as a mask prompt, plus its original click prompts, and is
+    tracked forward from its first conditioning frame and in reverse to the first frame of `frames` (master prompt
+    section 11). Each frame is rendered/encoded once per sweep for all objects; per-object results equal
+    re-tracking each object alone.
 
-    Returns {"shapes": {shape_id: {"keys": {frame: points | None}, "reports", "generator"}}, "device", ...};
-    artist keys are not included (they are never overwritten)."""
+    Returns {"shapes": {main shape id: {"keys": {frame: points | None}, "parts": [{frame: points}], "reports",
+    "generator"}}, "device", ...}; artist keys are not included (they are never overwritten)."""
     from st_roto_ai.sam2 import Sam2MultiVideo
     from st_roto.geometry import Anchor, rasterize_spline
     frames = sorted(frames)
@@ -153,8 +166,11 @@ def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam
         raise ValueError("no objects to re-track")
     multi = Sam2MultiVideo(os.path.join(models_root(), model, "video"), device=device)
     for i, p in enumerate(plans):
+        seq = pieces.Sequencer(count=p["anchors"], parts=parts)
+        for f, pts in p["artist"].items():
+            seq.add_known(f, pts)
         p.update(trk=multi.add_object(i, num_total_frames=len(frames), max_frames_in_ram=_ram_budget(len(plans))),
-                 results={}, reports={}, prev=None, anchor_at_first=None)
+                 seq=seq, reports={}, decided=set(), last=None)
     cache = {}
 
     def enc(f):
@@ -163,19 +179,19 @@ def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam
             cache[f] = multi.encode(colour.to_model_input(get_rgb(f), colour_transform))
         return cache[f]
 
+    def raster(points):
+        a = [Anchor(p=np.array(q[:2]), h_in=np.array(q[2:4]), h_out=np.array(q[4:]), corner=False) for q in points]
+        return rasterize_spline(a, height, width)
+
     def step(p, f, reverse):
         trk = p["trk"]
         out = trk._result(trk.cond[pos[f]]) if pos[f] in trk.cond else trk.track(pos[f], enc(f), reverse=reverse)
-        if f in p["artist"]:
-            p["prev"] = np.array(p["artist"][f][0][:2])
-        else:
+        if f not in p["artist"]:
             p["reports"][f] = (out["object_score"], out["iou_pred"])
-            pts = mask_to_points(out["logits"], count=p["anchors"], start_hint=p["prev"]) if out["object_score"] > 0 else []
-            p["results"][f] = pts or None
-            if pts:
-                p["prev"] = np.array(pts[0][:2])
-        if f == p["first"]:
-            p["anchor_at_first"] = p["prev"]
+            p["decided"].add(f)
+            if not p["seq"].add(f, out["logits"], ref=p["last"], present=out["object_score"] > 0):
+                return                                      # no object: keep the chain at the last real frame
+        p["last"] = f
 
     try:
         for f in sorted(set(c for p in plans for c in p["cond"])):     # conditioning frames first, in time order
@@ -183,9 +199,10 @@ def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam
                 if f not in p["cond"]:
                     continue
                 if f in p["artist"]:
-                    a = [Anchor(p=np.array(q[:2]), h_in=np.array(q[2:4]), h_out=np.array(q[4:]), corner=False)
-                         for q in p["artist"][f]]
-                    p["trk"].add_mask(pos[f], enc(f), rasterize_spline(a, height, width))
+                    mask = raster(p["artist"][f])
+                    for q in p["part_keys"].get(f, []):
+                        mask |= raster(q)
+                    p["trk"].add_mask(pos[f], enc(f), mask)
                 else:
                     pr = p["prompt"]
                     p["trk"].add_points(pos[f], enc(f), [tuple(q) for q in pr["points"]], pr["labels"])
@@ -203,15 +220,17 @@ def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam
                     if reverse and pos[f] == pos[p["first"]] - 1:
                         # the reverse pass continues the point correspondence from the first conditioning frame,
                         # not from the last frame of the forward pass
-                        p["prev"] = p["anchor_at_first"]
+                        p["last"] = p["first"]
                     step(p, f, reverse)
     finally:
         multi.close()                                       # remove spilled per-frame state (T-065)
     shapes = {}
     for p in plans:
+        res = p["seq"].result(sorted(p["decided"]))
+        keys = {f: res["main"].get(f) for f in sorted(p["decided"])}
         gen_out = dict(p["gen"], retrack={"model": model, "colour": colour.transform_id(colour_transform),
                                           "conditioning_frames": p["cond"], "artist_frames": sorted(p["artist"])})
-        shapes[p["shape_id"]] = {"keys": p["results"], "reports": p["reports"],
+        shapes[p["shape_id"]] = {"keys": keys, "parts": res["parts"], "holes": res["holes"], "reports": p["reports"],
                                  "generator": json.dumps(gen_out, sort_keys=True)}
     rep = multi.report
     return {"shapes": shapes, "device": rep.active, "device_fallback": rep.fallback, "device_reason": rep.reason}
@@ -234,8 +253,10 @@ def _report_ops(shape_id, reports, skip=()):
 
 
 def retrack_ops(store, shape_id, result):
-    """-> (number of AI key changes, ops). AI keys replaced/added/removed and AI diagnostics updated; artist keys
-    untouched (also enforced by the bus) and their frames carry no AI report (the artist decided them)."""
+    """-> (number of AI key changes, ops). Main shape: AI keys replaced/added/removed and AI diagnostics updated;
+    parts: each result part goes to the existing part shape of the object nearest to it (same point count), or to a
+    new part shape; existing parts without a match get collapsed AI keys on the decided frames. Artist keys are
+    never touched (also enforced by the bus) and their frames carry no AI report."""
     existing = {k["frame"]: k for k in store.keys(shape_id)}
     artist = {f for f, k in existing.items() if k["origin"] != m.AI_GENERATED}
     ops = []
@@ -247,6 +268,47 @@ def retrack_ops(store, shape_id, result):
             ops.append({"op": "set_key", "shape_id": shape_id, "frame": f, "points": pts, "generator": result["generator"]})
         elif old is not None:
             ops.append({"op": "delete_key", "shape_id": shape_id, "frame": f})
+    main = store.row("shapes", shape_id)
+    old_parts = views.part_shapes(store, shape_id)          # only AI part shapes; other hand-drawn shapes untouched
+    part_gen = _part_generator(result["generator"], shape_id)
+    part_keys = {s["id"]: {k["frame"]: k for k in store.keys(s["id"])} for s in old_parts}
+    free = [s for s in old_parts if not s["locked"]]
+    for i, part in enumerate(result.get("parts", [])):
+        real = {f: q for f, q in part.items() if not pieces.is_collapsed(q)}
+        count = len(next(iter(part.values())))
+        c = np.mean([pieces.centroid(q) for q in real.values()], 0) if real else None
+        best, best_d = None, None
+        for s in free:
+            if int(s["point_count"]) != count or c is None:
+                continue
+            rk = [pieces.centroid(k["points"]) for k in part_keys[s["id"]].values() if not pieces.is_collapsed(k["points"])]
+            if not rk:
+                continue
+            d = float(np.min(np.linalg.norm(np.asarray(rk) - c, axis=1)))
+            if best_d is None or d < best_d:
+                best, best_d = s, d
+        if best is not None:
+            free.remove(best)
+            sid = best["id"]
+        else:
+            sid = m.new_id()
+            ops.append({"op": "create_shape", "row": {"id": sid, "object_id": main["object_id"],
+                                                      "name": "%s_part%d" % (main["name"], len(old_parts) + i + 2),
+                                                      "point_count": count, "generator": part_gen}})
+            part_keys[sid] = {}
+        skip = {f for f, k in part_keys[sid].items() if k["origin"] != m.AI_GENERATED}
+        ops += _part_key_ops(sid, part, part_gen, skip)
+    for s in free:                                          # parts the AI no longer sees: collapse their AI keys
+        ks = part_keys[s["id"]]
+        at = next((pieces.centroid(k["points"]) for k in ks.values()), np.zeros(2))
+        for f in sorted(result["keys"]):
+            k = ks.get(f)
+            if k is not None and k["origin"] != m.AI_GENERATED:
+                continue
+            if k is None or not pieces.is_collapsed(k["points"]):
+                ops.append({"op": "set_key", "shape_id": s["id"], "frame": f,
+                            "points": pieces.collapsed(int(s["point_count"]), at),
+                            "generator": _collapsed_generator(part_gen)})
     n_keys = len(ops)
     ops += _report_ops(shape_id, result.get("reports", {}), skip=artist)
     ops += [{"op": "set_report", "shape_id": shape_id, "frame": f, "object_score": None, "iou_pred": None}
@@ -275,13 +337,21 @@ def apply_retracks(bus, store, shapes):
 
 
 def result_ops(shot_id, object_name, result, anchors=ANCHORS):
-    """-> (object_id, shape_id, ops) creating an AI object + shape with its keys and per-frame diagnostics."""
+    """-> (object_id, shape_id, ops) creating an AI object + main shape (+ part shapes) with keys and per-frame
+    diagnostics (diagnostics belong to the main shape)."""
     oid, sid = m.new_id(), m.new_id()
+    count = result.get("anchors") or anchors
     ops = [{"op": "create_object", "row": {"id": oid, "shot_id": shot_id, "name": object_name}},
-           {"op": "create_shape", "row": {"id": sid, "object_id": oid, "name": object_name, "point_count": anchors,
+           {"op": "create_shape", "row": {"id": sid, "object_id": oid, "name": object_name, "point_count": count,
                                           "generator": result["generator"]}}]
     ops += [{"op": "set_key", "shape_id": sid, "frame": f, "points": result["keys"][f], "generator": result["generator"]}
             for f in sorted(result["keys"])]
+    for i, part in enumerate(result.get("parts", [])):
+        pid = m.new_id()
+        pgen = _part_generator(result["generator"], sid, i + 2)
+        ops.append({"op": "create_shape", "row": {"id": pid, "object_id": oid, "name": "%s_part%d" % (object_name, i + 2),
+                                                  "point_count": len(next(iter(part.values()))), "generator": pgen}})
+        ops += _part_key_ops(pid, part, pgen)
     ops += _report_ops(sid, result.get("reports", {}))
     return oid, sid, ops
 
@@ -302,3 +372,34 @@ def apply_results(bus, shot_id, results, anchors=ANCHORS):
         ids.append((oid, sid)); ops += o
     bus.execute({"op": "batch", "ops": ops}, actor=m.ACTOR_AI)
     return ids
+
+
+
+def _part_generator(generator, main_id, n=None):
+    try:
+        g = json.loads(generator) if generator else {}
+    except ValueError:
+        g = {}
+    g["part_of"] = main_id                                   # marks an AI part shape (st_roto.views.part_of)
+    if n is not None:
+        g["part"] = n
+    return json.dumps(g, sort_keys=True)
+
+
+def _collapsed_generator(generator):
+    try:
+        g = json.loads(generator) if generator else {}
+    except ValueError:
+        g = {}
+    g["collapsed"] = True                                   # part absent on this frame: zero-area key (T-049)
+    return json.dumps(g, sort_keys=True)
+
+
+def _part_key_ops(shape_id, keys, generator, skip=()):
+    ops = []
+    for f, pts in sorted(keys.items()):
+        if f in skip:
+            continue
+        gen = _collapsed_generator(generator) if pieces.is_collapsed(pts) else generator
+        ops.append({"op": "set_key", "shape_id": shape_id, "frame": f, "points": pts, "generator": gen})
+    return ops
