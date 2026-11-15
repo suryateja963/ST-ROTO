@@ -37,6 +37,10 @@ Classes:
 | M-24 | ProPainter / DiffuEraser | Video inpainting | sczhou/ProPainter | S-Lab NC (DiffuEraser Apache but depends on ProPainter) | Research-only | Secondary |
 | M-25 | CascadePSP, SegRefiner | Boundary refinement | hkchengrex/CascadePSP | Not established | Not classified | – |
 
+## Enforcement (T-056)
+
+The runtime loads only files listed in `models/manifests/<name>.exports.json` with matching size and SHA-256, for models whose `models/manifests/<name>.json` records a production licence (Apache-2.0, MIT, BSD), an owner approval and a pinned revision that matches the exports (`src/st_roto_ai/registry.py`). Re-run `tools/models/register_exports.py <name>` after any re-export.
+
 ## Known technical notes (from sources, not measured)
 
 - SAM 2.1 checkpoint sizes: 38.9 M (tiny) to 224.4 M (large) parameters. Published speeds are on an A100 GPU and say nothing about an 8 GB laptop GPU.

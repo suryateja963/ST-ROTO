@@ -69,6 +69,7 @@ def open_session(path: str, device: str = "auto", log_severity: int = 3, cache: 
     Why: creating ONNX Runtime sessions holds Python's GIL; in Nuke's GUI this froze the UI for 0.9-1.3 s on every
     Track press (research/probes/2026-11-16_gui_stalls). Cached sessions make that a once-per-Nuke-session cost.
     ORT InferenceSession.run is safe to call from several threads.
+    Every file is verified against the model registry first (st_roto_ai.registry, T-056).
     """
     key = (os.path.abspath(path), device, os.path.getmtime(path))
     if cache:
@@ -76,6 +77,8 @@ def open_session(path: str, device: str = "auto", log_severity: int = 3, cache: 
             hit = _CACHE.get(key)
         if hit is not None:
             return hit
+    from .registry import verify_file          # licence/approval/checksum gate before any model file is loaded
+    verify_file(path)
     res = create_session(path, device, log_severity)
     if cache:
         with _CACHE_LOCK:

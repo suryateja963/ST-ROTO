@@ -145,6 +145,8 @@ class Sam2Video:
         self.dec_single, _ = open_session(os.path.join(d, "decoder_single.onnx"), device)
         mp = os.path.join(d, "maskptr.onnx")
         self.maskptr = open_session(mp, device)[0] if os.path.exists(mp) else None
+        from .registry import verify_file
+        verify_file(os.path.join(d, "constants.npz")); verify_file(os.path.join(d, "config.json"))
         c = np.load(os.path.join(d, "constants.npz"))
         self.no_mem = c["no_memory_embedding"]
         self.tpos = c["memory_temporal_positional_encoding"]

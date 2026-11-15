@@ -6,6 +6,8 @@ Updated 2026-11-16.
 
 | ID | Task | Evidence |
 |---|---|---|
+| T-056 | Model registry: export manifests (`models/manifests/<name>.exports.json`, SHA-256 of every loaded file, source revision); every session/constant load verified (licence in production set, owner approval, pinned revision, size + SHA-256); verified stamps per (path,size,mtime); dev escape hatch `ST_ROTO_MODEL_VERIFY=0` | `src/st_roto_ai/registry.py`, `tests/unit/test_registry.py` |
+| T-057 | CI on Node-24 actions (checkout v7, setup-python v7) | `.github/workflows/ci.yml` |
 | T-074 | Nuke's own Roto motion blur exposed on ST_Roto (mode, samples, shutter, offset: linked knobs); 60 px/frame shape renders a ~50 px trail along the motion only | `tests/nuke` `test_motion_blur_links` |
 | T-071 | Persistence: verified rotating backups of the OPEN project (SQLite online backup), auto-backup thread (only after changes, final on exit), session marker detects crashed / concurrent sessions, integrity check + restore newest valid backup (damaged file kept), portable zip packages (checksums, zip-slip refusal, source relink, optional plates). Unit 75, Nuke 11/11 | `src/st_roto/persistence.py`, `tests/unit/test_persistence.py` |
 | T-069/T-070 | Matte pass + EXR export: 'Render mattes (EXR)' writes one EXR per frame (`<object>.A` layers + combined `A`), hard or soft edges; ST-ROTO JSON (round trip) and SVG export, JSON import. Nuke reads the layers exactly (0.0 diff); hard matte vs Roto render IoU 0.998; export → delete → import restores the shape (1.5e-5 px). Unit 68, Nuke 10/10 | `docs/RESEARCH_2026-11-16_INTERCHANGE.md`, `tests/nuke/` |
@@ -59,8 +61,6 @@ Updated 2026-11-16.
 | T-073 | Interchange: RotoPaint export; feather storage + export; Silhouette/Mocha direct formats need their apps to validate |
 | T-075 | Package unpack from inside Nuke (UI), shot relink dialog, source fingerprints (checksums of first/last frame) |
 | T-072 | Learned matting model (hair) — waits for OQ-22 |
-| T-056 | Model registry from `models/manifests` (licence, revision, checksum verification before load) |
-| T-057 | Update GitHub Actions to Node-24-based action versions (deprecation warning) |
 | T-045 | Documented, configurable model-input colour transform (replace hard-coded sRGB re-encode) |
 | T-048 | Tracker: resumable state (reverse, multiple objects, corrections done: T-060, T-067) |
 | T-049 | Multi-shape objects (object split into several pieces) and adaptive anchor counts for animated shapes |

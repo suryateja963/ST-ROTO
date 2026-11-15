@@ -1,0 +1,55 @@
+{
+ "files": {
+  "decoder.onnx": {
+   "bytes": 17003060,
+   "sha256": "85b27df8e763143c54167be383d1c04bac0c7fc4627c6a67895fc9fc5ee764b9"
+  },
+  "encoder.onnx": {
+   "bytes": 109405062,
+   "sha256": "fdcea25d8ee6c631a715bc4f45db6676179734e226208bc84d48dda1aca9cdd6"
+  },
+  "video/config.json": {
+   "bytes": 316,
+   "sha256": "011f2740ba0a69117739dc7ed6d57aa232c3c92cc2292c0e66d647c01ed2a57f"
+  },
+  "video/constants.npz": {
+   "bytes": 71542,
+   "sha256": "3573ce2981ad81c4ed51a0bfdfa14a4827df6bb106ef08a147102a18245beb2e"
+  },
+  "video/decoder_mm.onnx": {
+   "bytes": 17799520,
+   "sha256": "d1d93bb0555288ab445a7266f506fb524dee9b80137b0c6f16a317645ad1d20f"
+  },
+  "video/decoder_single.onnx": {
+   "bytes": 17804686,
+   "sha256": "0167d1ae60e39e5cd2df587ee140e6b1330cc572aa26249d5794ff9df38ef90f"
+  },
+  "video/maskptr.onnx": {
+   "bytes": 15253298,
+   "sha256": "4f3ae4ff5de7decc7e6728e2c9d1b33101aa3f5af6075ab5de8561a717d69998"
+  },
+  "video/memattn.onnx": {
+   "bytes": 133033748,
+   "sha256": "263f6aef8b697c055452c2ca792352e1ec2ee6c2dbbb1e6b94e291c01c33205f"
+  },
+  "video/memattn_fp16.onnx": {
+   "bytes": 66780984,
+   "sha256": "de5ac7b9da1de01411e97cb7c8b1dad0e4476016e04b495101d619a890ab901d"
+  },
+  "video/memattn_fp16keep.onnx": {
+   "bytes": 66804978,
+   "sha256": "277fef1755d2d13d32ce35045524713d7e898190585459f5654938205976f407"
+  },
+  "video/memenc.onnx": {
+   "bytes": 5582715,
+   "sha256": "31ef2b81ed9f913dc77964f00a699636da71cd81de325b683607bf7e9cbc3565"
+  },
+  "video/vencoder.onnx": {
+   "bytes": 109433567,
+   "sha256": "89c2d7967d730226c1ed07cab0e6cabb870e964f7c84162d5e8744830202e779"
+  }
+ },
+ "name": "sam2.1-hiera-tiny",
+ "source_revision": "de431c4043854a71d8101e17995dfe596bf101a5",
+ "tool": "tools/models/export_sam2_onnx.py + export_sam2_video_onnx.py + convert_fp16.py"
+}

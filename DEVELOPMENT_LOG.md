@@ -246,3 +246,9 @@ Owner approved the architecture (D-026..D-028). Interactive-GUI probe: SAM 2.1 t
 ## 2026-11-16 — Roto motion blur on ST_Roto (T-074)
 
 Knob names measured on Nuke 17.1 (`motionblur_mode`, `global_motionblur`, `global_motionblur_shutter`, `global_motionblur_shutter_offset_type`); linked onto the ST_Roto node. Nuke test: a shape moving 60 px/frame renders with a ~50 px trail along x (y extent unchanged) when set to global, 10 samples, shutter 1. My first pass threshold (20× more soft pixels) was a guess and failed against the measurement (12×; the 'off' render already has 1,401 anti-aliased edge pixels); replaced by the physical check (trail length along the motion). GUI test passes (21.7 s). Unit 75/75, Nuke 12/12.
+
+## 2026-11-16 — CI on Node 24 (T-057), model registry with verification (T-056)
+
+**T-057.** actions/checkout v7 and actions/setup-python v7 (both declare `using: node24`, checked in their action.yml).
+
+**T-056.** The weights manifests existed, but the ONNX exports the runtime loads had no checksums and nothing was checked before loading. `tools/models/register_exports.py` writes `models/manifests/<name>.exports.json` (SHA-256 + size of every exported file, source revision); `st_roto_ai.registry.verify_file` runs before every ORT session and before the tracker's constants/config are read: refuses files outside a model folder, unlisted files, size or SHA-256 mismatches, exports from another revision, non-production licences and models without owner approval. Hashing runs at ~1.2 GB/s (large: 2 GB in 1.7 s); verified files are stamped per (path, size, mtime) in `models/.verified.json` (git-ignored). Tests: unit (tampering with same size, appended data, unlisted file, NC licence, missing approval, revision mismatch, escape hatch, real models verify); Nuke track test passes with verification on (8 files stamped).

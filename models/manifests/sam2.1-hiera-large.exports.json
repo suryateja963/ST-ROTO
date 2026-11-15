@@ -1,0 +1,55 @@
+{
+ "files": {
+  "decoder.onnx": {
+   "bytes": 17003096,
+   "sha256": "46811a6212f50cbc9e5b8f9a01c38518b4d25bd9979f6cad83929af27a73db35"
+  },
+  "encoder.onnx": {
+   "bytes": 852693858,
+   "sha256": "3dc4fcad4cc84def79f27d763e7109b7055467a1d6cfada463bfc4b6a941065a"
+  },
+  "video/config.json": {
+   "bytes": 316,
+   "sha256": "011f2740ba0a69117739dc7ed6d57aa232c3c92cc2292c0e66d647c01ed2a57f"
+  },
+  "video/constants.npz": {
+   "bytes": 71542,
+   "sha256": "67f098539538d1767dff7edf02ffd12876a2cbcb35af3f3e31afac768944c55b"
+  },
+  "video/decoder_mm.onnx": {
+   "bytes": 17799652,
+   "sha256": "99a63163bc1a35b70031f1328afed9910c4c45316a409ea28fa9fdc093ddc3ca"
+  },
+  "video/decoder_single.onnx": {
+   "bytes": 17804820,
+   "sha256": "3efc69af6dacb228e929d1106418a833cd9052b6121f85aa8ec7e5d68c1860f1"
+  },
+  "video/maskptr.onnx": {
+   "bytes": 15253432,
+   "sha256": "a983102f27af1fef994086b8bd9b0c3b9cd26a84c287d4a8f88a637d82274c39"
+  },
+  "video/memattn.onnx": {
+   "bytes": 133033772,
+   "sha256": "5c5aded2019818d571d423d5ab79d16f2a0dfa1010597c228815a01c32a798ca"
+  },
+  "video/memattn_fp16.onnx": {
+   "bytes": 66781020,
+   "sha256": "1d338b572e2d6254d52395e2af7642064b7a730dd8c200a81367d849877c98e2"
+  },
+  "video/memattn_fp16keep.onnx": {
+   "bytes": 66805014,
+   "sha256": "8dac3b5172a0463f41001a5d998b929cbfb7f4acd19c9b87bf2bf102982ccea4"
+  },
+  "video/memenc.onnx": {
+   "bytes": 5582723,
+   "sha256": "241372b0553347bd6a3b3d28b3b05ba80c522fb0d8fb53c12df38783f504df59"
+  },
+  "video/vencoder.onnx": {
+   "bytes": 852722396,
+   "sha256": "09c8a5e40d93a3d6a4a70a96a0e3be3f90766620efd2dfe2f489a208da277765"
+  }
+ },
+ "name": "sam2.1-hiera-large",
+ "source_revision": "665f8e2ad61cf5f53d65644ff27c8ee525124610",
+ "tool": "tools/models/export_sam2_onnx.py + export_sam2_video_onnx.py + convert_fp16.py"
+}
