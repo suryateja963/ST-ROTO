@@ -171,6 +171,10 @@ def main(name):
         json.dump(consts, fh, indent=1)
     rep["config"] = consts
     rep["onnx_mb"] = {f: round(os.path.getsize(os.path.join(dst, f)) / 1e6, 1) for f in sorted(os.listdir(dst)) if f.endswith(".onnx")}
+    # fp16 memory attention (default at runtime, D-029). Must be re-validated against the reference per model.
+    import subprocess
+    subprocess.check_call([sys.executable, "-I", os.path.join(ROOT, "tools", "models", "convert_fp16.py"),
+                           os.path.join(dst, "memattn.onnx")])
     out = os.path.join(ROOT, "research", "probes", "2026-11-15_video", f"export_video_{name}.json")
     with open(out, "w") as fh:
         json.dump(rep, fh, indent=1)

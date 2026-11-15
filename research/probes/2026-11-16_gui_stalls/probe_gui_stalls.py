@@ -85,6 +85,9 @@ def main():
         g["stroto_click"].setValue([meta["click_xy"][0], meta["h"] - meta["click_xy"][1]])
         timer = QtCore.QTimer(); timer.setInterval(16); timer.timeout.connect(lambda: ticks.append(time.perf_counter()))
         timer.start(); main.timer = timer
+        if os.environ.get("STROTO_PROBE_PRELOAD") == "1":            # press "Load model" before the timer starts
+            t = time.perf_counter(); R["preload"] = stnode.on_load_model(g)
+            R["preload_wall_s"] = round(time.perf_counter() - t, 2)
         T0[0] = time.perf_counter()
         runs = int(os.environ.get("STROTO_PROBE_RUNS", "1"))
         R["runs"] = []

@@ -55,6 +55,9 @@ def create(source=None, project_path: str = ""):
     group.addKnob(nuke.Int_Knob("stroto_click_frame", "click frame"))
     group.addKnob(nuke.Enumeration_Knob("stroto_model", "model", MODELS))
     group.addKnob(nuke.Enumeration_Knob("stroto_device", "device", DEVICES))
+    lm = nuke.PyScript_Knob("stroto_load", "Load model", "import st_roto_nuke.node as n; n.on_load_model(nuke.thisNode())")
+    lm.setTooltip("Loads the AI model onto the GPU now. Nuke may pause for 1-3 seconds once; Track is smooth afterwards.")
+    group.addKnob(lm)
     b = nuke.PyScript_Knob("stroto_track", "Track", "import st_roto_nuke.node as n; n.on_track(nuke.thisNode())")
     group.addKnob(b)
     c = nuke.PyScript_Knob("stroto_cancel", "Cancel", "import st_roto_nuke.node as n; n.on_cancel(nuke.thisNode())")
@@ -87,6 +90,25 @@ def _status(group, text):
 def _is_main_thread():
     import threading
     return threading.current_thread() is threading.main_thread()
+
+
+def on_load_model(group):
+    """Load (and cache) the selected model's GPU sessions on the main thread, with an explicit status message.
+    Runs synchronously on purpose: the GIL-bound pause happens now, visibly, instead of mid-Track (R-40)."""
+    from st_roto_ai.sam2 import preload_video
+    from .track import models_root
+    model, device = group["stroto_model"].value(), group["stroto_device"].value()
+    group["stroto_status"].setValue("loading %s (Nuke may pause briefly)..." % model)
+    try:
+        r = preload_video(os.path.join(models_root(), model, "video"), device)
+    except Exception as e:
+        group["stroto_status"].setValue("failed to load model: %s" % e)
+        return None
+    msg = "model %s loaded on %s in %.1f s" % (model, r["device"], r["seconds"])
+    if r["fallback"]:
+        msg += " (FALLBACK: %s)" % r["reason"]
+    group["stroto_status"].setValue(msg)
+    return r
 
 
 def on_cancel(group):

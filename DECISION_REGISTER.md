@@ -30,5 +30,6 @@
 | D-026 | 2026-11-15 | Architecture approved: `ARCHITECTURE.md` and ADR-0001..ADR-0010 accepted as the basis for Phase 4 code | Project owner ("Approved, continue building") | OQ-18 |
 | D-027 | 2026-11-15 | Project data in one SQLite database per project + content-addressed cache; Nuke script holds only a link (ADR-0005) | Project owner (approved recommendation) | OQ-19 |
 | D-028 | 2026-11-15 | Git history is not rewritten; Apache-2.0 attribution for the SAM 2.1 parameter files added in `NOTICE` | Project owner (approved recommendation) | OQ-21 |
+| D-029 | 2026-11-16 | SAM 2.1 memory attention runs in fp16 by default (fp32 selectable); conversion via `tools/models/convert_fp16.py` | Claude (delegated technical choice) | `research/probes/2026-11-16_fp16/RESULTS.md`: identical masks on the synthetic shot (≤ 7 low-res pixels flip), −22% peak GPU (tiny), ~2× faster steps; to re-check on real footage |
 
 Architecture decisions: see `docs/adr/` (ADR-0001..0010 Accepted per D-026).

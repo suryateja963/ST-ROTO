@@ -168,3 +168,9 @@ Owner approved the architecture (D-026..D-028). Interactive-GUI probe: SAM 2.1 t
 **Findings.** (1) Stalls coincide only with ORT session creation on the worker thread (GIL held, 0.9–1.3 s). Fix: process-wide session cache; later Track presses create sessions in ~2 ms. (2) While verifying, a third Track press in the same session took 35.9 s instead of ~15 s: ORT's CUDA pool grew to 7.8 of 8.15 GB and the encoder slowed ~5×. Two option sets were tried and rejected (both made every run fail after 17 frames, one with a 470 MB allocation failure). Kept: ORT defaults plus arena shrinkage after each memory-attention run: three runs 22.5 / 16.3 / 16.4 s, memory 3.3–6.4 GB (sampled peak 7.65 GB), tracking step +35% slower.
 
 **Tests.** Unit 38/38, headless Nuke 2/2, GUI slice passes (21.2 s; first-press stall 1.6 s remains, T-061).
+
+## 2026-11-16 — Load model action (T-061) and fp16 memory attention (T-062)
+
+**T-061.** "Load model" button on ST_Roto (`on_load_model`, `st_roto_ai.sam2.preload_video`): sessions created synchronously with a status message (≈2.9 s, once). GUI probe, 2 trials of Load + 2 Track runs each: zero UI stalls > 100 ms, mean timer gap 16.0–16.2 ms.
+
+**T-062.** fp16 conversion of memory attention. First two attempts would not load in ORT (stale value_info; model's own fp32 casts); both fixed in `tools/models/convert_fp16.py`. A partially-fp32 variant was measured and rejected (slower, slightly less accurate). fp16 result, verified on raw logits: tiny 7 sign flips in 48×256×256 low-res pixels, large 0; peak GPU tiny 5.06 → 3.92 GB, large 7.77 → 7.00 GB; step 148 → 96 ms (tiny), 192 → 98 ms (large). Made the runtime default (D-029). New regression test (3 runs in one session) passes: 10.5 / 8.3 / 8.3 s, peak 3.9 GB. Unit 38/38, Nuke 3/3.

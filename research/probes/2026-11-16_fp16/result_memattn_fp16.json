@@ -1,0 +1,22 @@
+{
+ "variant": "memattn_fp16.onnx",
+ "runs": [
+  {
+   "iou_vs_torch_min": 0.99544,
+   "iou_vs_torch_mean": 0.99898,
+   "iou_vs_gt_mean": 0.9951,
+   "iou_vs_gt_min": 0.9862,
+   "track_step_ms": 99.9,
+   "peak_gpu_MiB_so_far": 3914
+  },
+  {
+   "iou_vs_torch_min": 0.99544,
+   "iou_vs_torch_mean": 0.99898,
+   "iou_vs_gt_mean": 0.9951,
+   "iou_vs_gt_min": 0.9862,
+   "track_step_ms": 96.6,
+   "peak_gpu_MiB_so_far": 3914
+  }
+ ],
+ "device": "cuda"
+}

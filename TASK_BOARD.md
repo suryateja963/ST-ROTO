@@ -17,6 +17,8 @@ Updated 2026-11-15.
 | T-030 | Licence texts: SAM License, S-Lab 1.0, ORT, BiRefNet, Foundry EULA key clauses (partial) | `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md` |
 | T-031 | Missing model categories, first pass (partial) | `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md` |
 | T-021 | Public GitHub repository created and pushed | https://github.com/suryateja963/ST-ROTO (commit 2a0adea) |
+| T-061 | 'Load model' button: the one-time GIL pause (≈2.9 s) happens when the artist chooses; afterwards 2 Track runs with zero UI stalls (2 trials) | `research/probes/2026-11-16_gui_stalls/result_preload*.json` |
+| T-062 | fp16 memory attention (tiny + large validated vs PyTorch), default per D-029; regression test of 3 runs in one session (10.5/8.3/8.3 s, peak 3.9 GB) | `research/probes/2026-11-16_fp16/RESULTS.md` |
 | T-058 | GUI stalls diagnosed (GIL during ORT session creation) and fixed for repeat presses (session cache); GPU memory growth across runs found and fixed (arena shrinkage); 2 rejected option sets documented | `research/probes/2026-11-16_gui_stalls/RESULTS.md` |
 | T-055 | Vertical slice in product code: ST_Roto node (Track/Cancel/status) → background SAM 2.1 tracking → project DB (AI provenance) → animated native Roto. Headless test: IoU vs GT 0.985 (0.994 excl. split frame); GUI test: 48 frames in 22 s, passes | `src/st_roto_nuke/node.py`, `tests/nuke/`, `tools/run_nuke_tests.py` |
 | T-054 | AI layer v0: `st_roto_ai.runtime` (silent CPU-fallback detection), `st_roto_ai.sam2` (image + video adapters), `st_roto.geometry.mask_to_points`; AI tests pass locally (skip in CI: no weights); CI now runs the suite on real Python 3.7 | `src/st_roto_ai/`, `tests/unit/test_ai_sam2.py` |
@@ -42,8 +44,6 @@ Updated 2026-11-15.
 
 | ID | Task |
 |---|---|
-| T-061 | 'Load model' action (and optional load at Nuke start) so the one-time session-creation pause happens when the artist chooses; show it in the status |
-| T-062 | Reduce memory attention GPU memory (fp16 export or chunked attention) and add a 3-runs-in-one-session regression test |
 | T-059 | Viewer click to set the prompt (instead of the XY knob) and a docked object panel |
 | T-060 | Reverse tracking, re-tracking under artist-locked keys, several objects per ST_Roto node |
 | T-056 | Model registry from `models/manifests` (licence, revision, checksum verification before load) |

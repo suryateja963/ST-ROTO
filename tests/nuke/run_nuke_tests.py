@@ -134,7 +134,39 @@ def test_st_roto_node_track_slice(res):
             and res["iou_vs_gt"]["mean"] > 0.98)
 
 
-TESTS = (test_export_animated_shape, test_st_roto_node_track_slice)
+def test_repeated_tracking_stable(res):
+    """Regression for R-41: three full 48-frame tracking runs in one Nuke session must not slow down or exhaust
+    GPU memory (before the fix: run 3 was 2.4x slower at 7.8 of 8.15 GB)."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import subprocess, threading, time
+    from st_roto_ai.sam2 import Sam2Video
+    meta = json.load(open(VIDEO + "/meta.json"))
+    frames = [cv2.cvtColor(cv2.imread(VIDEO + "/frame_%04d.png" % i), cv2.COLOR_BGR2RGB).astype(np.float32) / 255
+              for i in range(meta["frames"])]
+    peak = {"v": 0, "stop": False}
+
+    def sample():
+        while not peak["stop"]:
+            o = subprocess.run(["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+                               capture_output=True, text=True, creationflags=0x08000000).stdout
+            peak["v"] = max(peak["v"], int(o.strip() or 0)); time.sleep(0.1)
+    threading.Thread(target=sample, daemon=True).start()
+    secs = []
+    for run in range(3):
+        trk = Sam2Video(ROOT + "/models/onnx/sam2.1-hiera-tiny/video", device="cuda", num_total_frames=len(frames))
+        t0 = time.time()
+        for i, rgb in enumerate(frames):
+            enc = trk.encode(rgb)
+            trk.add_points(0, enc, [tuple(meta["click_xy"])], [1]) if i == 0 else trk.track(i, enc)
+        secs.append(round(time.time() - t0, 2))
+    peak["stop"] = True
+    res.update({"seconds_per_run": secs, "peak_gpu_MiB": peak["v"], "memattn": trk.memattn_file,
+                "limits": {"run3_vs_run2_max_ratio": 1.3, "peak_gpu_MiB_max": 6500}})
+    return secs[2] <= 1.3 * secs[1] and peak["v"] <= 6500
+
+
+TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable)
 
 
 def main():

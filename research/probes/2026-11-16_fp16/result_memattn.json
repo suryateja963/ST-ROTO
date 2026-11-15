@@ -1,0 +1,22 @@
+{
+ "variant": "memattn.onnx",
+ "runs": [
+  {
+   "iou_vs_torch_min": 0.99544,
+   "iou_vs_torch_mean": 0.99898,
+   "iou_vs_gt_mean": 0.9951,
+   "iou_vs_gt_min": 0.9862,
+   "track_step_ms": 151.6,
+   "peak_gpu_MiB_so_far": 5069
+  },
+  {
+   "iou_vs_torch_min": 0.99544,
+   "iou_vs_torch_mean": 0.99898,
+   "iou_vs_gt_mean": 0.9951,
+   "iou_vs_gt_min": 0.9862,
+   "track_step_ms": 149.9,
+   "peak_gpu_MiB_so_far": 5069
+  }
+ ],
+ "device": "cuda"
+}

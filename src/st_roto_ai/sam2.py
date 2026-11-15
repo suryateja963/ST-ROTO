@@ -89,6 +89,23 @@ class Sam2Image:
                 "logits": upscale_logits(masks[0, 0, best], enc["width"], enc["height"])}
 
 
+VIDEO_GRAPHS = ("vencoder.onnx", "memenc.onnx", "decoder_mm.onnx", "decoder_single.onnx")
+
+
+def preload_video(model_dir: str, device: str = "auto") -> dict:
+    """Create (and cache) every session the video tracker needs. Session creation holds Python's GIL for ~1-3 s
+    (measured), so hosts call this at a moment the artist chooses; later tracking reuses the cached sessions."""
+    import time
+    t0 = time.time()
+    report = None
+    mattn = "memattn_fp16.onnx" if os.path.exists(os.path.join(model_dir, "memattn_fp16.onnx")) else "memattn.onnx"
+    for g in VIDEO_GRAPHS + (mattn,):
+        _, rep = open_session(os.path.join(model_dir, g), device)
+        report = report or rep
+    return {"seconds": round(time.time() - t0, 2), "device": report.active, "fallback": report.fallback,
+            "reason": report.reason}
+
+
 # ------------------------------------------------------------------------------------------------ video
 def bf16_round(x: np.ndarray) -> np.ndarray:
     """float32 -> bfloat16 -> float32, round-to-nearest-even (matches torch .to(torch.bfloat16))."""
@@ -112,10 +129,16 @@ class Sam2Video:
     shots may start at any number, including negatives (master prompt section 11). Callers map frame <-> position.
     """
 
-    def __init__(self, model_dir: str, device: str = "auto", num_total_frames: int | None = None):
+    def __init__(self, model_dir: str, device: str = "auto", num_total_frames: int | None = None,
+                 memattn_file: str | None = None):
         d = model_dir
+        if memattn_file is None:
+            # fp16 memory attention is the default when present (decision D-029): measured on the synthetic shot,
+            # same masks as fp32 (7 of 48x256x256 low-res pixels flip), 22% less peak GPU memory, 35% faster steps.
+            memattn_file = "memattn_fp16.onnx" if os.path.exists(os.path.join(d, "memattn_fp16.onnx")) else "memattn.onnx"
+        self.memattn_file = memattn_file
         self.venc, self.report = open_session(os.path.join(d, "vencoder.onnx"), device)
-        self.mattn, _ = open_session(os.path.join(d, "memattn.onnx"), device)
+        self.mattn, _ = open_session(os.path.join(d, memattn_file), device)
         self.menc, _ = open_session(os.path.join(d, "memenc.onnx"), device)
         self.dec_mm, _ = open_session(os.path.join(d, "decoder_mm.onnx"), device)
         self.dec_single, _ = open_session(os.path.join(d, "decoder_single.onnx"), device)

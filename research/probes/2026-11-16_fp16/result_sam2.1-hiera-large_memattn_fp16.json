@@ -1,0 +1,23 @@
+{
+ "variant": "memattn_fp16.onnx",
+ "model": "sam2.1-hiera-large",
+ "runs": [
+  {
+   "iou_vs_torch_min": 0.99069,
+   "iou_vs_torch_mean": 0.99899,
+   "iou_vs_gt_mean": 0.9872,
+   "iou_vs_gt_min": 0.5727,
+   "track_step_ms": 98.5,
+   "peak_gpu_MiB_so_far": 7000
+  },
+  {
+   "iou_vs_torch_min": 0.99069,
+   "iou_vs_torch_mean": 0.99899,
+   "iou_vs_gt_mean": 0.9872,
+   "iou_vs_gt_min": 0.5727,
+   "track_step_ms": 97.1,
+   "peak_gpu_MiB_so_far": 7000
+  }
+ ],
+ "device": "cuda"
+}
