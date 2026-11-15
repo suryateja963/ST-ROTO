@@ -55,3 +55,10 @@ Requirement: free, open source, permits commercial use, modification, redistribu
 - **OQ-11** First verifiable milestone (Claude to propose, now that the route is known).
 - **OQ-16** Confirm reading of D-024: supervisor lock override allowed only when the lock holder is offline/idle.
 - **OQ-17** Idle/offline threshold before a supervisor may override a lock.
+
+## Architecture (Phase 2), raised 2026-11-15
+
+- **OQ-18** Approve the architecture proposal (`ARCHITECTURE.md`, ADR-0001 to ADR-0010) as the basis for Phase 4 code? Changes can be requested per ADR.
+- **OQ-19** Project data in a **SQLite database per project** plus a cache folder, with the Nuke script holding only a link (ADR-0005)? The alternative is storing everything inside the .nk script: simpler, but no transactions, larger scripts, harder crash recovery. **Recommendation:** SQLite.
+- **OQ-20** Nuke 13 (Python 3.7, older CUDA) may have no GPU-capable ONNX Runtime build. If verification confirms that, should Nuke 13 get CPU-only AI (manual roto fully supported), or should the 1.0 floor move? Decision deferred until T-032 verifies the facts.
+- **OQ-21** Commit f3257b8 contains two small files of SAM 2.1 parameters (Apache-2.0, ~70 KB each) committed by mistake (now removed). Rewrite history to purge them (needs a force-push to `main`) or leave them, adding the Apache NOTICE? **Recommendation:** leave them and add attribution; a force-push is disruptive and the licence permits redistribution.

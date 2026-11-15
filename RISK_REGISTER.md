@@ -39,3 +39,5 @@ First issue, 2026-11-15. Likelihood and impact: High / Medium / Low. [V] verifie
 | R-33 | Keys added to a Nuke ShapeControlPoint after Shape.append() are silently lost (shape stores a copy) | [M] probe_anim_keys.py | Certain | High (empty exports) | Build fully keyed points before append; regression test per Nuke version | – |
 | R-34 | SAM 2.1 large tracking peaks at 7.8 of 8.15 GB GPU on the dev laptop | [M] | High | Medium | Default to tiny/small on 8 GB; hardware-aware routing (REQ-020/021) | – |
 | R-35 | Larger model was worse than tiny on the synthetic occlusion shot (frame 23 IoU 0.57 vs 0.99) | [M] one shot only | Unknown | Medium | Per-category benchmarks before choosing defaults (§21) | – |
+| R-36 | Nuke 13/14 (Python 3.7/3.9, older CUDA) may have no matching ONNX Runtime GPU build, making AI CPU-only there | [U] versions not verified (T-032) | Medium | High (D-017) | Verify per version early; CPU fallback; owner decision OQ-20 | OQ-20 |
+| R-37 | Threading of ORT CUDA work inside the interactive Nuke GUI untested (only headless measured) | ADR-0009 assumption | Medium | High (§14 responsiveness) | GUI threading prototype first in Phase 3/4 | – |

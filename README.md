@@ -6,7 +6,7 @@ AI-assisted and traditional rotoscoping inside Foundry Nuke. Intended to be free
 >
 > Model weights are never committed here. They will be distributed separately with checksums and only where their licences permit (master prompt §24).
 
-**Status (2026-11-15): Phase 1, Discovery and Audit. Desk research and machine audit done. No product code exists. Nothing is implemented. Only environment probes have been run.**
+**Status (2026-11-15): Phase 1 done, Phase 2 architecture proposed (awaiting owner approval), Phase 3 prototypes running. No product code exists yet. Prototypes proven in Nuke 17.1 NC: SAM 2.1 click-to-mask and video tracking on GPU in-process, native static and animated Bézier Roto shapes (see `research/probes/`).**
 
 ## Read these first
 
@@ -32,4 +32,4 @@ AI-assisted and traditional rotoscoping inside Foundry Nuke. Intended to be free
 | `TASK_BOARD.md` | Work items and status | First issue |
 | `DEVELOPMENT_LOG.md` | Dated log of what was actually done | First issue |
 
-Not yet created (they belong to later phases): `PROJECT_CHARTER.md`, `ARCHITECTURE.md`, `ROADMAP.md`, `TEST_PLAN.md`, `BENCHMARK_PLAN.md`, `CHANGELOG.md`, `RELEASE_CHECKLIST.md`.
+Architecture proposal (awaiting approval): `ARCHITECTURE.md`, `docs/adr/`. Not yet created: `PROJECT_CHARTER.md`, `ROADMAP.md`, `TEST_PLAN.md`, `BENCHMARK_PLAN.md`, `CHANGELOG.md`, `RELEASE_CHECKLIST.md`.
