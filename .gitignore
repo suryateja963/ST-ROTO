@@ -46,3 +46,6 @@ desktop.ini
 # Regeneratable synthetic footage and large reference arrays
 research/**/frames/
 research/**/*.npz
+
+# Derived model artefacts (exports, constants extracted from weights): never committed (D-008)
+models/onnx/
