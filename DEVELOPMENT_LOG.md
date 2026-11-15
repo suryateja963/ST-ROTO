@@ -210,3 +210,19 @@ Owner approved the architecture (D-026..D-028). Interactive-GUI probe: SAM 2.1 t
 ## 2026-11-16 � Bounded tracker memory (T-065)
 
 `st_roto_ai/spill.py` SpillDict: per-frame tracker state with at most N frames in RAM (default 24), least-recently-used frames written to disk and reloaded on demand, so results equal upstream's keep-everything behaviour. Test: tracker with a 2-frame RAM budget gives bit-identical masks to an unlimited one, with real disk reloads. Pipelines remove the temporary state when done. Unit 51/51, Nuke 7/7. R-42 mitigated (disk use ~2 MB per tracked frame during a run).
+
+## 2026-11-16 — Several objects per tracking pass (T-067)
+
+**Design from upstream.** transformers' `Sam2VideoModel.forward` tracks objects independently (per-object loop, batch size 1, shared image features). `st_roto_ai.sam2.Sam2MultiVideo` does the same: the image encoder runs once per frame, each object keeps its own `Sam2Video` state. `st_roto_nuke.track.track_objects` / `retrack_objects` (single-object functions are now thin wrappers); `apply_results` / `apply_retracks` write a whole pass as ONE undo step. Prompts carry an object name (old untagged points belong to the node's current object); ST_Roto: points per object, Clear all, Track tracks every prompted object, **Re-track all** (locked objects and objects with nothing to track from are skipped and reported).
+
+**Behaviour change.** Track now skips objects that already exist in the project (before: pressing Track twice created a duplicate object; with several objects per node this would duplicate every earlier object). The old Nuke test relied on renaming + re-tracking the same points and was updated to the new workflow.
+
+**Own bugs found.** (1) In `retrack_object` the reverse pass was meant to restart the point-order chain from the conditioning frame, but the reset ran at the start of the forward pass, so frame `first-1` took its start point from the LAST forward frame (possible point-order rotation at the seam). Fixed; regression test. (2) My first per-object RAM budget (24 // objects = 12) was below the tracker's 15-frame read window: 5,208 disk reloads per pass, found by profiling; budget ≥ 16 now. (3) The first timing probe did not pass the model, so "large" ran tiny; caught because both timings matched.
+
+**Tests.** Unit 61/61: two-object track and re-track identical to single-object runs (CPU), seam regression, per-object prompt rules. Nuke 8/8: new `test_multi_object_track` (IoU target 0.994–0.996, disc 0.983–0.995; one undo removes both; Re-track all fills the disc's frames before its prompt). GUI test passes (22.9 s). GPU probe: identical results (0.0 px), 2 objects 1.36× (tiny) / 1.56× (large) faster than two passes. Evidence: `research/probes/2026-11-16_multi_object/RESULTS.md`.
+
+## 2026-11-16 — Matting: licence research and model-free soft edges (step 1)
+
+**Research** (`docs/RESEARCH_2026-11-16_MATTING.md`): no matting model is clean on both licence and training data. ViTMatte (Apache weights) trained on Adobe DIM / Composition-1k (terms by request, reported non-commercial); BiRefNet matting weights MIT but trained on P3M-10k, AM-2k, Distinctions-646 etc.; ZIM is CC BY-NC 4.0 (licence text read); MatAnyone, VideoMaMa non-commercial. Owner question OQ-22 (recommendation: ViTMatte-S as optional download, off by default, caveat shown). No model downloaded.
+
+**Work.** `st_roto.matte`: colour guided filter (He et al.) restricted to a band around the shape edge; hard inside/outside. Measured on composites with known alpha (`research/probes/2026-11-16_matting`): edge error (SAD) 0.59× the hard shape's on average with the chosen defaults (soft edge 0.44×, motion blur 0.35×, 2 px offset 0.70×, missed hair strands 0.86× — hair needs a learned model). Unit tests pin the improvement (≥ 40 % on soft and motion-blurred edges) and that pixels outside the band never change.

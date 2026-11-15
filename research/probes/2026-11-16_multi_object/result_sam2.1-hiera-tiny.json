@@ -1,0 +1,54 @@
+{
+ "model": "sam2.1-hiera-tiny",
+ "frames": 48,
+ "load": {
+  "seconds": 3.17,
+  "device": "cuda",
+  "fallback": false,
+  "reason": ""
+ },
+ "trials": [
+  {
+   "two_single_passes_s": 27.42,
+   "one_multi_pass_s": 20.26,
+   "speedup": 1.35,
+   "device": "cuda",
+   "max_point_diff_px_single_vs_multi": [
+    0.0,
+    0.0
+   ]
+  },
+  {
+   "two_single_passes_s": 27.24,
+   "one_multi_pass_s": 19.93,
+   "speedup": 1.37,
+   "device": "cuda",
+   "max_point_diff_px_single_vs_multi": [
+    0.0,
+    0.0
+   ]
+  }
+ ],
+ "profile_multi_pass_top_tottime": [
+  "         682087 function calls (681777 primitive calls) in 20.199 seconds",
+  "",
+  "   Ordered by: internal time",
+  "   List reduced from 369 to 12 due to restriction <12>",
+  "",
+  "   ncalls  tottime  percall  cumtime  percall filename:lineno(function)",
+  "      334   10.303    0.031   10.303    0.031 {built-in method onnxruntime.capi.onnxruntime_pybind11_state.run}",
+  "       96    2.586    0.027    3.168    0.033 d:\\ST-ROTO/src\\st_roto\\geometry.py:248(trace_contours)",
+  "       48    1.559    0.032    1.559    0.032 d:\\ST-ROTO/src\\st_roto_ai\\resize.py:45(<listcomp>)",
+  "       48    1.392    0.029    1.594    0.033 d:\\ST-ROTO/src\\st_roto_nuke\\colour.py:15(to_model_input)",
+  "       94    0.624    0.007    9.271    0.099 d:\\ST-ROTO/src\\st_roto_ai\\sam2.py:228(track)",
+  "       96    0.624    0.006    1.451    0.015 d:\\ST-ROTO/src\\st_roto_ai\\sam2.py:181(_encode_memory)",
+  "       48    0.600    0.013    2.678    0.056 d:\\ST-ROTO/src\\st_roto_ai\\sam2.py:26(preprocess)",
+  "     1240    0.391    0.000    0.391    0.000 {method 'astype' of 'numpy.ndarray' objects}",
+  "      238    0.210    0.001    0.212    0.001 d:\\ST-ROTO/.tools/nuke-py311\\numpy\\_core\\shape_base.py:378(stack)",
+  "      144    0.208    0.001    0.208    0.001 {built-in method numpy.ascontiguousarray}",
+  "     3100    0.187    0.000    0.187    0.000 {method 'write' of '_io.BufferedRandom' objects}",
+  "       96    0.146    0.002    0.147    0.002 d:\\ST-ROTO/.tools/nuke-py311\\numpy\\lib\\_arraypad_impl.py:87(_pad_simple)",
+  "",
+  ""
+ ]
+}

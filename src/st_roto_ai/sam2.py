@@ -2,8 +2,8 @@
 
 Graphs are produced by tools/models/export_sam2_onnx.py (image) and tools/models/export_sam2_video_onnx.py (video).
 The video tracker re-implements the inference-time memory logic of transformers' Sam2VideoModel (v5.23); it was
-verified frame by frame against PyTorch (mask IoU >= 0.99997, research/probes/2026-11-15_video). Supported now:
-one object, forward tracking from one clicked frame. Not yet: reverse, multi-object, corrections, mask prompts.
+verified frame by frame against PyTorch (mask IoU >= 0.99997, research/probes/2026-11-15_video). Supported: point
+and mask prompts on any number of frames, forward and reverse tracking, several objects per pass (Sam2MultiVideo).
 
 Input images: float32 RGB in [0,1], in the model's expected encoding (sRGB-encoded for SAM). Converting from the
 host's working colour space is the host adapter's job (ADR-0010) and must be recorded in provenance.
@@ -268,3 +268,52 @@ class Sam2Video:
         # `max_frames_in_ram` stay in memory; the rest live on disk (SpillDict), so RAM no longer grows with shot length.
         self.noncond[frame] = keep
         return self._result(keep)
+
+
+class Sam2MultiVideo:
+    """Several objects in ONE pass (T-067): every frame is encoded once and shared; each object keeps its own memory
+    bank, object pointers and conditioning frames in its own `Sam2Video` state.
+
+    This is exactly upstream's multi-object behaviour: `Sam2VideoModel.forward` (transformers 5.23) loops over objects
+    and runs `_run_single_frame_inference(batch_size=1)` per object ("per-object inputs can differ"); only the image
+    features are shared and memory encoding is batched, which does not change per-object results. Hence each object's
+    result here is identical to tracking it alone (tests/unit/test_ai_sam2.py), while the image encoder - the most
+    expensive graph - runs once per frame instead of once per object and frame.
+
+    Objects may use different position mappings and sequence lengths (`num_total_frames`), so a caller can reproduce
+    a single-object run per object exactly. Sessions are process-wide cached, so adding an object is cheap.
+    """
+
+    def __init__(self, model_dir: str, device: str = "auto", memattn_file: str | None = None):
+        self.model_dir, self.device, self.memattn_file = model_dir, device, memattn_file
+        self.objects = {}
+        self._encoder = None
+
+    def add_object(self, key, num_total_frames: int | None = None, max_frames_in_ram: int = 24) -> Sam2Video:
+        if key in self.objects:
+            raise KeyError("object %r already added" % (key,))
+        t = Sam2Video(self.model_dir, self.device, num_total_frames=num_total_frames, memattn_file=self.memattn_file,
+                      max_frames_in_ram=max_frames_in_ram)
+        self.objects[key] = t
+        if self._encoder is None:
+            self._encoder = t
+        return t
+
+    @property
+    def report(self):
+        if self._encoder is None:
+            raise RuntimeError("add an object first")
+        return self._encoder.report
+
+    def encode(self, rgb: np.ndarray) -> dict:
+        """Encode one frame once for every object."""
+        if self._encoder is None:
+            raise RuntimeError("add an object first")
+        enc = self._encoder.encode(rgb)
+        for t in self.objects.values():
+            t.size = self._encoder.size
+        return enc
+
+    def close(self):
+        for t in self.objects.values():
+            t.close()

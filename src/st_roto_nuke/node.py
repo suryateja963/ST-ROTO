@@ -4,11 +4,13 @@ Structure: Group "ST_Roto" with  Input -> Roto(STROTO_shapes, alpha) -> Output, 
 (STROTO_pixels) that pulls pixels into numpy. 5 nodes per shot including the group.
 
 Artist workflow (knob tab ST-ROTO):
-  1. drag the "point" handle in the viewer onto the object, press "+ Include" (or "- Exclude") - repeat as needed;
-  2. "Preview" shows the AI shape for the current frame (temporary, not saved);
+  1. set "object name", drag the "point" handle in the viewer onto the object, press "+ Include" (or "- Exclude")
+     - repeat as needed; change "object name" and add points to prompt further objects (T-067);
+  2. "Preview" shows the AI shape of the current object on its prompt frame (temporary, not saved);
   3. "Load model" (optional, once per Nuke session) takes the one-time GPU set-up pause now;
-  4. "Track" tracks forward from the prompt frame on a worker thread; the result is stored in the project
-     (AI provenance, undoable) and synchronised into the Roto node without touching shapes edited there.
+  4. "Track" tracks every prompted object forward from its prompt frame, in one pass on a worker thread (each frame
+     is rendered and encoded once); the result is stored in the project (AI provenance, ONE undo step) and
+     synchronised into the Roto node without touching shapes edited there.
 Python viewer clicks are not used: Non-commercial cannot load C++ overlays and Nuke offers no supported Python
 mapping from viewer clicks to image coordinates; the XY knob handle is Nuke's native in-viewer point.
 """
@@ -25,7 +27,7 @@ import nuke.rotopaint  # noqa: F401
 from st_roto import jobs, prompts
 from . import pixels, session
 from .roto_export import export_preview, import_edits, sync_shot
-from .track import apply_result, models_root, track_object
+from .track import apply_results, models_root, track_object, track_objects
 
 MODELS = ["sam2.1-hiera-tiny", "sam2.1-hiera-large"]
 DEVICES = ["auto", "cpu"]
@@ -51,7 +53,10 @@ def create(source=None, project_path: str = ""):
     group.addKnob(xy)
     _button(group, "stroto_add_inc", "+ Include", "n.on_add_point(nuke.thisNode(), 1)")
     _button(group, "stroto_add_exc", "- Exclude", "n.on_add_point(nuke.thisNode(), 0)", new_line=False)
-    _button(group, "stroto_clear", "Clear points", "n.on_clear_points(nuke.thisNode())", new_line=False)
+    cp = _button(group, "stroto_clear", "Clear points", "n.on_clear_points(nuke.thisNode())", new_line=False)
+    cp.setTooltip("Removes the points of the object named above.")
+    _button(group, "stroto_clear_all", "Clear all", "n.on_clear_points(nuke.thisNode(), every_object=True)",
+            new_line=False)
     pts = nuke.String_Knob("stroto_points", "points (json)"); group.addKnob(pts)
     group.addKnob(nuke.Text_Knob("stroto_points_info", "", "no points"))
     group.addKnob(nuke.Int_Knob("stroto_click_frame", "click frame (if no points)"))
@@ -66,6 +71,9 @@ def create(source=None, project_path: str = ""):
     rt = _button(group, "stroto_retrack", "Re-track object", "n.on_retrack(nuke.thisNode())")
     rt.setTooltip("Re-tracks the object named above in both directions, using every frame you corrected or drew as a "
                   "guide. Your keys are never changed; only AI keys are replaced.")
+    ra = _button(group, "stroto_retrack_all", "Re-track all", "n.on_retrack(nuke.thisNode(), every_object=True)",
+                 new_line=False)
+    ra.setTooltip("Re-tracks every unlocked object of this shot in one pass (each frame is analysed once).")
     imp = _button(group, "stroto_import", "Save Roto edits to project", "n.on_import_edits(nuke.thisNode())",
                   new_line=False)
     imp.setTooltip("Records shapes you edited or drew in this node's Roto into the ST-ROTO project (undoable).")
@@ -143,19 +151,27 @@ def _context(group):
     src = _inner(group, "src", None)
     write, roto = _inner(group, "write", "STROTO_pixels"), _inner(group, "roto", "STROTO_shapes")
     text = group["stroto_points"].value()
+    current = _object_name(group)
     if prompts.load(text):
-        frame, xy, labels = prompts.for_tracker(text)
+        objects = prompts.objects_for_tracker(text, current)
     else:                                                     # backwards-compatible single click
         cx, cy = group["stroto_click"].value()
-        frame, xy, labels = int(group["stroto_click_frame"].value()), [(float(cx), _height(group) - float(cy))], [1]
+        objects = [{"name": current, "frame": int(group["stroto_click_frame"].value()),
+                    "points": [(float(cx), _height(group) - float(cy))], "labels": [1]}]
     first, last = int(src.firstFrame()), int(src.lastFrame())
-    if not first <= frame <= last:
-        raise ValueError("prompt frame %d is outside the source range %d-%d" % (frame, first, last))
-    return {"src": src, "write": write, "roto": roto, "frame": frame, "xy": xy, "labels": labels,
+    for o in objects:
+        if not first <= o["frame"] <= last:
+            raise ValueError("prompt frame %d of %r is outside the source range %d-%d" % (o["frame"], o["name"], first, last))
+    mine = [o for o in objects if o["name"] == current] or (objects if len(objects) == 1 else [])
+    return {"src": src, "write": write, "roto": roto, "objects": objects, "current": mine[0] if mine else None,
             "first": first, "last": last, "width": int(src.width()), "height": int(src.height()),
             "model": group["stroto_model"].value(), "device": group["stroto_device"].value(),
-            "project": group["stroto_project"].value(), "object": group["stroto_object"].value() or "object",
+            "project": group["stroto_project"].value(), "object": current,
             "pixel_path": pixels.temp_pixel_path(group.name())}
+
+
+def _object_name(group):
+    return group["stroto_object"].value().strip() or "object"
 
 
 def _renderer(ctx, background):
@@ -202,16 +218,22 @@ def _run(group, name, work, apply, background):
 def on_add_point(group, label: int):
     cx, cy = group["stroto_click"].value()
     try:
-        text = prompts.add(group["stroto_points"].value(), int(nuke.frame()), float(cx), _height(group) - float(cy), label)
+        text = prompts.add(group["stroto_points"].value(), int(nuke.frame()), float(cx), _height(group) - float(cy),
+                           label, obj=_object_name(group))
     except ValueError as e:
         _status(group, "error: %s" % e); return
     group["stroto_points"].setValue(text)
-    group["stroto_points_info"].setValue(prompts.summary(text))
+    group["stroto_points_info"].setValue(prompts.summary(text, _object_name(group)))
 
 
-def on_clear_points(group):
-    group["stroto_points"].setValue("")
-    group["stroto_points_info"].setValue("no points")
+def on_clear_points(group, every_object: bool = False):
+    """Clear the current object's points (or every object's)."""
+    name = _object_name(group)
+    text = "" if every_object else prompts.clear(group["stroto_points"].value(), name, name)
+    if not prompts.load(text):
+        text = ""
+    group["stroto_points"].setValue(text)
+    group["stroto_points_info"].setValue(prompts.summary(text, name))
 
 
 def on_load_model(group):
@@ -238,50 +260,70 @@ def on_cancel(group):
 
 
 def on_preview(group, background: bool = True):
-    """Segment only the prompt frame and show it as a temporary shape (not saved, not undoable)."""
+    """Segment the current object on its prompt frame and show it as a temporary shape (not saved, not undoable)."""
     try:
         ctx = _context(group)
+        o = ctx["current"]
+        if o is None:
+            raise ValueError("no points for object %r (points exist for: %s)"
+                             % (ctx["object"], ", ".join(g["name"] for g in ctx["objects"])))
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None
     get_rgb = _renderer(ctx, background)
 
     def work(job):
-        return track_object(get_rgb, [ctx["frame"]], ctx["frame"], ctx["xy"], model=ctx["model"],
-                            device=ctx["device"], job=job, labels=ctx["labels"])
+        return track_object(get_rgb, [o["frame"]], o["frame"], o["points"], model=ctx["model"],
+                            device=ctx["device"], job=job, labels=o["labels"])
 
     def apply(job):
         export_preview(ctx["roto"]["curves"], job.result["keys"], ctx["height"])
-        job.applied = "preview on frame %d (%s)" % (ctx["frame"], "object found" if job.result["keys"] else "NO object found")
+        job.applied = "preview of %s on frame %d (%s)" % (o["name"], o["frame"],
+                                                          "object found" if job.result["keys"] else "NO object found")
         group["stroto_status"].setValue(job.applied)
 
     return _run(group, "preview", work, apply, background)
 
 
 def on_track(group, background: bool = True):
-    """Track forward from the prompt frame; store (AI provenance) and sync into the Roto node."""
+    """Track every prompted object forward from its prompt frame in one pass; store (AI provenance, one undo step)
+    and sync into the Roto node."""
     try:
         ctx = _context(group)
         if not ctx["project"]:
             raise ValueError("set a project file")
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None
+    store, _ = session.project(ctx["project"])
+    shot = store.conn.execute("SELECT id FROM shots WHERE name = ?", (ctx["src"].name(),)).fetchone()
+    existing = {o["name"] for o in store.objects(shot["id"])} if shot else set()
+    already = [o["name"] for o in ctx["objects"] if o["name"] in existing]
+    ctx["objects"] = [o for o in ctx["objects"] if o["name"] not in existing]
+    if not ctx["objects"]:
+        _status(group, "error: already tracked: %s - use Re-track, or delete the object first (or rename it and "
+                       "prompt again)" % ", ".join(already))
+        return None
+    skipped_note = ("; skipped %s (already tracked: use Re-track)" % ", ".join(already)) if already else ""
     get_rgb = _renderer(ctx, background)
-    frames = list(range(ctx["frame"], ctx["last"] + 1))
+    start = min(o["frame"] for o in ctx["objects"])
+    frames = list(range(start, ctx["last"] + 1))
 
     def work(job):
-        return track_object(get_rgb, frames, ctx["frame"], ctx["xy"], model=ctx["model"], device=ctx["device"],
-                            job=job, labels=ctx["labels"])
+        return track_objects(get_rgb, frames, ctx["objects"], model=ctx["model"], device=ctx["device"], job=job)
 
     def apply(job):
         result = job.result
         store, bus = session.project(ctx["project"])
         shot_id = _ensure_shot(store, bus, ctx)
         export_preview(ctx["roto"]["curves"], {}, ctx["height"])          # remove the temporary preview
-        import_edits(store, bus, shot_id, ctx["roto"]["curves"], ctx["height"], ctx["frame"])   # capture artist work first
-        oid, _ = apply_result(bus, shot_id, ctx["object"], result)
+        import_edits(store, bus, shot_id, ctx["roto"]["curves"], ctx["height"], start)   # capture artist work first
+        ids = apply_results(bus, shot_id, result["objects"])
         rep = sync_shot(store, shot_id, ctx["roto"]["curves"], ctx["height"])
-        msg = "done: %d keys, %d frames without object, device %s" % (
-            len(result["keys"]), len(result["absent_frames"]), result["device"]) + _review_text(store, oid)
+        parts = []
+        for r, (oid, _) in zip(result["objects"], ids):
+            parts.append("%s%d keys, %d frames without object" % (
+                "" if len(ids) == 1 else r["name"] + ": ", len(r["keys"]), len(r["absent_frames"]))
+                + _review_text(store, oid))
+        msg = "done: %s; device %s%s" % (" | ".join(parts), result["device"], skipped_note)
         if result["device_fallback"]:
             msg += " (FALLBACK: %s)" % result["device_reason"]
         if rep["conflicts"]:
@@ -293,9 +335,10 @@ def on_track(group, background: bool = True):
     return _run(group, "track", work, apply, background)
 
 
-def on_retrack(group, background: bool = True):
-    """Re-track the object named in 'object name' using its artist keys as guides (forward + reverse)."""
-    from .track import apply_retrack, retrack_object
+def on_retrack(group, background: bool = True, every_object: bool = False):
+    """Re-track the object named in 'object name' (or every unlocked object of the shot, in one pass) using its
+    artist keys and prompts as guides (forward + reverse). All results are ONE undo step."""
+    from .track import apply_retracks, retrack_objects, retrack_plan
     try:
         src = _inner(group, "src", None)
         write, roto = _inner(group, "write", "STROTO_pixels"), _inner(group, "roto", "STROTO_shapes")
@@ -308,35 +351,34 @@ def on_retrack(group, background: bool = True):
         if shot is None:
             raise ValueError("nothing tracked or imported yet for %s" % src.name())
         import_edits(store, bus, shot["id"], curves, height, int(nuke.frame()))       # capture latest artist edits
-        name = group["stroto_object"].value()
-        obj = [o for o in store.objects(shot["id"]) if o["name"] == name]
-        if not obj:
-            raise ValueError("no object named %r (set 'object name')" % name)
-        shapes = store.shapes(obj[0]["id"])
-        if not shapes:
-            raise ValueError("object %r has no shape" % name)
-        ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name())}
         frames = list(range(int(src.firstFrame()), int(src.lastFrame()) + 1))
         width = int(src.width())
+        targets, skipped = _retrack_targets(store, shot["id"], _object_name(group), frames, every_object, retrack_plan)
+        ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name())}
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None
     get_rgb = _renderer(ctx, background)
-    sid = shapes[0]["id"]
+    sids = [sid for _, _, sid in targets]
     model, device = group["stroto_model"].value(), group["stroto_device"].value()     # read knobs on main thread
 
     def work(job):
         ro = store_ro(project)          # worker thread: its own connection (SQLite objects are thread-bound)
         try:
-            return retrack_object(get_rgb, ro, sid, frames, width, height, model=model, device=device, job=job)
+            return retrack_objects(get_rgb, ro, sids, frames, width, height, model=model, device=device, job=job)
         finally:
             ro.close()
 
     def apply(job):
-        n = apply_retrack(bus, store, sid, job.result)
+        counts = apply_retracks(bus, store, job.result["shapes"])
         rep = sync_shot(store, shot["id"], curves, height)
-        msg = "re-tracked %s: %d AI keys changed, %d artist keys kept, device %s" % (
-            name, n, len(json.loads(job.result["generator"])["retrack"]["artist_frames"]), job.result["device"]) \
-            + _review_text(store, obj[0]["id"])
+        parts = []
+        for name, oid, sid in targets:
+            kept = len(json.loads(job.result["shapes"][sid]["generator"])["retrack"]["artist_frames"])
+            parts.append("%s: %d AI keys changed, %d artist keys kept" % (name, counts[sid], kept)
+                         + _review_text(store, oid))
+        msg = "re-tracked %s; device %s" % (" | ".join(parts), job.result["device"])
+        if skipped:
+            msg += "; skipped %s" % ", ".join("%s (%s)" % s for s in skipped)
         if rep["conflicts"]:
             msg += "; NOT updated (edited in Roto): %s" % ", ".join(rep["conflicts"])
         job.applied = msg
@@ -344,6 +386,36 @@ def on_retrack(group, background: bool = True):
         group["stroto_status"].setValue(msg)
 
     return _run(group, "re-track", work, apply, background)
+
+
+def _retrack_targets(store, shot_id, current, frames, every_object, plan):
+    """-> ([(object name, object id, shape id)], [(name, reason)]). One object: errors are raised; every object:
+    locked objects and objects with nothing to track from are skipped and reported."""
+    objs = store.objects(shot_id)
+    if not every_object:
+        objs = [o for o in objs if o["name"] == current]
+        if not objs:
+            raise ValueError("no object named %r (set 'object name')" % current)
+    targets, skipped = [], []
+    for o in objs:
+        shapes = store.shapes(o["id"])
+        if not shapes:
+            if not every_object:
+                raise ValueError("object %r has no shape" % o["name"])
+            skipped.append((o["name"], "no shape")); continue
+        if every_object and (o["locked"] or shapes[0]["locked"]):
+            skipped.append((o["name"], "locked")); continue
+        try:
+            plan(store, shapes[0]["id"], frames)
+        except ValueError:
+            if not every_object:
+                raise
+            skipped.append((o["name"], "no artist keys or prompt")); continue
+        targets.append((o["name"], o["id"], shapes[0]["id"]))
+    if not targets:
+        raise ValueError("nothing to re-track" + (": skipped %s" % ", ".join("%s (%s)" % s for s in skipped)
+                                                  if skipped else ""))
+    return targets, skipped
 
 
 def _review_text(store, object_id):

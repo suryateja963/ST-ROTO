@@ -194,8 +194,14 @@ def test_prompts_preview_sync_protection(res):
     res["track1"] = {"status": g["stroto_status"].value(), "layer": names(), "sync": getattr(j1, "sync_report", None)}
     ok &= j1.status == "done" and len(names()) == 1 and TAG_RE.search(names()[0]) is not None
     first_label = names()[0]
-    g["stroto_object"].setValue("second")
+    j_again = stnode.on_track(g, background=False)              # same prompts again: refused, no duplicate (T-067)
+    res["track_again"] = g["stroto_status"].value()
+    ok &= j_again is None and "already tracked: object1" in res["track_again"] and len(names()) == 1
+    g["stroto_object"].setValue("second")                       # a second object: its own prompt point
+    g["stroto_click"].setValue([cx, vh - cy]); stnode.on_add_point(g, 1)
     j2 = stnode.on_track(g, background=False)
+    res["track2"] = g["stroto_status"].value()
+    ok &= j2 is not None and "skipped object1" in res["track2"] and len(names()) == 2
     second_label = [x for x in names() if x != first_label][0]
     store, bus = session.project(proj)
     shot = stnode.shot_id_for(g)
@@ -400,9 +406,79 @@ def test_review_flags_reverse(res):
             and "REVIEW lost" in res["status"])
 
 
+def test_multi_object_track(res):
+    """T-067: prompts for TWO objects on one ST_Roto node (target on frame 0, distractor disc on frame 4) -> one
+    Track pass -> two objects, ONE undo step for both; then 'Re-track all' fills the disc's frames 0-3 in reverse."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    from st_roto.geometry import Anchor
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vw, vh, n = meta["w"], meta["h"], 12
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "multi.stroto")
+    g = stnode.create(rd, proj)
+
+    def disc(f):
+        s = f / 47.0
+        return 1050 - 600 * s, 560 - 120 * np.sin(np.pi * s)
+
+    for name, frame, (x, y) in (("target", 0, meta["click_xy"]), ("disc", 4, disc(4))):
+        g["stroto_object"].setValue(name)
+        nuke.frame(frame)
+        g["stroto_click"].setValue([x, vh - y])                             # canonical -> Nuke y-up
+        stnode.on_add_point(g, 1)
+    res["points_info"] = g["stroto_points_info"].value()
+    job = stnode.on_track(g, background=False)
+    res["track_status"] = g["stroto_status"].value()
+    if job is None or job.status != "done":
+        res["error"] = job.error if job else "no job"; return False
+    store, bus = session.project(proj)
+    objs = {o["name"]: o for o in store.objects(store.conn.execute("SELECT id FROM shots").fetchone()["id"])}
+    sids = {k: store.shapes(o["id"])[0]["id"] for k, o in objs.items()}
+    yy, xx = np.mgrid[0:vh, 0:vw] + 0.5
+
+    def raster(k):
+        a = [Anchor(p=np.array(p[:2]), h_in=np.array(p[2:4]), h_out=np.array(p[4:]), corner=False) for p in k["points"]]
+        return rasterize_spline(a, vh, vw)
+
+    def disc_gt(f):
+        cx, cy = disc(f)
+        tgt = cv2.imread(VIDEO + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE) > 127    # target is drawn over the disc
+        return (np.hypot(xx - cx, yy - cy) <= 85) & ~tgt
+
+    def quality(name, gt):
+        return {k["frame"]: round(iou(raster(k), gt(k["frame"])), 4) for k in store.keys(sids[name])}
+
+    tgt_gt = lambda f: cv2.imread(VIDEO + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE) > 127
+    res["track"] = {"objects": sorted(objs), "target_iou": quality("target", tgt_gt), "disc_iou": quality("disc", disc_gt)}
+    ok = (sorted(objs) == ["disc", "target"] and sorted(res["track"]["target_iou"]) == list(range(n))
+          and sorted(res["track"]["disc_iou"]) == list(range(4, n))
+          and min(res["track"]["target_iou"].values()) > 0.97 and min(res["track"]["disc_iou"].values()) > 0.97)
+    # one undo step removes both objects; redo restores both
+    bus.undo()
+    res["after_undo_objects"] = store.conn.execute("SELECT COUNT(*) FROM objects").fetchone()[0]
+    bus.redo()
+    res["after_redo_objects"] = store.conn.execute("SELECT COUNT(*) FROM objects").fetchone()[0]
+    ok &= res["after_undo_objects"] == 0 and res["after_redo_objects"] == 2
+    stnode.resync(g, import_first=False)
+    # Re-track all: the disc's prompt is on frame 4 -> the reverse pass now fills frames 0-3
+    job2 = stnode.on_retrack(g, background=False, every_object=True)
+    res["retrack_status"] = g["stroto_status"].value()
+    res["retrack"] = {"disc_iou": quality("disc", disc_gt), "target_frames": sorted(quality("target", tgt_gt))}
+    ok &= (job2 is not None and job2.status == "done" and sorted(res["retrack"]["disc_iou"]) == list(range(n))
+           and min(res["retrack"]["disc_iou"].values()) > 0.97 and res["retrack"]["target_frames"] == list(range(n)))
+    # the Roto node shows both objects
+    res["roto_shapes"] = sorted(it.name for it in stnode._INNER[g.fullName()]["roto"]["curves"].rootLayer)
+    ok &= len(res["roto_shapes"]) == 2
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
-         test_review_flags_reverse)
+         test_review_flags_reverse, test_multi_object_track)
 
 
 def main():
