@@ -16,6 +16,7 @@ Updated 2026-11-15.
 | T-011c | ONNX Runtime CUDA in-process in Nuke 17.1 NC, coexisting with libtorch; version pin found | same |
 | T-030 | Licence texts: SAM License, S-Lab 1.0, ORT, BiRefNet, Foundry EULA key clauses (partial) | `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md` |
 | T-031 | Missing model categories, first pass (partial) | `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md` |
+| T-021 | Public GitHub repository created and pushed | https://github.com/suryateja963/ST-ROTO (commit 2a0adea) |
 | T-010 | Machine audit: Python, compiler, CUDA, driver, Nuke build, Git; live headless probes in Nuke NC | `docs/MACHINE_AUDIT_2026-11-15.md`, `research/probes/2026-11-15_machine_audit/` |
 
 ## Blocked
@@ -25,7 +26,6 @@ Updated 2026-11-15.
 | T-011b | In-process inference prototypes, routes B and D (NDK C++) | OQ-01; VS 2022 Build Tools + CMake not installed (OQ-14) |
 | T-013 | Architecture proposal and ADRs | Unblocked (D-009..D-012) |
 | T-020 | Collaboration architecture | Unblocked by D-022..D-025 (OQ-16/17 minor) |
-| T-021 | Create GitHub repository | Unblocked (D-013, D-014): install gh, owner signs in |
 
 ## Ready (desk research, can proceed now)
 
