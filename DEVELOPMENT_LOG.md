@@ -148,3 +148,9 @@ Owner approved the architecture (D-026..D-028). Interactive-GUI probe: SAM 2.1 t
 **Results.** Unit tests 31/31 passing. The first Nuke test run FAILED (IoU 0.9926, and negative-frame renders "missing"). Investigation: Nuke names negative frames `name.-002.tif`, and the test's reference rasteriser (cv2.fillPoly) paints outline pixels, making shapes ~0.5 px fat. A real bias was found too: shapes fitted to cv2 contours are ~0.5 px too small (R-38). After the fixes: render vs exact spline 0.9980–0.9984, vs analytic ellipse 0.9968–0.9978 on frames −2..5; test passes. The 0.998 threshold has little margin.
 
 **CI.** First GitHub Actions runs green (Windows/Linux × Python 3.9/3.11, Python 3.7 compatibility). Node 20 deprecation warning on actions to address.
+
+## 2026-11-15 — AI layer v0 (T-054) and real Python 3.7 CI
+
+**Work.** `src/st_roto_ai/runtime.py` reports requested vs actually-loaded device (silent CPU fallback becomes visible). `src/st_roto_ai/sam2.py`: SAM 2.1 image and video adapters promoted from the prototypes. A fidelity slip (an improvised pointer-loop stop condition) was caught in review before testing and reverted to upstream behaviour; tracker frames are now documented as 0-based sequence positions. `st_roto.geometry.mask_to_points` (logits → sub-pixel contour → stored-key points). Layering test extended to the AI layer.
+
+**Tests.** 34 unit tests passing locally, including SAM image click → shape (IoU > 0.995 vs mask) and the video tracker vs the PyTorch reference (first 6 frames, IoU > 0.995). AI tests skip in CI (no weights in the repository). CI: vermin check replaced by running the whole suite on Python 3.7 (it gave non-deterministic results locally); all CI jobs green, including Python 3.7.

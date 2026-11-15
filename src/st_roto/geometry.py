@@ -328,6 +328,26 @@ def rasterize_closed(poly: np.ndarray, height: int, width: int) -> np.ndarray:
     return out
 
 
+def mask_to_points(field: np.ndarray, count: int | None = None, start_hint=None, level: float = 0.0,
+                   tol: float = 1.0) -> list:
+    """Mask logits (or `binary - 0.5`) -> stored-key points [[x,y,hin_x,hin_y,hout_x,hout_y], ...] for the largest
+    region. count=None: adaptive fit (static shapes); count=k: exactly k anchors (animated shapes, constant
+    topology) with anchor 0 nearest to `start_hint`. Returns [] if the field has no region.
+    Multi-piece objects: callers needing every piece should use trace_contours directly (ADR-0004)."""
+    loops = trace_contours(field, level)
+    if not loops:
+        return []
+    loop = max(loops, key=lambda l: abs(_signed_area(l)))
+    anchors = fit_closed_contour(loop, tol=tol) if count is None else fit_fixed_count(loop, count, start_hint=start_hint)
+    return [[float(a.p[0]), float(a.p[1]), float(a.h_in[0]), float(a.h_in[1]), float(a.h_out[0]), float(a.h_out[1])]
+            for a in anchors]
+
+
+def _signed_area(poly):
+    x, y = poly[:, 0], poly[:, 1]
+    return 0.5 * float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1)))
+
+
 def rasterize_spline(anchors: list, height: int, width: int, per_segment: int = 64) -> np.ndarray:
     return rasterize_closed(sample_spline(anchors, per_segment), height, width)
 
