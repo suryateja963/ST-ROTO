@@ -1,0 +1,4 @@
+# Packages imported inside Nuke 17.1 (Python 3.11, CUDA 12.8, cuDNN 9.7).
+# onnxruntime-gpu 1.26.0 is the newest PyPI build linked against CUDA 12; 1.27+ need CUDA 13.
+onnxruntime-gpu==1.26.0
+numpy==2.4.6

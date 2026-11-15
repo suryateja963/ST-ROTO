@@ -1,0 +1,41 @@
+# Local tools (portable gh etc.) — kept in the project folder, never committed
+.tools/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+
+# Caches, temp, logs, build output (regeneratable; see master prompt §18)
+cache/
+.cache/
+tmp/
+build/
+dist/
+*.log
+
+# Model weights are distributed separately with checksums (§23, §24); never committed
+models/weights/
+*.onnx
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.engine
+*.cat
+
+# Probe render output (regeneratable from the probe scripts)
+research/**/out/
+
+# Nuke autosaves and backups
+*.nk~
+*.autosave
+*.nk.autosave*
+
+# OS / editor
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/

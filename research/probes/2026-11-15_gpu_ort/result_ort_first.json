@@ -1,0 +1,94 @@
+{
+ "order": "ort_first",
+ "pid": 7132,
+ "B_ort": {
+  "ort_version": "1.26.0",
+  "ort_file": "D:\\ST-ROTO/.tools/nuke-py311\\onnxruntime\\__init__.py",
+  "numpy": "2.4.6",
+  "available_providers": [
+   "TensorrtExecutionProvider",
+   "CUDAExecutionProvider",
+   "CPUExecutionProvider"
+  ],
+  "max_abs_diff_cuda_vs_cpu": 3.2275915145874023e-05,
+  "sessions": {
+   "cuda": {
+    "active_providers": [
+     "CUDAExecutionProvider",
+     "CPUExecutionProvider"
+    ],
+    "session_load_s": 0.138,
+    "runs": {
+     "seconds": 0.976,
+     "gpu_mem_base_MiB": 2987,
+     "gpu_mem_peak_MiB": 4011,
+     "gpu_util_peak_pct": 100,
+     "n_samples": 7,
+     "sec_per_run": 0.1952
+    },
+    "out_mean": 0.4932846128940582
+   },
+   "cpu": {
+    "active_providers": [
+     "CPUExecutionProvider"
+    ],
+    "session_load_s": 0.037,
+    "runs": {
+     "seconds": 13.701,
+     "gpu_mem_base_MiB": 915,
+     "gpu_mem_peak_MiB": 915,
+     "gpu_util_peak_pct": 34,
+     "n_samples": 32,
+     "sec_per_run": 2.7402
+    },
+    "out_mean": 0.4932783246040344
+   }
+  },
+  "dlls_after_ort": [
+   "C:\\Program Files\\Nuke17.1v3\\cublas64_12.dll",
+   "C:\\Program Files\\Nuke17.1v3\\cublasLt64_12.dll",
+   "C:\\Program Files\\Nuke17.1v3\\cudart64_12.dll",
+   "C:\\Program Files\\Nuke17.1v3\\cudnn64_9.dll",
+   "C:\\Program Files\\Nuke17.1v3\\nvrtc64_120_0.dll",
+   "D:\\ST-ROTO\\.tools\\nuke-py311\\onnxruntime\\capi\\onnxruntime_providers_cuda.dll",
+   "D:\\ST-ROTO\\.tools\\nuke-py311\\onnxruntime\\capi\\onnxruntime_providers_shared.dll"
+  ]
+ },
+ "A_inference": {
+  "knob_useGPUIfAvailable": true,
+  "knob_enabled": true,
+  "nuke_argv": [
+   "D:/ST-ROTO/research/probes/2026-11-15_gpu_ort/probe_gpu_ort.py",
+   "ort_first"
+  ],
+  "run": {
+   "first_frame": {
+    "seconds": 1.096,
+    "gpu_mem_base_MiB": 911,
+    "gpu_mem_peak_MiB": 1167,
+    "gpu_util_peak_pct": 98,
+    "n_samples": 8
+   },
+   "next_5_frames": {
+    "seconds": 1.296,
+    "gpu_mem_base_MiB": 1126,
+    "gpu_mem_peak_MiB": 2784,
+    "gpu_util_peak_pct": 100,
+    "n_samples": 8,
+    "sec_per_frame": 0.259
+   }
+  },
+  "dlls_after_inference": [
+   "C:\\Program Files\\Nuke17.1v3\\cublas64_12.dll",
+   "C:\\Program Files\\Nuke17.1v3\\cublasLt64_12.dll",
+   "C:\\Program Files\\Nuke17.1v3\\cudart64_12.dll",
+   "C:\\Program Files\\Nuke17.1v3\\cudnn64_9.dll",
+   "C:\\Program Files\\Nuke17.1v3\\cudnn_cnn64_9.dll",
+   "C:\\Program Files\\Nuke17.1v3\\nvrtc64_120_0.dll",
+   "C:\\Program Files\\Nuke17.1v3\\torch_cuda.dll",
+   "D:\\ST-ROTO\\.tools\\nuke-py311\\onnxruntime\\capi\\onnxruntime_providers_cuda.dll",
+   "D:\\ST-ROTO\\.tools\\nuke-py311\\onnxruntime\\capi\\onnxruntime_providers_shared.dll"
+  ]
+ },
+ "nodes_used": 4
+}

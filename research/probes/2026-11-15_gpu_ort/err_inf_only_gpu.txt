@@ -1,0 +1,7 @@
+
+INFO:
+The AIR plug-ins need to compile CUDA kernels in order to run on this GPU. This process will only be necessary once and should take about half an hour.
+The compiled kernels are stored in the CUDA cache (currently set to C:\Users\<user>\AppData\Roaming\NVIDIA\NukeComputeCache) and require about 2GB of space.
+Note, if for some reason this cache is moved or deleted, this process will need to run again.
+
+Please refer to the Nuke documentation for a more detailed explanation.

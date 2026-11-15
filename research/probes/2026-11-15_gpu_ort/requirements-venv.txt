@@ -1,0 +1,5 @@
+# Project tooling venv (Python 3.11), used to build test models outside Nuke.
+onnx==1.23.2
+numpy==2.4.6
+onnxruntime-gpu==1.32.0
+psutil==7.2.2

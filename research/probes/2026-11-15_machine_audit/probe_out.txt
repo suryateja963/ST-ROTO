@@ -1,0 +1,29 @@
+Nuke 17.1v3, 64 bit, built Nov  2 2026.
+Copyright (c) 2026 The Foundry Visionmongers Ltd.  All Rights Reserved.
+Non-commercial mode active.
+
+PROBE_RESULT {
+ "python": "3.11.11 (remotes/origin/foundry/v3.11.11:42e60506bdd, Apr 10 2026, 11:58:03) [MSC v.1935 64 bit (AMD64)]",
+ "nuke": "17.1v3",
+ "env.nc": true,
+ "env.indie": false,
+ "env.nukex": false,
+ "env.studio": false,
+ "env.hiero": false,
+ "env.gui": false,
+ "env.ple": true,
+ "env.64bit": true,
+ "env.ExecutablePath": "C:/Program Files/Nuke17.1v3/Nuke17.1.exe",
+ "allNodes_after_15": 0,
+ "create.Inference": "ok",
+ "create.Roto": "ok",
+ "create.RotoPaint": "ok",
+ "create.CatFileCreator": "ok",
+ "create.SmartVector": "ok",
+ "create.Kronos": "ok",
+ "rotopaint_shape": "ERR TypeError(\"'NoneType' object is not subscriptable\")",
+ "import.numpy": "ERR ModuleNotFoundError(\"No module named 'numpy'\")",
+ "import.torch": "ERR ModuleNotFoundError(\"No module named 'torch'\")",
+ "import.onnxruntime": "ERR ModuleNotFoundError(\"No module named 'onnxruntime'\")",
+ "import.PySide6": "6.5.3"
+}

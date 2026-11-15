@@ -1,0 +1,14 @@
+RuntimeError: The Non-Commercial mode 10-node limit for Node objects accessible in Python has been reached.  Returning None.
+RuntimeError: The Non-Commercial mode 10-node limit for Node objects accessible in Python has been reached.  Returning None.
+RuntimeError: The Non-Commercial mode 10-node limit for Node objects accessible in Python has been reached.  Returning None.
+RuntimeError: The Non-Commercial mode 10-node limit for Node objects accessible in Python has been reached.  Returning None.
+RuntimeError: The Non-Commercial mode 10-node limit for Node objects accessible in Python has been reached.  Returning None.
+RuntimeError: The Non-Commercial mode 10-node limit for Node objects accessible in Python has been reached.  Returning None.
+RuntimeError: The Non-Commercial mode 10-node limit for Node objects accessible in Python has been reached.  Returning None.
+[14:07.26] ERROR: Inference1: No Cat file is selected.
+RuntimeError: The Non-Commercial mode 10-node limit for Node objects accessible in Python has been reached.  Returning None.
+RuntimeError: The Non-Commercial mode 10-node limit for Node objects accessible in Python has been reached.  Returning None.
+RuntimeError: The Non-Commercial mode 10-node limit for Node objects accessible in Python has been reached.  Returning None.
+RuntimeError: The Non-Commercial mode 10-node limit for Node objects accessible in Python has been reached.  Returning None.
+RuntimeError: The Non-Commercial mode 10-node limit for Node objects accessible in Python has been reached.  Returning None.
+RuntimeError: The Non-Commercial mode 10-node limit for Node objects accessible in Python has been reached.  Returning None.

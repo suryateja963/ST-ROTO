@@ -1,0 +1,38 @@
+{
+ "order": "inf_only_cpu",
+ "pid": 18512,
+ "A_inference": {
+  "knob_useGPUIfAvailable": true,
+  "knob_enabled": true,
+  "nuke_argv": [
+   "D:/ST-ROTO/research/probes/2026-11-15_gpu_ort/probe_gpu_ort.py",
+   "inf_only_cpu"
+  ],
+  "run": {
+   "first_frame": {
+    "seconds": 3.219,
+    "gpu_mem_base_MiB": 613,
+    "gpu_mem_peak_MiB": 613,
+    "gpu_util_peak_pct": 17,
+    "n_samples": 12
+   },
+   "next_5_frames": {
+    "seconds": 13.707,
+    "gpu_mem_base_MiB": 606,
+    "gpu_mem_peak_MiB": 631,
+    "gpu_util_peak_pct": 34,
+    "n_samples": 33,
+    "sec_per_frame": 2.741
+   }
+  },
+  "dlls_after_inference": [
+   "C:\\Program Files\\Nuke17.1v3\\cublas64_12.dll",
+   "C:\\Program Files\\Nuke17.1v3\\cublasLt64_12.dll",
+   "C:\\Program Files\\Nuke17.1v3\\cudart64_12.dll",
+   "C:\\Program Files\\Nuke17.1v3\\cudnn64_9.dll",
+   "C:\\Program Files\\Nuke17.1v3\\nvrtc64_120_0.dll",
+   "C:\\Program Files\\Nuke17.1v3\\torch_cuda.dll"
+  ]
+ },
+ "nodes_used": 4
+}

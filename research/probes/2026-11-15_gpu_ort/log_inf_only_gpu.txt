@@ -1,0 +1,19 @@
+Nuke 17.1v3, 64 bit, built Nov  2 2026.
+Copyright (c) 2026 The Foundry Visionmongers Ltd.  All Rights Reserved.
+Non-commercial mode active.
+
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_gpu_ort/out/inf_0001.exr took 16.67 seconds
+Total render time: 17 seconds
+.9
+Writing D:/ST-ROTO/research/probes/2026-11-15_gpu_ort/out/inf_0002.exr took 0.38 seconds
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_gpu_ort/out/inf_0003.exr took 0.25 seconds
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_gpu_ort/out/inf_0004.exr took 0.25 seconds
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_gpu_ort/out/inf_0005.exr took 0.25 seconds
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_gpu_ort/out/inf_0006.exr took 0.25 seconds
+Total render time: 1.50 seconds
+.9PROBE_DONE inf_only_gpu
