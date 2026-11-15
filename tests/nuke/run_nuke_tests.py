@@ -476,9 +476,118 @@ def test_multi_object_track(res):
     return bool(ok)
 
 
+def test_render_mattes_exr(res):
+    """T-069/T-070: two tracked objects -> 'Render mattes (EXR)' -> Nuke itself reads the files: layer names, image
+    orientation and values must match what ST-ROTO wrote; hard mattes must match the Roto node's own render."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto import exr
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vw, vh, n = meta["w"], meta["h"], 4
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "mattes.stroto")
+    g = stnode.create(rd, proj)
+    for name, (x, y) in (("target", meta["click_xy"]), ("disc", (1050.0, 560.0))):
+        g["stroto_object"].setValue(name); nuke.frame(0)
+        g["stroto_click"].setValue([x, vh - y]); stnode.on_add_point(g, 1)
+    job = stnode.on_track(g, background=False)
+    ok = job is not None and job.status == "done"
+    # (a) hard mattes vs the Roto node's own render of the same shapes
+    g["stroto_soft"].setValue(False)
+    jm = stnode.on_render_mattes(g, background=False)
+    res["hard_status"] = g["stroto_status"].value()
+    ok &= jm is not None and jm.status == "done"
+    files = jm.result["files"]
+    w = nuke.nodes.Write(file=OUT + "/roto_alpha.####.tif", file_type="tiff", channels="alpha")
+    w["datatype"].setValue("32 bit float"); w["compression"].setValue("none"); w.setInput(0, g)
+    nuke.execute(w, 0, n - 1)
+    agree = []
+    for f in range(n):
+        ours = exr.read_channels(files[f])["A"] > 0.5
+        img = cv2.imread(OUT + "/roto_alpha.%04d.tif" % f, cv2.IMREAD_UNCHANGED)
+        roto_a = (img if img.ndim == 2 else img[:, :, -1]) > 0.5
+        agree.append(round(iou(ours, roto_a), 4))
+    res["hard_matte_iou_vs_roto_render"] = agree
+    ok &= min(agree) > 0.995
+    # (b) soft mattes, read back BY NUKE: channel names, orientation, values
+    g["stroto_soft"].setValue(True)
+    js = stnode.on_render_mattes(g, background=False)
+    res["soft_status"] = g["stroto_status"].value()
+    ok &= js is not None and js.status == "done"
+    r2 = nuke.nodes.Read(file=js.result["pattern"], first=0, last=n - 1)
+    nuke.frame(2)
+    res["nuke_channels"] = sorted(r2.channels())
+    ours = exr.read_channels(js.result["files"][2])
+    probe, diffs = [], []
+    ys, xs = np.nonzero((ours["target.A"] > 0.02) & (ours["target.A"] < 0.98))       # soft edge pixels
+    pick = list(zip(xs[::max(1, len(xs) // 20)], ys[::max(1, len(ys) // 20)]))[:20] + [(int(meta["click_xy"][0]), int(meta["click_xy"][1]))]
+    for x, y in pick:
+        for ch, layer in (("target.alpha", "target.A"), ("rgba.alpha", "A")):
+            if ch not in res["nuke_channels"]:
+                continue
+            v = r2.sample(ch, x + 0.5, vh - y - 0.5)                                  # canonical -> Nuke y-up
+            diffs.append(abs(v - float(ours[layer][y, x])))
+    res["soft_edge_pixels"] = int(len(xs))
+    res["max_abs_diff_nuke_vs_written"] = float(max(diffs)) if diffs else None
+    ok &= ("target.alpha" in res["nuke_channels"] and "disc.alpha" in res["nuke_channels"]
+           and "rgba.alpha" in res["nuke_channels"] and len(diffs) >= 40 and max(diffs) < 1e-6 and len(xs) > 100)
+    return bool(ok)
+
+
+def test_export_import_shapes(res):
+    """Hand-drawn animated shape -> 'Export shapes (JSON + SVG)' -> delete the object -> 'Import shapes (JSON)':
+    the object comes back (marked imported) and the Roto node again holds a shape with the same keys."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    from st_roto_nuke.roto_export import build_shape, read_keys
+    from st_roto.geometry import mask_to_points
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vh, n = meta["h"], 3
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "ex.stroto")
+    g = stnode.create(rd, proj)
+    curves = stnode._INNER[g.fullName()]["roto"]["curves"]
+    keys = {f: mask_to_points((cv2.imread(VIDEO + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE) > 127).astype(float) - 0.5,
+                              count=12) for f in range(n)}
+    curves.rootLayer.append(build_shape(curves, "drawn", keys, vh))
+    store, bus = session.project(proj)
+    bus.execute({"op": "create_shot", "row": {"id": "shot1", "name": rd.name(), "width": meta["w"], "height": vh,
+                                              "first_frame": 0, "last_frame": n - 1}})
+    stnode.resync(g)
+    out = stnode.on_export_shapes(g)
+    res["export_status"] = g["stroto_status"].value()
+    ok = out is not None and os.path.exists(out["json"]) and len(out["svg"]) == n
+    data = json.load(open(out["json"]))
+    res["exported_objects"] = [o["name"] for o in data["objects"]]
+    obj = store.objects("shot1")[0]
+    bus.execute({"op": "delete_subtree", "object_id": obj["id"]})
+    stnode.resync(g, import_first=False)
+    res["after_delete"] = [it.name for it in curves.rootLayer]
+    ok &= res["after_delete"] == []
+    imp = stnode.on_import_shapes(g, out["json"])
+    res["import_status"] = g["stroto_status"].value()
+    objs = store.objects("shot1")
+    sid = store.shapes(objs[0]["id"])[0]["id"]
+    roto_shapes = [it for it in curves.rootLayer]
+    res["after_import"] = {"objects": [o["name"] for o in objs], "origins": sorted({k["origin"] for k in store.keys(sid)}),
+                           "roto": [it.name for it in roto_shapes]}
+    back = read_keys(roto_shapes[0], vh) if roto_shapes else {}
+    diff = max(abs(a - b) for f in keys for p, q in zip(keys[f], back.get(f, [])) for a, b in zip(p, q)) if back else None
+    res["max_point_diff_roto_vs_original"] = diff
+    ok &= (imp is not None and len(objs) == 1 and res["after_import"]["origins"] == ["imported_native"]
+           and len(roto_shapes) == 1 and sorted(back) == list(range(n)) and diff is not None and diff < 1e-3)
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
-         test_review_flags_reverse, test_multi_object_track)
+         test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
+         test_export_import_shapes)
 
 
 def main():

@@ -77,6 +77,24 @@ def create(source=None, project_path: str = ""):
     imp = _button(group, "stroto_import", "Save Roto edits to project", "n.on_import_edits(nuke.thisNode())",
                   new_line=False)
     imp.setTooltip("Records shapes you edited or drew in this node's Roto into the ST-ROTO project (undoable).")
+    group.addKnob(nuke.Text_Knob("stroto_div3", "mattes"))
+    soft = nuke.Boolean_Knob("stroto_soft", "soft edges"); soft.setValue(True); group.addKnob(soft)
+    soft.setTooltip("Refine a narrow band around each shape's edge against the plate (guided filter, no AI model). "
+                    "Off: hard mattes identical to the shapes.")
+    band = nuke.Int_Knob("stroto_band", "edge band"); band.setValue(3); band.clearFlag(nuke.STARTLINE); group.addKnob(band)
+    band.setTooltip("Half-width in pixels of the zone that may become soft.")
+    rad = nuke.Int_Knob("stroto_radius", "radius"); rad.setValue(8); rad.clearFlag(nuke.STARTLINE); group.addKnob(rad)
+    rad.setTooltip("Guided-filter window radius in pixels.")
+    md = nuke.File_Knob("stroto_matte_dir", "matte folder"); group.addKnob(md)
+    md.setTooltip("Where the EXR mattes go. Empty: <project>_mattes/<shot>/ next to the project file.")
+    rm = _button(group, "stroto_render_mattes", "Render mattes (EXR)", "n.on_render_mattes(nuke.thisNode())")
+    rm.setTooltip("Writes one EXR per frame: a layer per object (<object>.A) and the combined matte in alpha.")
+    ex = _button(group, "stroto_export_shapes", "Export shapes (JSON + SVG)", "n.on_export_shapes(nuke.thisNode())")
+    ex.setTooltip("Writes <project>_export/<shot>/<shot>.json (every object, key and provenance; re-importable) and "
+                  "one SVG per keyed frame.")
+    im = _button(group, "stroto_import_shapes", "Import shapes (JSON)", "n.on_import_shapes(nuke.thisNode())",
+                 new_line=False)
+    im.setTooltip("Adds the objects of an ST-ROTO JSON file to this shot (one undo step; marked as imported).")
     group.addKnob(nuke.Text_Knob("stroto_status", "status", "idle"))
     with group:
         inp = nuke.nodes.Input(name="Input1")
@@ -386,6 +404,119 @@ def on_retrack(group, background: bool = True, every_object: bool = False):
         group["stroto_status"].setValue(msg)
 
     return _run(group, "re-track", work, apply, background)
+
+
+def on_render_mattes(group, background: bool = True):
+    """Every object of the shot -> (soft) mattes -> multi-layer EXR sequence (T-069/T-070)."""
+    from .mattes import default_output_dir, render_mattes
+    try:
+        src = _inner(group, "src", None)
+        write, roto = _inner(group, "write", "STROTO_pixels"), _inner(group, "roto", "STROTO_shapes")
+        project = group["stroto_project"].value()
+        if not project:
+            raise ValueError("set a project file")
+        store, bus = session.project(project)
+        shot = store.conn.execute("SELECT id FROM shots WHERE name = ?", (src.name(),)).fetchone()
+        if shot is None:
+            raise ValueError("nothing tracked or imported yet for %s" % src.name())
+        import_edits(store, bus, shot["id"], roto["curves"], int(src.height()), int(nuke.frame()))  # latest edits
+        frames = list(range(int(src.firstFrame()), int(src.lastFrame()) + 1))
+        out_dir = group["stroto_matte_dir"].value().strip() or default_output_dir(project, src.name())
+        soft = bool(group["stroto_soft"].value())
+        band, radius = max(1, int(group["stroto_band"].value())), max(1, int(group["stroto_radius"].value()))
+        ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name())}
+    except (ValueError, NodeBudgetError) as e:
+        _status(group, "error: %s" % e); return None
+    get_rgb = _renderer(ctx, background)
+
+    def work(job):
+        ro = store_ro(project)          # worker thread: its own connection
+        try:
+            return render_mattes(get_rgb, ro, shot["id"], frames, out_dir, soft=soft, band=band, radius=radius,
+                                 job=job)
+        finally:
+            ro.close()
+
+    def apply(job):
+        r = job.result
+        msg = "mattes: %d frames -> %s (layers: %s; %s edges, %.1f s)" % (
+            len(r["files"]), r["pattern"], ", ".join(sorted(r["layers"].values())), "soft" if soft else "hard",
+            r["seconds"])
+        if r["frames_interpolated"]:
+            msg += "; frames between keys (linear, may differ from Roto): %s" % "; ".join(
+                "%s %s" % (k, _ranges(v)) for k, v in sorted(r["frames_interpolated"].items()))
+        job.applied = msg
+        group["stroto_status"].setValue(msg)
+
+    return _run(group, "mattes", work, apply, background)
+
+
+def _shot_for(group):
+    """(store, bus, src, shot row) for a node whose shot exists; raises ValueError otherwise."""
+    src = _inner(group, "src", None)
+    project = group["stroto_project"].value()
+    if not project:
+        raise ValueError("set a project file")
+    store, bus = session.project(project)
+    shot = store.conn.execute("SELECT * FROM shots WHERE name = ?", (src.name(),)).fetchone()
+    return store, bus, src, project, shot
+
+
+def on_export_shapes(group, out_dir: str = None):
+    """Shot -> JSON (full fidelity) + one SVG per keyed frame. Returns {"json", "svg"} paths."""
+    from st_roto import exr, interchange
+    try:
+        store, bus, src, project, shot = _shot_for(group)
+        if shot is None:
+            raise ValueError("nothing tracked or imported yet for %s" % src.name())
+        resync(group)                                           # capture the latest Roto edits first
+        base = exr.layer_name(src.name())
+        out_dir = out_dir or os.path.join(os.path.splitext(os.path.abspath(project))[0] + "_export", base)
+        os.makedirs(os.path.join(out_dir, "svg"), exist_ok=True)
+        jpath = os.path.join(out_dir, base + ".json")
+        interchange.write_json(jpath, store, shot["id"])
+        frames = sorted({r[0] for r in store.conn.execute(
+            "SELECT k.frame FROM shape_keys k JOIN shapes s ON s.id = k.shape_id JOIN objects o ON o.id = s.object_id "
+            "WHERE o.shot_id = ?", (shot["id"],))})
+        svgs = []
+        for f in frames:
+            path = exr.frame_path(os.path.join(out_dir, "svg"), base, f, "svg")
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(interchange.svg_frame(store, shot["id"], f))
+            svgs.append(path)
+    except (ValueError, NodeBudgetError, OSError) as e:
+        _status(group, "error: %s" % e); return None
+    _status(group, "exported %s and %d SVG frames" % (jpath, len(svgs)))
+    return {"json": jpath, "svg": svgs}
+
+
+def on_import_shapes(group, path: str = None):
+    """ST-ROTO JSON -> new objects in this shot (one undo step), then sync into the Roto node."""
+    from st_roto import interchange
+    try:
+        if path is None:
+            path = nuke.getFilename("Import ST-ROTO shapes", "*.json")
+            if not path:
+                return None
+        store, bus, src, project, shot = _shot_for(group)
+        if shot is None:
+            ctx = {"src": src, "width": int(src.width()), "height": int(src.height()),
+                   "first": int(src.firstFrame()), "last": int(src.lastFrame())}
+            _ensure_shot(store, bus, ctx)
+            shot = store.conn.execute("SELECT * FROM shots WHERE name = ?", (src.name(),)).fetchone()
+        with open(path, encoding="utf-8") as fh:
+            data = json.load(fh)
+        ids = interchange.import_shot(bus, data, shot["id"])
+        rep = resync(group, import_first=False)
+    except (ValueError, NodeBudgetError, OSError) as e:
+        _status(group, "error: %s" % e); return None
+    _status(group, "imported %d objects from %s" % (len(data["objects"]), os.path.basename(path)))
+    return {"ids": ids, "sync": rep}
+
+
+def _ranges(frames):
+    from st_roto import quality
+    return quality.ranges(frames)
 
 
 def _retrack_targets(store, shot_id, current, frames, every_object, plan):

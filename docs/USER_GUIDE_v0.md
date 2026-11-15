@@ -29,7 +29,9 @@ Restart Nuke. You should see **Nodes › ST-ROTO › ST_Roto** and the pane **ST
 7. The result is one native, animated Roto shape per object inside the ST_Roto node (`hero_st…`), editable like any Roto shape, and recorded in the project file with AI provenance.
 8. Fix a frame by editing the shape in the Roto node (or draw a shape by hand), then **Re-track object** (the named object) or **Re-track all** (every unlocked object, one pass). Your keys are kept exactly; AI fills the other frames forward and backward from them.
 9. The status ends with **REVIEW lost …** (object missing: fix these) or **check …** (uncertain: glance) where the AI was unsure.
-10. **ST-ROTO Objects** pane: press *Use selected ST_Roto node* (with the node selected) to list objects; rename, lock/unlock, delete, undo, redo.
+10. **Mattes:** set *soft edges* (on: a narrow band around each edge is refined against the plate, no AI model; off: hard mattes identical to the shapes), then **Render mattes (EXR)**. One EXR per frame in `<project>_mattes/<shot>/` (or *matte folder*): a layer per object (`hero.alpha` in Nuke) and all objects combined in `rgba.alpha`.
+11. **Export shapes (JSON + SVG)** writes `<project>_export/<shot>/`: a JSON file with every object, key and its provenance (re-importable with **Import shapes (JSON)**, also into another project) and one SVG per keyed frame.
+12. **ST-ROTO Objects** pane: press *Use selected ST_Roto node* (with the node selected) to list objects; rename, lock/unlock, delete, undo, redo.
 
 ## Things to know
 

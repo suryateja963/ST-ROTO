@@ -31,6 +31,7 @@ First issue 2026-11-15; second issue 2026-11-15. Full texts read so far: **SAM L
 | Item | Licence as found | Notes |
 |---|---|---|
 | ONNX Runtime | MIT, © Microsoft (text read) | 1.26.0 pinned for Nuke 17.1 (CUDA 12). Reuses Nuke's CUDA DLLs, so ST-ROTO ships no NVIDIA files on this route |
+| OpenEXR Python binding (`openexr` 3.5.4) | BSD-3-Clause, Academy Software Foundation (PyPI metadata; text not yet read) | EXR matte writer (T-070); installed in `.tools/nuke-py311` and `.venv` only. Redistribution permitted with notice |
 | NVIDIA CUDA / cuDNN runtime DLLs | NVIDIA proprietary terms | Redistribution terms must be reviewed before bundling in the installer |
 | TensorRT | NVIDIA proprietary terms | Not reviewed |
 | DirectML | Not reviewed | |

@@ -49,6 +49,45 @@ def edge_band(mask: np.ndarray, band: int) -> np.ndarray:
     return (m > 1e-9) & (m < 1 - 1e-9)
 
 
+def key_points_at(keys: list, frame: int):
+    """Shape points at `frame` from its stored keys (sorted by frame): the key itself, a LINEAR blend of the two
+    neighbouring keys, or the first/last key held outside the keyed range. -> (points, how) with how in
+    {"key", "interpolated", "held"}, or (None, None) without keys. Linear blending differs from Nuke's own curve
+    interpolation between sparse keys; AI-tracked shapes are keyed on every frame, so it only matters for sparse,
+    hand-animated shapes (reported to the user)."""
+    if not keys:
+        return None, None
+    frames = [k["frame"] for k in keys]
+    if frame <= frames[0] or frame >= frames[-1]:
+        k = keys[0] if frame <= frames[0] else keys[-1]
+        return k["points"], ("key" if k["frame"] == frame else "held")
+    for a, b in zip(keys, keys[1:]):
+        if a["frame"] == frame:
+            return a["points"], "key"
+        if a["frame"] < frame < b["frame"] and len(a["points"]) == len(b["points"]):
+            t = (frame - a["frame"]) / float(b["frame"] - a["frame"])
+            pa, pb = np.asarray(a["points"], np.float64), np.asarray(b["points"], np.float64)
+            return ((1 - t) * pa + t * pb).tolist(), "interpolated"
+        if a["frame"] < frame < b["frame"]:
+            return a["points"], "held"                     # point count changed between keys: hold
+    return keys[-1]["points"], "key"
+
+
+def object_mask(store, object_id: str, frame: int, height: int, width: int):
+    """Hard mask (bool H x W) of all shapes of an object at `frame` (union), exact pixel-centre rasterisation of
+    the stored splines. -> (mask, {shape name: how}) — see key_points_at."""
+    from .geometry import Anchor, rasterize_spline
+    mask = np.zeros((height, width), bool)
+    how = {}
+    for s in store.shapes(object_id):
+        pts, h = key_points_at(store.keys(s["id"]), frame)
+        how[s["name"]] = h
+        if pts:
+            a = [Anchor(p=np.array(p[:2]), h_in=np.array(p[2:4]), h_out=np.array(p[4:6]), corner=False) for p in pts]
+            mask |= rasterize_spline(a, height, width)
+    return mask, how
+
+
 def refine_alpha(rgb: np.ndarray, mask: np.ndarray, band: int = 3, radius: int = 8, eps: float = 1e-4,
                  margin: int = 4) -> np.ndarray:
     """Hard mask + plate -> soft alpha (H, W) float32 in [0, 1]. Outside the edge band alpha equals the mask.

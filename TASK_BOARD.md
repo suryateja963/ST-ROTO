@@ -6,6 +6,7 @@ Updated 2026-11-16.
 
 | ID | Task | Evidence |
 |---|---|---|
+| T-069/T-070 | Matte pass + EXR export: 'Render mattes (EXR)' writes one EXR per frame (`<object>.A` layers + combined `A`), hard or soft edges; ST-ROTO JSON (round trip) and SVG export, JSON import. Nuke reads the layers exactly (0.0 diff); hard matte vs Roto render IoU 0.998; export → delete → import restores the shape (1.5e-5 px). Unit 68, Nuke 10/10 | `docs/RESEARCH_2026-11-16_INTERCHANGE.md`, `tests/nuke/` |
 | T-067 | Several objects per tracking pass: `Sam2MultiVideo` (encoder once per frame, per-object state as upstream), `track_objects`/`retrack_objects`, per-object prompts, Track skips already-tracked objects, Re-track all, one undo step per pass. Identical to single-object runs (CPU tests; 0.0 px on GPU); 1.36x (tiny) / 1.56x (large) faster for 2 objects. Reverse-pass point-order seam bug fixed. Unit 61, Nuke 8/8, GUI passes | `research/probes/2026-11-16_multi_object/RESULTS.md` |
 | T-065 | Bounded tracker state: SpillDict (24 frames in RAM, rest on disk), bit-identical results | `src/st_roto_ai/spill.py`, `tests/unit/test_spill.py` |
 | T-031c | Matting licence research: no permissive model with clean training data; model-free soft edges measured (SAD 0.59x of hard shape) | `docs/RESEARCH_2026-11-16_MATTING.md`, `research/probes/2026-11-16_matting/` |
@@ -53,8 +54,7 @@ Updated 2026-11-16.
 | ID | Task |
 |---|---|
 | T-068 | Calibrate review thresholds (OBJECT_SCORE_MARGIN, IOU_PRED_MIN) on real footage with ground truth (benchmark plan) |
-| T-069 | Matte pass: render refined soft alpha per object (st_roto.matte) into the project cache |
-| T-070 | EXR matte export (one layer per object), then interchange formats |
+| T-073 | Interchange: RotoPaint export; feather storage + export; Silhouette/Mocha direct formats need their apps to validate |
 | T-071 | Autosave, crash recovery, portable projects |
 | T-072 | Learned matting model (hair) — waits for OQ-22 |
 | T-056 | Model registry from `models/manifests` (licence, revision, checksum verification before load) |
