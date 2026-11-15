@@ -1,0 +1,5 @@
+Nuke 17.1v3, 64 bit, built Nov  2 2026.
+Copyright (c) 2026 The Foundry Visionmongers Ltd.  All Rights Reserved.
+Non-commercial mode active.
+
+DONE

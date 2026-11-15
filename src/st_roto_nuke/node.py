@@ -14,6 +14,7 @@ mapping from viewer clicks to image coordinates; the XY knob handle is Nuke's na
 """
 from __future__ import annotations
 
+import json
 import os
 import threading
 import traceback
@@ -62,7 +63,11 @@ def create(source=None, project_path: str = ""):
     _button(group, "stroto_preview", "Preview", "n.on_preview(nuke.thisNode())", new_line=False)
     _button(group, "stroto_track", "Track", "n.on_track(nuke.thisNode())", new_line=False)
     _button(group, "stroto_cancel", "Cancel", "n.on_cancel(nuke.thisNode())", new_line=False)
-    imp = _button(group, "stroto_import", "Save Roto edits to project", "n.on_import_edits(nuke.thisNode())")
+    rt = _button(group, "stroto_retrack", "Re-track object", "n.on_retrack(nuke.thisNode())")
+    rt.setTooltip("Re-tracks the object named above in both directions, using every frame you corrected or drew as a "
+                  "guide. Your keys are never changed; only AI keys are replaced.")
+    imp = _button(group, "stroto_import", "Save Roto edits to project", "n.on_import_edits(nuke.thisNode())",
+                  new_line=False)
     imp.setTooltip("Records shapes you edited or drew in this node's Roto into the ST-ROTO project (undoable).")
     group.addKnob(nuke.Text_Knob("stroto_status", "status", "idle"))
     with group:
@@ -286,6 +291,64 @@ def on_track(group, background: bool = True):
         group["stroto_status"].setValue(msg)
 
     return _run(group, "track", work, apply, background)
+
+
+def on_retrack(group, background: bool = True):
+    """Re-track the object named in 'object name' using its artist keys as guides (forward + reverse)."""
+    from .track import apply_retrack, retrack_object
+    try:
+        src = _inner(group, "src", None)
+        write, roto = _inner(group, "write", "STROTO_pixels"), _inner(group, "roto", "STROTO_shapes")
+        project = group["stroto_project"].value()
+        if not project:
+            raise ValueError("set a project file")
+        store, bus = session.project(project)
+        curves, height = roto["curves"], int(src.height())
+        shot = store.conn.execute("SELECT id FROM shots WHERE name = ?", (src.name(),)).fetchone()
+        if shot is None:
+            raise ValueError("nothing tracked or imported yet for %s" % src.name())
+        import_edits(store, bus, shot["id"], curves, height, int(nuke.frame()))       # capture latest artist edits
+        name = group["stroto_object"].value()
+        obj = [o for o in store.objects(shot["id"]) if o["name"] == name]
+        if not obj:
+            raise ValueError("no object named %r (set 'object name')" % name)
+        shapes = store.shapes(obj[0]["id"])
+        if not shapes:
+            raise ValueError("object %r has no shape" % name)
+        ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name())}
+        frames = list(range(int(src.firstFrame()), int(src.lastFrame()) + 1))
+        width = int(src.width())
+    except (ValueError, NodeBudgetError) as e:
+        _status(group, "error: %s" % e); return None
+    get_rgb = _renderer(ctx, background)
+    sid = shapes[0]["id"]
+    model, device = group["stroto_model"].value(), group["stroto_device"].value()     # read knobs on main thread
+
+    def work(job):
+        ro = store_ro(project)          # worker thread: its own connection (SQLite objects are thread-bound)
+        try:
+            return retrack_object(get_rgb, ro, sid, frames, width, height, model=model, device=device, job=job)
+        finally:
+            ro.close()
+
+    def apply(job):
+        n = apply_retrack(bus, store, sid, job.result)
+        rep = sync_shot(store, shot["id"], curves, height)
+        msg = "re-tracked %s: %d AI keys changed, %d artist keys kept, device %s" % (
+            name, n, len(json.loads(job.result["generator"])["retrack"]["artist_frames"]), job.result["device"])
+        if rep["conflicts"]:
+            msg += "; NOT updated (edited in Roto): %s" % ", ".join(rep["conflicts"])
+        job.applied = msg
+        job.sync_report = rep
+        group["stroto_status"].setValue(msg)
+
+    return _run(group, "re-track", work, apply, background)
+
+
+def store_ro(path):
+    """Separate store connection for worker threads, used for reading only (SQLite connections are thread-bound)."""
+    from st_roto.store import ProjectStore
+    return ProjectStore(path)
 
 
 def resync(group, import_first: bool = True):

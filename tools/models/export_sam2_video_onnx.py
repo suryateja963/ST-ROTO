@@ -71,6 +71,20 @@ class MemEnc(torch.nn.Module):
         return self.m.memory_encoder(pix, mask_for_mem)
 
 
+class MaskPtr(torch.nn.Module):
+    """Neural part of upstream `_use_mask_as_output` (mask prompt / artist correction): the object pointer from
+    the SAM decoder fed with the downsampled mask, on the RAW frame features. The rest of that function (logits =
+    mask*20-10, antialiased downsample to 256, mask-based object score and pointer gating) is plain arithmetic
+    done in numpy, because aten::_upsample_bilinear2d_aa cannot be exported to ONNX opset 17."""
+    def __init__(self, m):
+        super().__init__(); self.m = m
+
+    def forward(self, s0, s1, feat, mask):
+        pix = feat.permute(1, 2, 0).reshape(1, 256, 64, 64)
+        return self.m._single_frame_forward(input_masks=self.m.mask_downsample(mask),
+                                            image_embeddings=[s0, s1, pix]).object_pointer
+
+
 def maxdiff(a, b):
     return float(np.abs(np.asarray(a, np.float32) - np.asarray(b, np.float32)).max())
 
@@ -155,13 +169,37 @@ def main(name):
                               "points": pp.numpy(), "labels": ll.numpy()})
             rep["checks"][f"{tag}_{case}_maxdiff"] = max(maxdiff(a, b) for a, b in zip(o, ref))
 
+    # ---- mask conditioning (artist corrections as prompts)
+    gt = cv2.imread(os.path.join(FR, "gt_0000.png"), cv2.IMREAD_GRAYSCALE) > 127
+    mask = torch.nn.functional.interpolate(torch.from_numpy(gt.astype(np.float32))[None, None], size=(1024, 1024),
+                                           mode="bilinear", align_corners=False, antialias=True)
+    mask = (mask >= 0.5).float()
+    mp = MaskPtr(model).eval()
+    p = os.path.join(dst, "maskptr.onnx")
+    torch.onnx.export(mp, (s0, s1, feat, mask), p, input_names=["s0", "s1", "feat", "mask"],
+                      output_names=["obj_ptr"], opset_version=17, dynamo=False)
+    sp = sess(p)
+    feed = {"s0": s0.numpy(), "s1": s1.numpy(), "feat": feat.numpy(), "mask": mask.numpy()}
+    rep["maskptr_inputs"] = [i.name for i in sp.get_inputs()]          # s0/s1 are pruned: the pointer ignores them
+    o = sp.run(None, {k: v for k, v in feed.items() if k in rep["maskptr_inputs"]})
+    rep["checks"]["maskptr_maxdiff"] = maxdiff(o[0], mp(s0, s1, feat, mask))
+    # end-to-end check of the full upstream function against graph + numpy (as done in st_roto_ai.sam2.add_mask)
+    full = model._use_mask_as_output(feat.permute(1, 2, 0).reshape(1, 256, 64, 64), [s0, s1], mask)
+    sys.path.insert(0, os.path.join(ROOT, "src"))
+    from st_roto_ai.resize import resize_aa
+    hi = mask.numpy() * 20.0 - 10.0
+    lo = resize_aa(hi[0, 0], 256, 256)
+    rep["checks"]["maskcond_numpy_low_res_maxdiff"] = maxdiff(lo, full.pred_masks[0, 0])
+    rep["checks"]["maskcond_obj_ptr_maxdiff"] = maxdiff(o[0], full.object_pointer)       # mask non-empty: ungated
+
     # ---- constants for the numpy side
     np.savez(os.path.join(dst, "constants.npz"),
              no_memory_embedding=model.no_memory_embedding.numpy(),
              memory_temporal_positional_encoding=model.memory_temporal_positional_encoding.numpy(),
              tpos_proj_w=model.temporal_positional_encoding_projection_layer.weight.numpy(),
              tpos_proj_b=model.temporal_positional_encoding_projection_layer.bias.numpy(),
-             occlusion_spatial_embedding=model.occlusion_spatial_embedding_parameter.numpy())
+             occlusion_spatial_embedding=model.occlusion_spatial_embedding_parameter.numpy(),
+             no_object_pointer=model.no_object_pointer.numpy())
     consts = {k: getattr(cfg, k) for k in ("num_maskmem", "max_cond_frame_num", "max_object_pointers_in_encoder",
                                            "sigmoid_scale_for_mem_enc", "sigmoid_bias_for_mem_enc",
                                            "multimask_output_in_sam", "multimask_output_for_tracking",

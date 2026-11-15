@@ -17,6 +17,7 @@ Updated 2026-11-15.
 | T-030 | Licence texts: SAM License, S-Lab 1.0, ORT, BiRefNet, Foundry EULA key clauses (partial) | `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md` |
 | T-031 | Missing model categories, first pass (partial) | `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md` |
 | T-021 | Public GitHub repository created and pushed | https://github.com/suryateja963/ST-ROTO (commit 2a0adea) |
+| T-060 | Mask prompts (maskptr graph + exact numpy AA resize), reverse tracking, Re-track object with corrections both directions (artist keys kept); port exactness proven vs PyTorch incl. reverse; preprocessing now torch-equivalent AA | `research/probes/2026-11-16_corrections/RESULTS.md` |
 | T-063 | Roto edits imported into the project (`import_edits`, `batch` command = one undo step); hand-drawn shapes become artist_created objects; topology changes reported; resync = import then sync. Unit 42, Nuke 5/5 | `src/st_roto_nuke/roto_export.py`, `tests/nuke/` |
 | T-064 | Object rename renames its shapes (one undoable batch); Roto label follows (GUI test) | `src/st_roto_nuke/panel.py` |
 | T-059 | Prompts (include/exclude via XY viewer handle), Preview, session project with persistent undo, schema v2 host-export records, safe Roto sync (artist-edited shapes never overwritten), object panel, `nuke_plugin/` + `docs/USER_GUIDE_v0.md`. Unit 41, Nuke 4/4, GUI with panel passes | `src/st_roto_nuke/`, `tests/nuke/` |
@@ -47,7 +48,9 @@ Updated 2026-11-15.
 
 | ID | Task |
 |---|---|
-| T-060 | Reverse tracking, re-tracking under artist-locked keys, several objects per ST_Roto node |
+| T-065 | Bounded / disk-backed tracker state for long shots (now ~2 MB RAM per tracked frame) — R-42 |
+| T-066 | Store per-frame object score; flag near-threshold frames for artist review (confidence, §9) |
+| T-067 | Several objects per ST_Roto node in one tracking pass (multi-object tracker) |
 | T-056 | Model registry from `models/manifests` (licence, revision, checksum verification before load) |
 | T-057 | Update GitHub Actions to Node-24-based action versions (deprecation warning) |
 | T-045 | Documented, configurable model-input colour transform (replace hard-coded sRGB re-encode) |

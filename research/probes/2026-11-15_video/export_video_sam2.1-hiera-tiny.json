@@ -4,18 +4,25 @@
  "ort": "1.32.0",
  "checks": {
   "vencoder_maxdiff": 9.864568710327148e-06,
-  "memenc_maxdiff": 1.430511474609375e-06,
+  "memenc_maxdiff": 1.1920928955078125e-06,
   "memattn_maxdiff_by_(memories,pointers)": {
    "1,1": 1.430511474609375e-06,
-   "2,2": 1.6689300537109375e-06,
-   "4,5": 2.294778823852539e-06,
-   "7,16": 3.874301910400391e-06
+   "2,2": 2.86102294921875e-06,
+   "4,5": 2.6226043701171875e-06,
+   "7,16": 4.284083843231201e-06
   },
   "decoder_mm_click_maxdiff": 1.1444091796875e-05,
   "decoder_mm_no_prompt_pad_maxdiff": 9.5367431640625e-07,
   "decoder_single_click_maxdiff": 1.1444091796875e-05,
-  "decoder_single_no_prompt_pad_maxdiff": 9.5367431640625e-07
+  "decoder_single_no_prompt_pad_maxdiff": 9.5367431640625e-07,
+  "maskptr_maxdiff": 0.0,
+  "maskcond_numpy_low_res_maxdiff": 9.5367431640625e-07,
+  "maskcond_obj_ptr_maxdiff": 0.0
  },
+ "maskptr_inputs": [
+  "feat",
+  "mask"
+ ],
  "config": {
   "num_maskmem": 7,
   "max_cond_frame_num": -1,
@@ -31,7 +38,10 @@
  "onnx_mb": {
   "decoder_mm.onnx": 17.8,
   "decoder_single.onnx": 17.8,
+  "maskptr.onnx": 15.3,
   "memattn.onnx": 133.0,
+  "memattn_fp16.onnx": 66.8,
+  "memattn_fp16keep.onnx": 66.8,
   "memenc.onnx": 5.6,
   "vencoder.onnx": 109.4
  }

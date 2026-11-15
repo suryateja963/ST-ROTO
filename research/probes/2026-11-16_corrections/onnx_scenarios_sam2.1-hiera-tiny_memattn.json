@@ -1,0 +1,91 @@
+{
+ "model": "sam2.1-hiera-tiny",
+ "correction": {
+  "frames": 48,
+  "seconds": 13.6,
+  "device": "cuda",
+  "iou_vs_torch_min": 0.99298,
+  "iou_vs_torch_mean": 0.998,
+  "iou_vs_gt_mean": 0.9949,
+  "iou_vs_gt_min": 0.9923,
+  "worst_vs_torch": [
+   {
+    "frame": 38,
+    "iou_vs_torch": 0.99298,
+    "iou_vs_gt": 0.9937,
+    "px_onnx": 45388,
+    "px_torch": 45709,
+    "px_gt": 45648
+   },
+   {
+    "frame": 34,
+    "iou_vs_torch": 0.99352,
+    "iou_vs_gt": 0.9942,
+    "px_onnx": 41331,
+    "px_torch": 41063,
+    "px_gt": 41318
+   },
+   {
+    "frame": 35,
+    "iou_vs_torch": 0.9936,
+    "iou_vs_gt": 0.9944,
+    "px_onnx": 42165,
+    "px_torch": 41895,
+    "px_gt": 42105
+   }
+  ],
+  "frames_object_lost_torch": [],
+  "frames_object_lost_onnx": []
+ },
+ "reverse": {
+  "frames": 48,
+  "seconds": 10.7,
+  "device": "cuda",
+  "iou_vs_torch_min": 0.0,
+  "iou_vs_torch_mean": 0.97867,
+  "iou_vs_gt_mean": 0.8582,
+  "iou_vs_gt_min": 0.0,
+  "worst_vs_torch": [
+   {
+    "frame": 16,
+    "iou_vs_torch": 0.0,
+    "iou_vs_gt": 0.0,
+    "px_onnx": 0,
+    "px_torch": 63202,
+    "px_gt": 63133
+   },
+   {
+    "frame": 15,
+    "iou_vs_torch": 0.99411,
+    "iou_vs_gt": 0.9928,
+    "px_onnx": 64583,
+    "px_torch": 64352,
+    "px_gt": 64790
+   },
+   {
+    "frame": 14,
+    "iou_vs_torch": 0.99742,
+    "iou_vs_gt": 0.9913,
+    "px_onnx": 66123,
+    "px_torch": 66214,
+    "px_gt": 66666
+   }
+  ],
+  "frames_object_lost_torch": [
+   17,
+   18,
+   19,
+   20,
+   22
+  ],
+  "frames_object_lost_onnx": [
+   16,
+   17,
+   18,
+   19,
+   20,
+   22
+  ]
+ },
+ "memattn": "memattn.onnx"
+}

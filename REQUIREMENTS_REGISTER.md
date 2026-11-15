@@ -36,8 +36,8 @@ First issue, 2026-11-15.
 | REQ-080 | 10 | Unified internal representation linking identity, masks, alpha, splines, tracking, confidence, corrections, history | Mandatory | – | Planned | Round-trip tests | |
 | REQ-081 | 10 | Listed geometry representations; switching without silent loss | Mandatory | REQ-080 | Planned | Conversion round-trip tests | |
 | REQ-082 | 10 | Listed shape operations (per-point feather, booleans, holdouts, split/merge, locking, versioning) | Mandatory | REQ-080 | Planned | Unit and in-Nuke tests | |
-| REQ-090 | 11 | Forward/backward propagation and listed temporal strategies | Mandatory | REQ-051 | Planned | Temporal benchmarks | |
-| REQ-091 | 11 | Listed artist controls over propagation | Mandatory | REQ-090 | Planned | In-Nuke tests | |
+| REQ-090 | 11 | Forward/backward propagation and listed temporal strategies | Mandatory | REQ-051 | Partly implemented, tested inside Nuke | Temporal benchmarks | Forward and reverse propagation (SAM 2.1 video, port proven exact vs PyTorch). Not yet: optical-flow assistance, keyframe selection, scene-cut detection, identity across objects, long-shot memory bound. `research/probes/2026-11-16_corrections/RESULTS.md` |
+| REQ-091 | 11 | Listed artist controls over propagation | Mandatory | REQ-090 | Partly implemented, tested inside Nuke | In-Nuke tests | Correct any frame in Roto → Re-track propagates corrections forward and backward; artist keys never overwritten; one undo step. Not yet: range-limited re-track, exclude frames, review of candidates, replace tracking references. |
 | REQ-092 | 11 | Listed sequence conditions (negative frames, gaps, retimes, mixed resolution, proxy) | Mandatory | REQ-090 | Planned | Edge-case sequences | |
 | REQ-093 | 11 | Bounded memory, resumable processing; never load whole sequence | Mandatory | REQ-021 | Planned | Long-shot memory test | |
 | REQ-100 | 12 | Listed alpha output types as first-class deliverables | Mandatory | – | Planned | Pixel comparison tests | |

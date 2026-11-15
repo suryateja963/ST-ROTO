@@ -298,8 +298,69 @@ def test_import_artist_edits(res):
     return bool(ok)
 
 
+def test_retrack_with_corrections(res):
+    """(a) Draw ONE shape by hand on frame 6 -> Re-track fills frames 0..11 in both directions, close to the truth.
+    (b) Correct one AI frame -> Re-track keeps that artist key byte-identical and replaces only AI keys."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import nuke.rotopaint as rp
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    from st_roto_nuke.roto_export import build_shape
+    from st_roto.geometry import mask_to_points
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vh, n = meta["h"], 12
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "rt.stroto")
+    g = stnode.create(rd, proj)
+    curves = stnode._INNER[g.fullName()]["roto"]["curves"]
+    gts = [cv2.imread(VIDEO + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE) > 127 for f in range(n)]
+    # (a) artist draws the object on frame 6 only (here: traced from the ground truth, 16 points)
+    pts6 = mask_to_points(gts[6].astype(float) - 0.5, count=16)
+    curves.rootLayer.append(build_shape(curves, "drawn", {6: pts6}, vh))
+    nuke.frame(6)
+    store, bus = session.project(proj)
+    shot_rows = store.conn.execute("SELECT COUNT(*) FROM shots").fetchone()[0]
+    if shot_rows == 0:                                        # shot is created by the first Track/import
+        bus.execute({"op": "create_shot", "row": {"id": "shot1", "name": rd.name(), "width": meta["w"], "height": vh,
+                                                  "first_frame": 0, "last_frame": n - 1}})
+    stnode.resync(g)
+    drawn = [o for o in store.objects("shot1")][0]
+    g["stroto_object"].setValue(drawn["name"])
+    job = stnode.on_retrack(g, background=False)
+    sid = store.shapes(drawn["id"])[0]["id"]
+    keys = {k["frame"]: k for k in store.keys(sid)}
+    ious = {}
+    for f, k in keys.items():
+        a = [__import__("st_roto.geometry", fromlist=["Anchor"]).Anchor(p=np.array(p[:2]), h_in=np.array(p[2:4]),
+             h_out=np.array(p[4:]), corner=False) for p in k["points"]]
+        ious[f] = round(iou(rasterize_spline(a, vh, meta["w"]), gts[f]), 4)
+    res["a"] = {"status": g["stroto_status"].value(), "frames": sorted(keys), "origins": {f: k["origin"] for f, k in keys.items()},
+                "iou_vs_gt": ious}
+    ok = (job is not None and job.status == "done" and sorted(keys) == list(range(n))
+          and keys[6]["origin"] == "artist_created" and all(keys[f]["origin"] == "ai_generated" for f in keys if f != 6)
+          and min(ious.values()) > 0.97)
+    # (b) correct AI frame 9 in the Roto node, re-track: frame 9 must stay exactly the artist's
+    nuke.frame(9)
+    label = [it.name for it in curves.rootLayer if it.name.startswith(drawn["name"])][0]
+    from st_roto_nuke.roto_export import read_keys
+    host = read_keys([it for it in curves.rootLayer if it.name == label][0], vh)
+    host[9] = [[p[0] + 8.0, p[1], p[2] + 8.0, p[3], p[4] + 8.0, p[5]] for p in host[9]]
+    for i in range(len(curves.rootLayer)):
+        if curves.rootLayer[i].name == label:
+            curves.rootLayer.remove(i); break
+    curves.rootLayer.append(build_shape(curves, label, host, vh))
+    job2 = stnode.on_retrack(g, background=False)
+    k9 = store.key(sid, 9)
+    res["b"] = {"status": g["stroto_status"].value(), "k9_origin": k9["origin"],
+                "k9_matches_artist": max(abs(a - b) for p, q in zip(k9["points"], host[9]) for a, b in zip(p, q)) < 1e-2}
+    ok &= job2 is not None and job2.status == "done" and k9["origin"] == "artist_modified_ai" and res["b"]["k9_matches_artist"]
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
-         test_prompts_preview_sync_protection, test_import_artist_edits)
+         test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections)
 
 
 def main():

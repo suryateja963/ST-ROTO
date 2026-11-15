@@ -1,0 +1,30 @@
+{
+ "model": "sam2.1-hiera-tiny",
+ "scenario": "reverse",
+ "seconds": 165.0,
+ "lowres_iou_min": 1.0,
+ "logit_maxdiff_max": 0.016,
+ "frames_lowres_iou_below_0.999": [],
+ "obj_scores_frames_14_to_18": [
+  [
+   14,
+   1.094
+  ],
+  [
+   15,
+   0.961
+  ],
+  [
+   16,
+   0.025
+  ],
+  [
+   17,
+   -0.068
+  ],
+  [
+   18,
+   -0.143
+  ]
+ ]
+}

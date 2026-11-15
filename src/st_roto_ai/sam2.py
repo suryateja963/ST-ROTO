@@ -24,13 +24,14 @@ LICENCE = "Apache-2.0"          # facebook/sam2.1-hiera-* (MODEL_REGISTER M-01)
 
 
 def preprocess(rgb: np.ndarray) -> np.ndarray:
-    """HxWx3 float RGB [0,1] -> 1x3x1024x1024 normalised. Uses bilinear resize (cv2 if present, else numpy)."""
-    rgb = np.asarray(rgb, np.float32)
-    try:
-        import cv2
-        x = cv2.resize(rgb, (SIZE, SIZE), interpolation=cv2.INTER_LINEAR)
-    except ImportError:                                    # pragma: no cover - numpy fallback
-        x = _resize_bilinear(rgb, SIZE, SIZE)
+    """HxWx3 float RGB [0,1] -> 1x3x1024x1024 normalised.
+
+    Antialiased bilinear resize (torch-equivalent, st_roto_ai.resize) like the official Sam2VideoProcessor. Plain
+    cv2 bilinear differed by up to 0.11 (normalised) and flipped a borderline object score (0.025) in the reverse
+    scenario (research/probes/2026-11-16_corrections). Remaining difference (<= 0.017) is the processor's 8-bit
+    fixed-point rounding; float input is kept unquantised on purpose (artists' footage is often float)."""
+    from .resize import resize_aa
+    x = resize_aa(np.asarray(rgb, np.float32), SIZE, SIZE, dtype=np.float32)
     x = (x - MEAN) / STD
     return np.ascontiguousarray(x.transpose(2, 0, 1)[None], np.float32)
 
@@ -89,7 +90,7 @@ class Sam2Image:
                 "logits": upscale_logits(masks[0, 0, best], enc["width"], enc["height"])}
 
 
-VIDEO_GRAPHS = ("vencoder.onnx", "memenc.onnx", "decoder_mm.onnx", "decoder_single.onnx")
+VIDEO_GRAPHS = ("vencoder.onnx", "memenc.onnx", "decoder_mm.onnx", "decoder_single.onnx", "maskptr.onnx")
 
 
 def preload_video(model_dir: str, device: str = "auto") -> dict:
@@ -142,11 +143,14 @@ class Sam2Video:
         self.menc, _ = open_session(os.path.join(d, "memenc.onnx"), device)
         self.dec_mm, _ = open_session(os.path.join(d, "decoder_mm.onnx"), device)
         self.dec_single, _ = open_session(os.path.join(d, "decoder_single.onnx"), device)
+        mp = os.path.join(d, "maskptr.onnx")
+        self.maskptr = open_session(mp, device)[0] if os.path.exists(mp) else None
         c = np.load(os.path.join(d, "constants.npz"))
         self.no_mem = c["no_memory_embedding"]
         self.tpos = c["memory_temporal_positional_encoding"]
         self.w, self.b = c["tpos_proj_w"], c["tpos_proj_b"]
         self.occ = c["occlusion_spatial_embedding"]
+        self.no_obj_ptr = c["no_object_pointer"] if "no_object_pointer" in c.files else None
         with open(os.path.join(d, "config.json")) as fh:
             self.cfg = json.load(fh)
         self.num_total_frames = num_total_frames
@@ -192,13 +196,36 @@ class Sam2Video:
         self.cond[frame] = out
         return self._result(out)
 
-    def track(self, frame: int, enc: dict) -> dict:
+    def add_mask(self, frame: int, enc: dict, mask) -> dict:
+        """Mask prompt (e.g. an artist correction) on a frame: becomes a conditioning frame, exactly as upstream
+        `add_inputs_to_inference_session(input_masks=...)` + `_use_mask_as_output`."""
+        from .resize import mask_to_model_input, resize_aa
+        if self.maskptr is None:
+            raise RuntimeError("this model export has no maskptr.onnx; re-run tools/models/export_sam2_video_onnx.py")
+        m = mask_to_model_input(mask)                                          # [1,1,1024,1024] {0,1}
+        feed = {"s0": enc["s0"], "s1": enc["s1"], "feat": enc["feat"], "mask": m}
+        names = [i.name for i in self.maskptr.get_inputs()]            # exporter prunes unused inputs (s0/s1)
+        ptr = self.maskptr.run(None, {k: feed[k] for k in names})[0]
+        # remaining arithmetic of upstream _use_mask_as_output (verified against PyTorch at export time)
+        appearing = float(m.any())
+        high = m * 20.0 - 10.0
+        low = resize_aa(high[0, 0], 256, 256)[None, None]
+        ptr = appearing * ptr + (1.0 - appearing) * self.no_obj_ptr
+        score = np.array([[20.0 * appearing - 10.0]], np.float32)
+        out = {"low_res": low, "high_res": high.astype(np.float32), "obj_ptr": ptr.astype(np.float32), "obj_score": score}
+        self._encode_memory(enc, out, from_points=True)
+        self.cond[frame] = out
+        return self._result(out)
+
+    def track(self, frame: int, enc: dict, reverse: bool = False) -> dict:
+        """Track a non-conditioning frame. reverse=True mirrors upstream `track_in_reverse_time`."""
+        sign = -1 if reverse else 1
         mems, mpos = [], []
-        for out in self.cond.values():
+        for out in self.cond.values():                    # all conditioning frames (max_cond_frame_num = -1)
             mems.append(out["maskmem"]); mpos.append(out["maskmem_pos"] + self.tpos[-1])   # upstream: slot index -1
         nm = self.cfg["num_maskmem"]
         for r in range(nm - 1, 0, -1):
-            out = self.noncond.get(frame - r)
+            out = self.noncond.get(frame - sign * r)       # upstream also checks *unselected* cond frames: none here
             if out is not None:
                 mems.append(out["maskmem"]); mpos.append(out["maskmem_pos"] + self.tpos[r - 1])
         n_total = self.num_total_frames
@@ -207,10 +234,10 @@ class Sam2Video:
             max_ptr = min(n_total, max_ptr)
         offs, ptrs = [], []
         for t, out in self.cond.items():
-            if t <= frame:
-                offs.append(frame - t); ptrs.append(out["obj_ptr"])
+            if (t >= frame) if reverse else (t <= frame):
+                offs.append((frame - t) * sign); ptrs.append(out["obj_ptr"])
         for dt in range(1, max_ptr):
-            ref = frame - dt
+            ref = frame + dt if reverse else frame - dt
             if ref < 0 or (n_total is not None and ref >= n_total):     # exactly as upstream
                 break
             out = self.noncond.get(ref)
@@ -229,8 +256,7 @@ class Sam2Video:
         out = self._decode(enc, pix, np.zeros((1, 1, 1, 2), np.float32), -np.ones((1, 1, 1), np.int32))
         self._encode_memory(enc, out, from_points=False)
         keep = {k: out[k] for k in ("low_res", "obj_ptr", "obj_score", "maskmem", "maskmem_pos")}
+        # Every tracked frame is kept (~2 MB/frame), as upstream: a reverse pass reads frames from an earlier forward
+        # pass, so pruning would change results. Bounded/disk-backed state for long shots is task T-065 (R-42).
         self.noncond[frame] = keep
-        horizon = max(nm, max_ptr)
-        for old in [k for k in self.noncond if k < frame - horizon]:
-            del self.noncond[old]
         return self._result(keep)
