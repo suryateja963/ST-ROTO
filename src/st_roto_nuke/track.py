@@ -52,6 +52,7 @@ def track_object(get_rgb, frames, click_frame, click_xy, model="sam2.1-hiera-tin
             prev_anchor0 = np.array(shape_pts[0][:2])
         else:
             absent.append(frame)
+    tracker.close()                                     # remove spilled per-frame state (T-065)
     if job:
         job.report(1.0, "tracked %d frames" % len(frames))
     return {"keys": keys, "absent_frames": absent, "reports": reports, "device": tracker.report.active,
@@ -115,6 +116,7 @@ def retrack_object(get_rgb, store, shape_id, frames, width, height, model="sam2.
         results[f] = pts or None
         if pts:
             prev_anchor = np.array(pts[0][:2])
+    tracker.close()                                     # remove spilled per-frame state (T-065)
     gen_out = dict(gen, retrack={"model": model, "colour": colour.TRANSFORM_ID, "conditioning_frames": cond,
                                  "artist_frames": sorted(artist)})
     return {"keys": results, "reports": reports, "device": tracker.report.active,

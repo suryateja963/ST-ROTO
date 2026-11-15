@@ -7,8 +7,9 @@ Owner's full specification: `docs/MASTER_PROMPT.md` (authoritative). Public repo
 
 - **Last session ended 2026-11-16** at commit `53765f8`. Phase 1 done, Phase 2 architecture **approved** (D-026), Phase 3/4 in progress.
 - Working in Nuke 17.1 NC (product code, tested): ST_Roto node → include/exclude prompts (XY handle) → Preview → Load model → Track (SAM 2.1 video, ONNX Runtime CUDA in-process) → animated native Roto shape; artist edits in Roto are imported (never overwritten); Re-track uses artist keys as mask prompts, forward + reverse; per-frame confidence with review flags (LOST / CHECK); object panel (rename/lock/delete/undo/redo).
-- Tests: `pytest` 49/49 · headless Nuke 7/7 (`tools/run_nuke_tests.py`) · GUI test passes · CI green (Win/Linux, py3.9/3.11, real py3.7 run).
-- **Next tasks (in order):** T-065 bounded/disk-backed tracker state for long shots (now ~2 MB RAM per tracked frame, R-42) → T-067 several objects per tracking pass → then see `TASK_BOARD.md` "Ready".
+- Tests: `pytest` 51/51 · headless Nuke 7/7 (`tools/run_nuke_tests.py`) · GUI test passes · CI green (Win/Linux, py3.9/3.11, real py3.7 run).
+- **T-065 DONE (2026-11-16):** tracker state bounded in RAM (`st_roto_ai/spill.py`, default 24 frames, older frames on disk, results bit-identical; test_spill.py).
+- **Next tasks (owner asked for these, in order):** T-067 several objects per tracking pass → matting/edge refinement (soft alpha, hair, motion blur; licence research first — best models are non-commercial) → EXR matte channel export, then interchange formats → autosave, crash recovery, portable projects.
 - **Open owner questions:** OQ-16/17 (supervisor lock override: confirm "only if holder offline/idle", and the idle threshold). Everything else answered — see `DECISION_REGISTER.md` (D-001..D-029).
 
 ## Non-negotiable rules (from the owner)

@@ -131,7 +131,7 @@ class Sam2Video:
     """
 
     def __init__(self, model_dir: str, device: str = "auto", num_total_frames: int | None = None,
-                 memattn_file: str | None = None):
+                 memattn_file: str | None = None, max_frames_in_ram: int = 24, state_dir: str | None = None):
         d = model_dir
         if memattn_file is None:
             # fp16 memory attention is the default when present (decision D-029): measured on the synthetic shot,
@@ -156,9 +156,14 @@ class Sam2Video:
         self.num_total_frames = num_total_frames
         from .runtime import shrink_run_options
         self._shrink = shrink_run_options() if self.report.active == "cuda" else None
+        from .spill import SpillDict
         self.cond = {}
-        self.noncond = {}
+        # tracked-frame state: bounded RAM, older frames spilled to disk, results identical (T-065)
+        self.noncond = SpillDict(max_frames_in_ram, state_dir)
         self.size = None
+
+    def close(self):
+        self.noncond.close()
 
     def encode(self, rgb: np.ndarray) -> dict:
         self.size = (rgb.shape[1], rgb.shape[0])
@@ -259,7 +264,7 @@ class Sam2Video:
         out = self._decode(enc, pix, np.zeros((1, 1, 1, 2), np.float32), -np.ones((1, 1, 1), np.int32))
         self._encode_memory(enc, out, from_points=False)
         keep = {k: out[k] for k in ("low_res", "obj_ptr", "obj_score", "maskmem", "maskmem_pos", "iou")}
-        # Every tracked frame is kept (~2 MB/frame), as upstream: a reverse pass reads frames from an earlier forward
-        # pass, so pruning would change results. Bounded/disk-backed state for long shots is task T-065 (R-42).
+        # Every tracked frame is kept, as upstream (a reverse pass reads frames from an earlier forward pass), but only
+        # `max_frames_in_ram` stay in memory; the rest live on disk (SpillDict), so RAM no longer grows with shot length.
         self.noncond[frame] = keep
         return self._result(keep)
