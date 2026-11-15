@@ -55,6 +55,7 @@ Requirement: free, open source, permits commercial use, modification, redistribu
 - **OQ-11** First verifiable milestone (Claude to propose, now that the route is known).
 - **OQ-16** Confirm reading of D-024: supervisor lock override allowed only when the lock holder is offline/idle.
 - **OQ-17** Idle/offline threshold before a supervisor may override a lock.
+- **OQ-22** (2026-11-16) Learned matting model for hair / fine edges. Every permissive-weight candidate (ViTMatte, BiRefNet-matting) is trained on research datasets with non-commercial or unpublished terms; ZIM and MatAnyone are non-commercial outright (`docs/RESEARCH_2026-11-16_MATTING.md`). Options: (a) ViTMatte-S as optional download, off by default, caveat shown; (b) BiRefNet_HR-matting likewise; (c) no learned matting in 1.0. **Recommendation:** (a). Model-free soft edges + motion blur proceed meanwhile (no download).
 
 ## Architecture (Phase 2), raised 2026-11-15
 
