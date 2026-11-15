@@ -26,6 +26,9 @@ models/weights/
 *.engine
 *.cat
 
+# Local hardware telemetry (machine-specific)
+logs/
+
 # Probe render output (regeneratable from the probe scripts)
 research/**/out/
 

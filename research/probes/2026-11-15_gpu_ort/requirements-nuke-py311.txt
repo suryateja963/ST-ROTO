@@ -2,3 +2,4 @@
 # onnxruntime-gpu 1.26.0 is the newest PyPI build linked against CUDA 12; 1.27+ need CUDA 13.
 onnxruntime-gpu==1.26.0
 numpy==2.4.6
+opencv-python-headless==5.0.0.93

@@ -1,0 +1,53 @@
+{
+ "model": "sam2.1-hiera-large",
+ "nuke": "17.1v3",
+ "nc": true,
+ "ort": "1.26.0",
+ "gpu_mem_before_MiB": 186,
+ "pixel_transfer": {
+  "w": 1920,
+  "h": 1080,
+  "nuke_render_tiff_s": 0.09,
+  "cv2_read_s": 0.021,
+  "max_abs_diff_vs_png_after_srgb_encode": 1.1920928955078125e-07
+ },
+ "session_load_s": 3.53,
+ "providers": {
+  "encoder": [
+   "CUDAExecutionProvider",
+   "CPUExecutionProvider"
+  ],
+  "decoder": [
+   "CUDAExecutionProvider",
+   "CPUExecutionProvider"
+  ]
+ },
+ "encoder_s": {
+  "first": 1.153,
+  "warm_mean": 0.317
+ },
+ "decoder_ms": {
+  "first": 305.5,
+  "warm_mean": 6.7
+ },
+ "iou_scores": [
+  0.9926000237464905,
+  0.5972999930381775,
+  0.704200029373169
+ ],
+ "sam_mask_iou_vs_gt": 0.9966642906466487,
+ "roto_format": "1920x1080",
+ "roto": {
+  "control_points": 48,
+  "contour_pixels": 1411,
+  "shape_name": "STROTO_sam_sam2_1_hiera_large"
+ },
+ "roto_iou_vs_sam_mask": 0.9963462666554932,
+ "roto_iou_vs_gt": 0.9932222457367536,
+ "roto_centroid_offset_px": [
+  0.015,
+  0.061
+ ],
+ "gpu_mem_peak_MiB": 5563,
+ "nodes_used": 4
+}

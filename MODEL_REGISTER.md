@@ -1,6 +1,6 @@
 # Model Register
 
-First issue 2026-11-15; **second issue 2026-11-15** adds rows M-11 to M-25 (see `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md`). Desk research only. **No model has been downloaded, converted, run or measured.** Fields the master prompt (§7) requires but which are not yet established are listed as "not researched" or "not measured" rather than filled with estimates.
+First issue 2026-11-15; **second issue 2026-11-15** adds rows M-11 to M-25 (see `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md`). Mostly desk research. **Measured so far: SAM 2.1 tiny and large only** (see M-01). Fields the master prompt (§7) requires but which are not yet established are listed as "not researched" or "not measured" rather than filled with estimates.
 
 Classes:
 
@@ -10,7 +10,7 @@ Classes:
 
 | ID | Model | Task | Repository | Licence (as found) | Class | Evidence |
 |---|---|---|---|---|---|---|
-| M-01 | SAM 2 / SAM 2.1 (tiny, small, base+, large) | Promptable image and video segmentation | github.com/facebookresearch/sam2 | Apache-2.0 for code and checkpoints | Production-candidate | Repository README |
+| M-01 | SAM 2 / SAM 2.1 (tiny, small, base+, large) | Promptable image and video segmentation | github.com/facebookresearch/sam2 | Apache-2.0 for code and checkpoints | Production-candidate | Repository README; **tiny and large downloaded, exported to ONNX and run in Nuke 17.1 NC on CUDA (`research/probes/2026-11-15_sam2/RESULTS.md`): encoder 65 ms (tiny) / 317 ms (large), click 6.7 ms, peak GPU 2.5 / 5.6 GB** |
 | M-02 | SAM 3 | Promptable segmentation with text/concept prompts, video tracking | github.com/facebookresearch/sam3 | SAM License (Meta, updated 19 Nov 2025). Royalty-free use, modification, redistribution; redistribution under the same agreement with a copy; restricted uses (trade controls, ITAR, military, nuclear, espionage, weapons); no reverse engineering; Meta may amend; terminates on IP suit against Meta. No copyleft on ST-ROTO code | Decision needed (OQ-07) | **Full licence text read** |
 | M-03 | Cutie | Video object segmentation (mask propagation) | github.com/hkchengrex/Cutie | MIT (code). Bundled RITM GUI code follows RITM's own licence | Production-candidate, training-data review outstanding | Repository metadata and README |
 | M-04 | BiRefNet | High-resolution dichotomous segmentation, per frame | github.com/ZhengPeng7/BiRefNet | MIT | Production-candidate | Model card; third-party reports. No temporal model, so per-frame shimmer is expected |

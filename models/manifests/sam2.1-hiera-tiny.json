@@ -1,0 +1,46 @@
+{
+ "name": "sam2.1-hiera-tiny",
+ "repo": "facebook/sam2.1-hiera-tiny",
+ "revision": "de431c4043854a71d8101e17995dfe596bf101a5",
+ "licence": "apache-2.0",
+ "approval": "D-015",
+ "downloaded_utc": "2026-11-15T15:18:42Z",
+ "files": {
+  ".gitattributes": {
+   "bytes": 1519,
+   "sha256": "11ad7efa24975ee4b0c3c3a38ed18737f0658a5f75a0a96787b576a78a023361"
+  },
+  "config.json": {
+   "bytes": 5695,
+   "sha256": "860aff9751b139d83a4ad7df1e5535416fded533e0ead02625edbefcb9953cce"
+  },
+  "model.safetensors": {
+   "bytes": 155908064,
+   "sha256": "48c14467e5cf9e51870511feb72c89688e82dd74523142c0538b663e193ac2a7"
+  },
+  "preprocessor_config.json": {
+   "bytes": 683,
+   "sha256": "6ebf229ee259368ce4a8d4f2fe893a72b053023710853e257253939e601f583d"
+  },
+  "processor_config.json": {
+   "bytes": 95,
+   "sha256": "f8a68e865cfad115c1c2763f3d93eca7b1c622da06da2a9273eb437fb2389b6d"
+  },
+  "README.md": {
+   "bytes": 19965,
+   "sha256": "dfa401b1b9358b9650ae487dd2f2bb336fd745c3609e3244adf2e97a22343857"
+  },
+  "sam2.1_hiera_t.yaml": {
+   "bytes": 3855,
+   "sha256": "43e114f609a1af7efede061f5c186119d498acd31f118f300c07acf57d4a5eca"
+  },
+  "sam2.1_hiera_tiny.pt": {
+   "bytes": 156008466,
+   "sha256": "7402e0d864fa82708a20fbd15bc84245c2f26dff0eb43a4b5b93452deb34be69"
+  },
+  "video_preprocessor_config.json": {
+   "bytes": 705,
+   "sha256": "9fccfe5f464ec38c2f236d0e6a68e95511c80c22132fc2fa4b9f7b65f24fad95"
+  }
+ }
+}

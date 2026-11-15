@@ -1,0 +1,31 @@
+{
+ "model": "sam2.1-hiera-large",
+ "torch": "2.15.0+cpu",
+ "onnxruntime": "1.32.0",
+ "missing_keys": [],
+ "unexpected_keys_count": 0,
+ "preproc_max_abs_diff_vs_processor": 0.2226218581199646,
+ "points_max_abs_diff_vs_processor": 0.0,
+ "onnx_bytes": {
+  "encoder": 852693858,
+  "decoder": 17003096
+ },
+ "encoder_max_abs_diff": 0.0004942417144775391,
+ "decoder_iou_scores_torch": [
+  0.9927999973297119,
+  0.5898000001907349,
+  0.7023000121116638
+ ],
+ "decoder_iou_scores_onnx": [
+  0.9927999973297119,
+  0.5898000001907349,
+  0.7023000121116638
+ ],
+ "best_mask_index": 0,
+ "mask_iou_onnx_vs_torch": 1.0,
+ "mask_iou_ours_vs_processor_preproc": 0.9997653329757454,
+ "mask_iou_processor_preproc_vs_ground_truth": 0.9964637154933813,
+ "mask_iou_vs_ground_truth": 0.9965751136059877,
+ "two_point_prompt_mask_iou_vs_gt": 0.9958787001197404,
+ "seconds_total": 33.9
+}

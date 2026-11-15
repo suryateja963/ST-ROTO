@@ -1,0 +1,10 @@
+Nuke 17.1v3, 64 bit, built Nov  2 2026.
+Copyright (c) 2026 The Foundry Visionmongers Ltd.  All Rights Reserved.
+Non-commercial mode active.
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_sam2/out/src_dump.tif took 0.05 seconds
+Total render time: 0.08 seconds
+.9
+Writing D:/ST-ROTO/research/probes/2026-11-15_sam2/out/roto_sam2.1-hiera-large.tif took 0.01 seconds
+Total render time: 0.04 seconds
+PROBE_DONE sam2.1-hiera-large
