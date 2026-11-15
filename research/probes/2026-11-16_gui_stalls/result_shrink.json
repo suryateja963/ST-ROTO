@@ -1,0 +1,148 @@
+{
+ "runs": [
+  {
+   "status": "done",
+   "applied": "done: 48 keys, 0 frames without object, device cuda",
+   "error_tail": [],
+   "start_s": 0.0,
+   "seconds": 22.5
+  },
+  {
+   "status": "done",
+   "applied": "done: 48 keys, 0 frames without object, device cuda",
+   "error_tail": [],
+   "start_s": 22.53,
+   "seconds": 16.3
+  },
+  {
+   "status": "done",
+   "applied": "done: 48 keys, 0 frames without object, device cuda",
+   "error_tail": [],
+   "start_s": 38.83,
+   "seconds": 16.4
+  }
+ ],
+ "stalls": [
+  {
+   "start_s": 3.326,
+   "gap_ms": 266.6,
+   "overlapping": [
+    [
+     "Sam2Video.__init__",
+     "st_roto:track"
+    ]
+   ]
+  }
+ ],
+ "events_summary": {
+  "Sam2Video.__init__": {
+   "thread": "st_roto:track",
+   "n": 3,
+   "max_ms": 3600.4,
+   "total_ms": 3603.5
+  },
+  "render_frame": {
+   "thread": "MainThread",
+   "n": 144,
+   "max_ms": 93.3,
+   "total_ms": 6652.5
+  },
+  "Sam2Video.encode": {
+   "thread": "st_roto:track",
+   "n": 144,
+   "max_ms": 1282.8,
+   "total_ms": 12689.2
+  },
+  "Sam2Video.add_points": {
+   "thread": "st_roto:track",
+   "n": 3,
+   "max_ms": 939.4,
+   "total_ms": 1005.5
+  },
+  "Sam2Video.track": {
+   "thread": "st_roto:track",
+   "n": 141,
+   "max_ms": 163.8,
+   "total_ms": 20479.4
+  }
+ },
+ "ui_gap_mean_ms": 16.17,
+ "per_run": [
+  {
+   "Sam2Video.__init__": {
+    "n": 2,
+    "total_ms": 3601.8,
+    "max_ms": 3600.4
+   },
+   "render_frame": {
+    "n": 49,
+    "total_ms": 2335.3,
+    "max_ms": 93.3
+   },
+   "Sam2Video.encode": {
+    "n": 48,
+    "total_ms": 5057.0,
+    "max_ms": 1282.8
+   },
+   "Sam2Video.add_points": {
+    "n": 1,
+    "total_ms": 939.4,
+    "max_ms": 939.4
+   },
+   "Sam2Video.track": {
+    "n": 47,
+    "total_ms": 6931.6,
+    "max_ms": 161.0
+   }
+  },
+  {
+   "Sam2Video.encode": {
+    "n": 48,
+    "total_ms": 3798.3,
+    "max_ms": 115.1
+   },
+   "Sam2Video.add_points": {
+    "n": 1,
+    "total_ms": 33.6,
+    "max_ms": 33.6
+   },
+   "render_frame": {
+    "n": 47,
+    "total_ms": 2143.0,
+    "max_ms": 63.1
+   },
+   "Sam2Video.track": {
+    "n": 47,
+    "total_ms": 6753.4,
+    "max_ms": 163.8
+   }
+  },
+  {
+   "Sam2Video.__init__": {
+    "n": 1,
+    "total_ms": 1.7,
+    "max_ms": 1.7
+   },
+   "render_frame": {
+    "n": 48,
+    "total_ms": 2174.2,
+    "max_ms": 52.0
+   },
+   "Sam2Video.encode": {
+    "n": 48,
+    "total_ms": 3833.9,
+    "max_ms": 108.3
+   },
+   "Sam2Video.add_points": {
+    "n": 1,
+    "total_ms": 32.5,
+    "max_ms": 32.5
+   },
+   "Sam2Video.track": {
+    "n": 47,
+    "total_ms": 6794.4,
+    "max_ms": 162.1
+   }
+  }
+ ]
+}

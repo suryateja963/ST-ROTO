@@ -1,0 +1,145 @@
+{
+ "runs": [
+  {
+   "status": "failed",
+   "applied": null,
+   "start_s": 0.0,
+   "seconds": 36.5
+  },
+  {
+   "status": "failed",
+   "applied": null,
+   "start_s": 36.52,
+   "seconds": 31.2
+  },
+  {
+   "status": "failed",
+   "applied": null,
+   "start_s": 67.71,
+   "seconds": 31.0
+  }
+ ],
+ "stalls": [
+  {
+   "start_s": 90.944,
+   "gap_ms": 194.3,
+   "overlapping": []
+  }
+ ],
+ "events_summary": {
+  "Sam2Video.__init__": {
+   "thread": "st_roto:track",
+   "n": 3,
+   "max_ms": 2936.9,
+   "total_ms": 2951.1
+  },
+  "render_frame": {
+   "thread": "MainThread",
+   "n": 51,
+   "max_ms": 72.6,
+   "total_ms": 2370.3
+  },
+  "Sam2Video.encode": {
+   "thread": "st_roto:track",
+   "n": 51,
+   "max_ms": 996.7,
+   "total_ms": 9486.5
+  },
+  "Sam2Video.add_points": {
+   "thread": "st_roto:track",
+   "n": 3,
+   "max_ms": 615.3,
+   "total_ms": 970.1
+  },
+  "Sam2Video.track": {
+   "thread": "st_roto:track",
+   "n": 48,
+   "max_ms": 3974.4,
+   "total_ms": 78452.9
+  }
+ },
+ "ui_gap_mean_ms": 16.04,
+ "per_run": [
+  {
+   "Sam2Video.__init__": {
+    "n": 1,
+    "total_ms": 2936.9,
+    "max_ms": 2936.9
+   },
+   "render_frame": {
+    "n": 17,
+    "total_ms": 850.5,
+    "max_ms": 72.6
+   },
+   "Sam2Video.encode": {
+    "n": 17,
+    "total_ms": 2441.3,
+    "max_ms": 996.7
+   },
+   "Sam2Video.add_points": {
+    "n": 1,
+    "total_ms": 615.3,
+    "max_ms": 615.3
+   },
+   "Sam2Video.track": {
+    "n": 16,
+    "total_ms": 28170.4,
+    "max_ms": 3974.4
+   }
+  },
+  {
+   "Sam2Video.__init__": {
+    "n": 1,
+    "total_ms": 12.2,
+    "max_ms": 12.2
+   },
+   "render_frame": {
+    "n": 17,
+    "total_ms": 764.9,
+    "max_ms": 49.7
+   },
+   "Sam2Video.encode": {
+    "n": 17,
+    "total_ms": 4200.7,
+    "max_ms": 337.0
+   },
+   "Sam2Video.add_points": {
+    "n": 1,
+    "total_ms": 158.6,
+    "max_ms": 158.6
+   },
+   "Sam2Video.track": {
+    "n": 16,
+    "total_ms": 24605.6,
+    "max_ms": 3326.7
+   }
+  },
+  {
+   "Sam2Video.__init__": {
+    "n": 1,
+    "total_ms": 2.0,
+    "max_ms": 2.0
+   },
+   "render_frame": {
+    "n": 17,
+    "total_ms": 754.9,
+    "max_ms": 48.7
+   },
+   "Sam2Video.encode": {
+    "n": 17,
+    "total_ms": 2844.5,
+    "max_ms": 219.2
+   },
+   "Sam2Video.add_points": {
+    "n": 1,
+    "total_ms": 196.2,
+    "max_ms": 196.2
+   },
+   "Sam2Video.track": {
+    "n": 16,
+    "total_ms": 25676.9,
+    "max_ms": 3450.3
+   }
+  }
+ ]
+}

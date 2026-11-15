@@ -160,3 +160,11 @@ Owner approved the architecture (D-026..D-028). Interactive-GUI probe: SAM 2.1 t
 **Work.** `st_roto.jobs` (cancellable background jobs), `st_roto_nuke.colour` (explicit v0 model-input transform, recorded in provenance), `st_roto_nuke.pixels` (main-thread frame render to numpy), `st_roto_nuke.track` (click → SAM 2.1 video → fixed-count sub-pixel Bézier keys; AI writes go through the command bus as actor "ai"), `st_roto_nuke.node` (ST_Roto group: Input → Roto → Output + disabled pixel Write; Track/Cancel/status). `tools/run_nuke_tests.py` runs each Nuke test in its own process (10-node budget is per session). GUI test `tests/nuke/gui_track_slice.py`.
 
 **Tests.** Unit 38/38. Headless Nuke 2/2: ST_Roto slice stores 48 AI keys, rendered output vs ground truth mean IoU 0.985 (0.994 excluding the split-object frame 23; the prototype animated shape was 0.983). GUI: first run FAILED silently (no result after 10 min). Diagnosis: exceptions in main-thread callbacks are swallowed; after adding error capture, the cause was the 10-node budget (Roto lookup returned None). Fixed by caching node references and raising a clear NodeBudgetError. GUI test now passes: 48 frames in 22 s, shape with 48 keys; UI mean gap 19 ms but max stall 1.56 s (R-40).
+
+## 2026-11-16 — GUI stalls and GPU memory (T-058)
+
+**Method.** Instrumented GUI probe: 16 ms UI timer plus timestamps of every adapter call; stalls attributed to overlapping calls; GPU memory from the hardware logger and direct sampling.
+
+**Findings.** (1) Stalls coincide only with ORT session creation on the worker thread (GIL held, 0.9–1.3 s). Fix: process-wide session cache; later Track presses create sessions in ~2 ms. (2) While verifying, a third Track press in the same session took 35.9 s instead of ~15 s: ORT's CUDA pool grew to 7.8 of 8.15 GB and the encoder slowed ~5×. Two option sets were tried and rejected (both made every run fail after 17 frames, one with a 470 MB allocation failure). Kept: ORT defaults plus arena shrinkage after each memory-attention run: three runs 22.5 / 16.3 / 16.4 s, memory 3.3–6.4 GB (sampled peak 7.65 GB), tracking step +35% slower.
+
+**Tests.** Unit 38/38, headless Nuke 2/2, GUI slice passes (21.2 s; first-press stall 1.6 s remains, T-061).

@@ -1,0 +1,56 @@
+{
+ "runs": [
+  {
+   "status": "done",
+   "applied": "done: 48 keys, 0 frames without object, device cuda",
+   "start_s": 0.0,
+   "seconds": 19.4
+  },
+  {
+   "status": "done",
+   "applied": "done: 48 keys, 0 frames without object, device cuda",
+   "start_s": 19.36,
+   "seconds": 14.8
+  },
+  {
+   "status": "done",
+   "applied": "done: 48 keys, 0 frames without object, device cuda",
+   "start_s": 34.15,
+   "seconds": 38.6
+  }
+ ],
+ "stalls": [],
+ "events_summary": {
+  "Sam2Video.__init__": {
+   "thread": "st_roto:track",
+   "n": 3,
+   "max_ms": 2925.9,
+   "total_ms": 2928.7
+  },
+  "render_frame": {
+   "thread": "MainThread",
+   "n": 144,
+   "max_ms": 68.6,
+   "total_ms": 6750.4
+  },
+  "Sam2Video.encode": {
+   "thread": "st_roto:track",
+   "n": 144,
+   "max_ms": 1163.7,
+   "total_ms": 33473.9
+  },
+  "Sam2Video.add_points": {
+   "thread": "st_roto:track",
+   "n": 3,
+   "max_ms": 445.2,
+   "total_ms": 645.0
+  },
+  "Sam2Video.track": {
+   "thread": "st_roto:track",
+   "n": 141,
+   "max_ms": 222.3,
+   "total_ms": 17782.6
+  }
+ },
+ "ui_gap_mean_ms": 16.05
+}

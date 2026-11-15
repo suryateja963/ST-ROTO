@@ -23,6 +23,32 @@ class DeviceReport:
 
 _PROVIDER = {"cuda": "CUDAExecutionProvider", "directml": "DmlExecutionProvider", "cpu": "CPUExecutionProvider"}
 
+# CUDA EP options. Measured on an 8 GB laptop GPU inside Nuke (research/probes/2026-11-16_gui_stalls): with ORT
+# defaults, GPU memory grew 5.3 -> 7.4 -> 7.8 GB over three Track runs in one Nuke session and the encoder became
+# ~5x slower (pool rounding to powers of two + cuDNN exhaustive search workspaces for every new input shape).
+#   Tried and REJECTED (probe results in that folder):
+#   * "cudnn_conv_algo_search": "HEURISTIC" -> tracking ~15x slower, runs failed after 17 frames;
+#   * "arena_extend_strategy": "kSameAsRequested" -> pool fragmentation: memory attention's ~470 MB attention
+#     buffer could not be allocated, every run failed after 17 frames.
+#   Kept: ORT defaults + arena shrinkage after runs (SHRINK_RUN_OPTIONS below).
+CUDA_OPTIONS = {}
+
+
+def shrink_run_options():
+    """RunOptions that return unused CUDA pool memory to the driver at the end of a run (ORT run config
+    'memory.enable_memory_arena_shrinkage'). Use for the large, variable-shape calls (memory attention)."""
+    ro = ort.RunOptions()
+    ro.add_run_config_entry("memory.enable_memory_arena_shrinkage", "gpu:0;cpu:0")
+    return ro
+
+
+def set_cuda_memory_limit(megabytes: int | None):
+    """Per-session cap on ORT's CUDA memory pool (None = no cap). Used by hardware-aware routing (ADR-0007)."""
+    if megabytes:
+        CUDA_OPTIONS["gpu_mem_limit"] = str(int(megabytes) * 1024 * 1024)
+    else:
+        CUDA_OPTIONS.pop("gpu_mem_limit", None)
+
 
 def available_devices() -> list:
     """Devices this ONNX Runtime build was compiled for (not a guarantee that they load)."""
@@ -30,13 +56,46 @@ def available_devices() -> list:
     return [d for d, p in _PROVIDER.items() if p in av]
 
 
-def open_session(path: str, device: str = "auto", log_severity: int = 3):
+import os
+import threading
+
+_CACHE = {}
+_CACHE_LOCK = threading.Lock()
+
+
+def open_session(path: str, device: str = "auto", log_severity: int = 3, cache: bool = True):
+    """Like `create_session`, but reuses a process-wide session for the same (file, device).
+
+    Why: creating ONNX Runtime sessions holds Python's GIL; in Nuke's GUI this froze the UI for 0.9-1.3 s on every
+    Track press (research/probes/2026-11-16_gui_stalls). Cached sessions make that a once-per-Nuke-session cost.
+    ORT InferenceSession.run is safe to call from several threads.
+    """
+    key = (os.path.abspath(path), device, os.path.getmtime(path))
+    if cache:
+        with _CACHE_LOCK:
+            hit = _CACHE.get(key)
+        if hit is not None:
+            return hit
+    res = create_session(path, device, log_severity)
+    if cache:
+        with _CACHE_LOCK:
+            _CACHE[key] = res
+    return res
+
+
+def clear_cache():
+    """Release cached sessions (frees GPU memory; ADR-0009 GPU arbiter will call this under memory pressure)."""
+    with _CACHE_LOCK:
+        _CACHE.clear()
+
+
+def create_session(path: str, device: str = "auto", log_severity: int = 3):
     """Create an InferenceSession on `device` ("auto" = cuda, then directml, then cpu) and report what loaded."""
     order = [device] if device != "auto" else [d for d in ("cuda", "directml") if d in available_devices()] + ["cpu"]
     so = ort.SessionOptions()
     so.log_severity_level = log_severity
     requested = order[0]
-    providers = [_PROVIDER[d] for d in order]
+    providers = [(_PROVIDER[d], dict(CUDA_OPTIONS)) if d == "cuda" else _PROVIDER[d] for d in order]
     if "CPUExecutionProvider" not in providers:
         providers.append("CPUExecutionProvider")
     sess = ort.InferenceSession(path, so, providers=providers)

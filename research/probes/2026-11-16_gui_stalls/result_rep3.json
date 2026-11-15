@@ -1,0 +1,52 @@
+{
+ "job": {
+  "status": "done",
+  "applied": "done: 48 keys, 0 frames without object, device cuda",
+  "seconds": 19.6
+ },
+ "stalls": [
+  {
+   "start_s": 1.706,
+   "gap_ms": 1072.8,
+   "overlapping": [
+    [
+     "Sam2Video.__init__",
+     "st_roto:track"
+    ]
+   ]
+  }
+ ],
+ "events_summary": {
+  "Sam2Video.__init__": {
+   "thread": "st_roto:track",
+   "n": 1,
+   "max_ms": 2775.1,
+   "total_ms": 2775.1
+  },
+  "render_frame": {
+   "thread": "MainThread",
+   "n": 48,
+   "max_ms": 81.0,
+   "total_ms": 2326.8
+  },
+  "Sam2Video.encode": {
+   "thread": "st_roto:track",
+   "n": 48,
+   "max_ms": 1023.5,
+   "total_ms": 4782.4
+  },
+  "Sam2Video.add_points": {
+   "thread": "st_roto:track",
+   "n": 1,
+   "max_ms": 642.9,
+   "total_ms": 642.9
+  },
+  "Sam2Video.track": {
+   "thread": "st_roto:track",
+   "n": 47,
+   "max_ms": 143.7,
+   "total_ms": 5173.5
+  }
+ },
+ "ui_gap_mean_ms": 17.1
+}

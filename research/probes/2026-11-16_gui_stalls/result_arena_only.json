@@ -1,0 +1,165 @@
+{
+ "runs": [
+  {
+   "status": "failed",
+   "applied": null,
+   "error_tail": [
+    "    return self._sess.run(output_names, input_feed, run_options)",
+    "           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+    "onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException: [ONNXRuntimeError] : 6 : RUNTIME_EXCEPTION : Non-zero status code returned while running FusedMatMul node. Name:'/memory_attention/layers.0/cross_attn_image/MatMul/MatmulTransposeFusion//MatMulScaleFusion/' Status Message: E:\\_work\\1\\s\\onnxruntime\\core\\framework\\bfc_arena.cc:358 onnxruntime::BFCArena::AllocateRawInternal Failed to allocate memory for requested buffer of size 470810624"
+   ],
+   "start_s": 0.0,
+   "seconds": 36.6
+  },
+  {
+   "status": "failed",
+   "applied": null,
+   "error_tail": [
+    "    return self._sess.run(output_names, input_feed, run_options)",
+    "           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+    "onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException: [ONNXRuntimeError] : 6 : RUNTIME_EXCEPTION : Non-zero status code returned while running FusedMatMul node. Name:'/memory_attention/layers.0/cross_attn_image/MatMul/MatmulTransposeFusion//MatMulScaleFusion/' Status Message: E:\\_work\\1\\s\\onnxruntime\\core\\framework\\bfc_arena.cc:358 onnxruntime::BFCArena::AllocateRawInternal Failed to allocate memory for requested buffer of size 470810624"
+   ],
+   "start_s": 36.59,
+   "seconds": 31.8
+  },
+  {
+   "status": "failed",
+   "applied": null,
+   "error_tail": [
+    "    return self._sess.run(output_names, input_feed, run_options)",
+    "           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^",
+    "onnxruntime.capi.onnxruntime_pybind11_state.RuntimeException: [ONNXRuntimeError] : 6 : RUNTIME_EXCEPTION : Non-zero status code returned while running FusedMatMul node. Name:'/memory_attention/layers.0/cross_attn_image/MatMul/MatmulTransposeFusion//MatMulScaleFusion/' Status Message: E:\\_work\\1\\s\\onnxruntime\\core\\framework\\bfc_arena.cc:358 onnxruntime::BFCArena::AllocateRawInternal Failed to allocate memory for requested buffer of size 470810624"
+   ],
+   "start_s": 68.43,
+   "seconds": 30.4
+  }
+ ],
+ "stalls": [
+  {
+   "start_s": 2.178,
+   "gap_ms": 1313.7,
+   "overlapping": [
+    [
+     "Sam2Video.__init__",
+     "st_roto:track"
+    ]
+   ]
+  }
+ ],
+ "events_summary": {
+  "Sam2Video.__init__": {
+   "thread": "st_roto:track",
+   "n": 3,
+   "max_ms": 3482.2,
+   "total_ms": 3488.0
+  },
+  "render_frame": {
+   "thread": "MainThread",
+   "n": 51,
+   "max_ms": 96.6,
+   "total_ms": 2324.9
+  },
+  "Sam2Video.encode": {
+   "thread": "st_roto:track",
+   "n": 51,
+   "max_ms": 1039.7,
+   "total_ms": 9307.3
+  },
+  "Sam2Video.add_points": {
+   "thread": "st_roto:track",
+   "n": 3,
+   "max_ms": 1031.1,
+   "total_ms": 1434.3
+  },
+  "Sam2Video.track": {
+   "thread": "st_roto:track",
+   "n": 48,
+   "max_ms": 4118.6,
+   "total_ms": 78108.4
+  }
+ },
+ "ui_gap_mean_ms": 16.31,
+ "per_run": [
+  {
+   "Sam2Video.__init__": {
+    "n": 1,
+    "total_ms": 3482.2,
+    "max_ms": 3482.2
+   },
+   "render_frame": {
+    "n": 17,
+    "total_ms": 859.6,
+    "max_ms": 96.6
+   },
+   "Sam2Video.encode": {
+    "n": 17,
+    "total_ms": 2451.0,
+    "max_ms": 1039.7
+   },
+   "Sam2Video.add_points": {
+    "n": 1,
+    "total_ms": 1031.1,
+    "max_ms": 1031.1
+   },
+   "Sam2Video.track": {
+    "n": 16,
+    "total_ms": 27224.7,
+    "max_ms": 4118.6
+   }
+  },
+  {
+   "Sam2Video.__init__": {
+    "n": 1,
+    "total_ms": 4.8,
+    "max_ms": 4.8
+   },
+   "render_frame": {
+    "n": 17,
+    "total_ms": 742.8,
+    "max_ms": 48.6
+   },
+   "Sam2Video.encode": {
+    "n": 17,
+    "total_ms": 4051.8,
+    "max_ms": 286.9
+   },
+   "Sam2Video.add_points": {
+    "n": 1,
+    "total_ms": 199.3,
+    "max_ms": 199.3
+   },
+   "Sam2Video.track": {
+    "n": 16,
+    "total_ms": 25483.9,
+    "max_ms": 3361.3
+   }
+  },
+  {
+   "Sam2Video.__init__": {
+    "n": 1,
+    "total_ms": 1.0,
+    "max_ms": 1.0
+   },
+   "render_frame": {
+    "n": 17,
+    "total_ms": 722.5,
+    "max_ms": 49.8
+   },
+   "Sam2Video.encode": {
+    "n": 17,
+    "total_ms": 2804.5,
+    "max_ms": 216.4
+   },
+   "Sam2Video.add_points": {
+    "n": 1,
+    "total_ms": 203.9,
+    "max_ms": 203.9
+   },
+   "Sam2Video.track": {
+    "n": 16,
+    "total_ms": 25399.8,
+    "max_ms": 3358.5
+   }
+  }
+ ]
+}

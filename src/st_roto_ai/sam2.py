@@ -127,6 +127,8 @@ class Sam2Video:
         with open(os.path.join(d, "config.json")) as fh:
             self.cfg = json.load(fh)
         self.num_total_frames = num_total_frames
+        from .runtime import shrink_run_options
+        self._shrink = shrink_run_options() if self.report.active == "cuda" else None
         self.cond = {}
         self.noncond = {}
         self.size = None
@@ -195,9 +197,12 @@ class Sam2Video:
         pe = sine_pe_1d(np.asarray(offs, np.float32) / float(max_ptr - 1), 256)
         ppos = np.repeat((pe @ self.w.T + self.b)[:, None, :], 4, axis=0)
         ptr = ptr.reshape(-1, 1, 4, 64).transpose(0, 2, 1, 3).reshape(-1, 1, 64)
+        # Memory attention allocates ~0.5 GB attention buffers whose size changes as memories accumulate; shrink the
+        # CUDA pool after each call so repeated tracking does not fill an 8 GB card (research/probes/2026-11-16_gui_stalls).
         pix = self.mattn.run(None, {"feat": enc["feat"], "pos": enc["pos"], "mem": np.concatenate(mems, 0),
                                     "mem_pos": np.concatenate(mpos, 0).astype(np.float32),
-                                    "ptr": ptr.astype(np.float32), "ptr_pos": ppos.astype(np.float32)})[0]
+                                    "ptr": ptr.astype(np.float32), "ptr_pos": ppos.astype(np.float32)},
+                             run_options=self._shrink)[0]
         out = self._decode(enc, pix, np.zeros((1, 1, 1, 2), np.float32), -np.ones((1, 1, 1), np.int32))
         self._encode_memory(enc, out, from_points=False)
         keep = {k: out[k] for k in ("low_res", "obj_ptr", "obj_score", "maskmem", "maskmem_pos")}
