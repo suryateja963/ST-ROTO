@@ -17,6 +17,7 @@ Updated 2026-11-15.
 | T-030 | Licence texts: SAM License, S-Lab 1.0, ORT, BiRefNet, Foundry EULA key clauses (partial) | `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md` |
 | T-031 | Missing model categories, first pass (partial) | `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md` |
 | T-021 | Public GitHub repository created and pushed | https://github.com/suryateja963/ST-ROTO (commit 2a0adea) |
+| T-043 | Bézier fitting prototype (6 unit tests) + Nuke tangent semantics measured; SAM mask → 20-point Bézier Roto shape, IoU 0.9957 | `research/probes/2026-11-15_bezier/RESULTS.md` |
 | T-041 | SAM 2.1 tiny + large: download (pinned, checksummed), ONNX export (exact vs PyTorch), CUDA in Nuke NC, mask → native Roto shape (IoU 0.996 vs mask) | `research/probes/2026-11-15_sam2/RESULTS.md` |
 | T-040 | Nuke → numpy pixel transfer measured (HD: 0.09 s render + 0.02 s read via float TIFF) | `research/probes/2026-11-15_sam2/RESULTS.md` |
 | T-042 | Hardware logger for crash diagnosis (`tools/monitoring/hw_logger.ps1`) | `logs/hardware/` (local, git-ignored) |
@@ -34,7 +35,6 @@ Updated 2026-11-15.
 
 | ID | Task |
 |---|---|
-| T-043 | Fit smooth Bézier curves (with tangents, sensible point count) to SAM masks instead of polygons |
 | T-044 | Export SAM 2.1 video components (memory encoder / memory attention) for temporal propagation |
 | T-045 | Documented, configurable model-input colour transform (replace hard-coded sRGB re-encode) |
 | T-046 | In-memory pixel path Nuke ↔ numpy (avoid disk round-trip) |

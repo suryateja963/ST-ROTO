@@ -1,0 +1,51 @@
+{
+ "A_ccw_scale0.333": {
+  "iou_vs_ideal": 0.7055,
+  "area_ratio": 0.7055
+ },
+ "A_ccw_scale1.0": {
+  "iou_vs_ideal": 0.83313,
+  "area_ratio": 0.8331
+ },
+ "A_ccw_scale3.0": {
+  "iou_vs_ideal": 0.87821,
+  "area_ratio": 1.1374
+ },
+ "A_cw_scale0.333": {
+  "iou_vs_ideal": 0.7055,
+  "area_ratio": 0.7055
+ },
+ "A_cw_scale1.0": {
+  "iou_vs_ideal": 0.83313,
+  "area_ratio": 0.8331
+ },
+ "A_cw_scale3.0": {
+  "iou_vs_ideal": 0.87821,
+  "area_ratio": 1.1374
+ },
+ "B_ccw_scale0.333": {
+  "iou_vs_ideal": 0.56417,
+  "area_ratio": 0.5642
+ },
+ "B_ccw_scale1.0": {
+  "iou_vs_ideal": 0.00847,
+  "area_ratio": 0.0085
+ },
+ "B_ccw_scale3.0": {
+  "iou_vs_ideal": 0.41442,
+  "area_ratio": 0.4144
+ },
+ "B_cw_scale0.333": {
+  "iou_vs_ideal": 0.56417,
+  "area_ratio": 0.5642
+ },
+ "B_cw_scale1.0": {
+  "iou_vs_ideal": 0.00847,
+  "area_ratio": 0.0085
+ },
+ "B_cw_scale3.0": {
+  "iou_vs_ideal": 0.41442,
+  "area_ratio": 0.4144
+ },
+ "nodes_used": 2
+}

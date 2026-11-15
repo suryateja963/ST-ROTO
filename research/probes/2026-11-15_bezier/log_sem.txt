@@ -1,0 +1,40 @@
+Nuke 17.1v3, 64 bit, built Nov  2 2026.
+Copyright (c) 2026 The Foundry Visionmongers Ltd.  All Rights Reserved.
+Non-commercial mode active.
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_bezier/out/sem.tif took 0.01 seconds
+Total render time: 0.03 seconds
+.9
+Writing D:/ST-ROTO/research/probes/2026-11-15_bezier/out/sem.tif took 0.01 seconds
+Total render time: 0.03 seconds
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_bezier/out/sem.tif took 0.01 seconds
+Total render time: 0.04 seconds
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_bezier/out/sem.tif took 0.01 seconds
+Total render time: 0.04 seconds
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_bezier/out/sem.tif took 0.01 seconds
+Total render time: 0.04 seconds
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_bezier/out/sem.tif took 0.01 seconds
+Total render time: 0.02 seconds
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_bezier/out/sem.tif took 0.01 seconds
+Total render time: 0.02 seconds
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_bezier/out/sem.tif took 0.01 seconds
+Total render time: 0.01 seconds
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_bezier/out/sem.tif took 0.01 seconds
+Total render time: 0.02 seconds
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_bezier/out/sem.tif took 0.01 seconds
+Total render time: 0.01 seconds
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_bezier/out/sem.tif took 0.01 seconds
+Total render time: 0.01 seconds
+
+Writing D:/ST-ROTO/research/probes/2026-11-15_bezier/out/sem.tif took 0.01 seconds
+Total render time: 0.01 seconds
+DONE

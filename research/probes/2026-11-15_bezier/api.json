@@ -1,0 +1,227 @@
+{
+ "ShapeControlPoint_attrs": [
+  "center",
+  "featherCenter",
+  "featherLeftTangent",
+  "featherRightTangent",
+  "leftTangent",
+  "rightTangent"
+ ],
+ "ShapeControlPoint_doc": "A control point in a roto shape.\n\nThe control point groups together a 'center' location, along with tangents and feather offsets.",
+ "ShapeControlPoint_init_doc": "Initialize self.  See help(type(self)) for accurate signature.",
+ "center": {
+  "type": "AnimControlPoint",
+  "attrs": [
+   "addControlPoint",
+   "addKey",
+   "addPositionKey",
+   "dim",
+   "evaluate",
+   "getControlPointKeyTimes",
+   "getFlag",
+   "getPosition",
+   "getPositionAnimCurve",
+   "getPositionKeyTime",
+   "hash",
+   "name",
+   "removeAllKeys",
+   "removeKey",
+   "removePositionKey",
+   "reset",
+   "setFlag",
+   "setPosition",
+   "setPositionAnimCurve",
+   "setPositionKey"
+  ],
+  "pos": [
+   100.0,
+   200.0
+  ]
+ },
+ "leftTangent": {
+  "type": "AnimControlPoint",
+  "attrs": [
+   "addControlPoint",
+   "addKey",
+   "addPositionKey",
+   "dim",
+   "evaluate",
+   "getControlPointKeyTimes",
+   "getFlag",
+   "getPosition",
+   "getPositionAnimCurve",
+   "getPositionKeyTime",
+   "hash",
+   "name",
+   "removeAllKeys",
+   "removeKey",
+   "removePositionKey",
+   "reset",
+   "setFlag",
+   "setPosition",
+   "setPositionAnimCurve",
+   "setPositionKey"
+  ],
+  "pos": [
+   0.0,
+   0.0
+  ]
+ },
+ "rightTangent": {
+  "type": "AnimControlPoint",
+  "attrs": [
+   "addControlPoint",
+   "addKey",
+   "addPositionKey",
+   "dim",
+   "evaluate",
+   "getControlPointKeyTimes",
+   "getFlag",
+   "getPosition",
+   "getPositionAnimCurve",
+   "getPositionKeyTime",
+   "hash",
+   "name",
+   "removeAllKeys",
+   "removeKey",
+   "removePositionKey",
+   "reset",
+   "setFlag",
+   "setPosition",
+   "setPositionAnimCurve",
+   "setPositionKey"
+  ],
+  "pos": [
+   0.0,
+   0.0
+  ]
+ },
+ "featherCenter": {
+  "type": "AnimControlPoint",
+  "attrs": [
+   "addControlPoint",
+   "addKey",
+   "addPositionKey",
+   "dim",
+   "evaluate",
+   "getControlPointKeyTimes",
+   "getFlag",
+   "getPosition",
+   "getPositionAnimCurve",
+   "getPositionKeyTime",
+   "hash",
+   "name",
+   "removeAllKeys",
+   "removeKey",
+   "removePositionKey",
+   "reset",
+   "setFlag",
+   "setPosition",
+   "setPositionAnimCurve",
+   "setPositionKey"
+  ],
+  "pos": [
+   0.0,
+   0.0
+  ]
+ },
+ "featherLeftTangent": {
+  "type": "AnimControlPoint",
+  "attrs": [
+   "addControlPoint",
+   "addKey",
+   "addPositionKey",
+   "dim",
+   "evaluate",
+   "getControlPointKeyTimes",
+   "getFlag",
+   "getPosition",
+   "getPositionAnimCurve",
+   "getPositionKeyTime",
+   "hash",
+   "name",
+   "removeAllKeys",
+   "removeKey",
+   "removePositionKey",
+   "reset",
+   "setFlag",
+   "setPosition",
+   "setPositionAnimCurve",
+   "setPositionKey"
+  ],
+  "pos": [
+   0.0,
+   0.0
+  ]
+ },
+ "featherRightTangent": {
+  "type": "AnimControlPoint",
+  "attrs": [
+   "addControlPoint",
+   "addKey",
+   "addPositionKey",
+   "dim",
+   "evaluate",
+   "getControlPointKeyTimes",
+   "getFlag",
+   "getPosition",
+   "getPositionAnimCurve",
+   "getPositionKeyTime",
+   "hash",
+   "name",
+   "removeAllKeys",
+   "removeKey",
+   "removePositionKey",
+   "reset",
+   "setFlag",
+   "setPosition",
+   "setPositionAnimCurve",
+   "setPositionKey"
+  ],
+  "pos": [
+   0.0,
+   0.0
+  ]
+ },
+ "Shape_attrs": [
+  "append",
+  "clone",
+  "evaluate",
+  "getAttributes",
+  "getFlag",
+  "getTransform",
+  "getVisible",
+  "insert",
+  "locked",
+  "name",
+  "remove",
+  "serialise",
+  "setFlag",
+  "setVisible"
+ ],
+ "CVec2_doc": "A 2-component vector.",
+ "curvelib_attrs": [
+  "AnimAttributes",
+  "AnimCTransform",
+  "AnimControlPoint",
+  "AnimCurve",
+  "AnimCurveKey",
+  "AnimCurveViews",
+  "BaseCurve",
+  "CMatrix4",
+  "CTransform",
+  "CVec2",
+  "CVec3",
+  "CVec4",
+  "ControlPoint",
+  "CorrespondencePoints",
+  "CubicCurve",
+  "CurveType",
+  "ExtrapolationType",
+  "Flag",
+  "FlagType",
+  "InterpolationType",
+  "RotationOrder",
+  "TransformOrder"
+ ]
+}

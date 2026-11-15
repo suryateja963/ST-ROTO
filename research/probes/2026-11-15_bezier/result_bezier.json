@@ -1,0 +1,75 @@
+{
+ "contour_pixels": 1409,
+ "sweep": {
+  "0.5": {
+   "anchors": 76,
+   "corners": 0,
+   "fit_ms": 76.4,
+   "max_dev_px": 0.973,
+   "mean_dev_px": 0.272,
+   "iou_vs_mask": 0.99823,
+   "iou_vs_gt": 0.99602
+  },
+  "1.0": {
+   "anchors": 20,
+   "corners": 0,
+   "fit_ms": 20.8,
+   "max_dev_px": 1.392,
+   "mean_dev_px": 0.46,
+   "iou_vs_mask": 0.99689,
+   "iou_vs_gt": 0.99514
+  },
+  "2.0": {
+   "anchors": 12,
+   "corners": 0,
+   "fit_ms": 11.2,
+   "max_dev_px": 1.913,
+   "mean_dev_px": 0.628,
+   "iou_vs_mask": 0.99565,
+   "iou_vs_gt": 0.99358
+  },
+  "3.0": {
+   "anchors": 10,
+   "corners": 0,
+   "fit_ms": 7.0,
+   "max_dev_px": 3.293,
+   "mean_dev_px": 0.932,
+   "iou_vs_mask": 0.99311,
+   "iou_vs_gt": 0.99027
+  }
+ },
+ "nuke_A_left_is_incoming": {
+  "roto_size": "1920x1080",
+  "anchors": 20,
+  "iou_vs_mask": 0.9957,
+  "iou_vs_gt": 0.99095,
+  "centroid_offset_px": [
+   -0.051,
+   0.039
+  ],
+  "first_left_tangent_readback": [
+   25.078,
+   6.019
+  ]
+ },
+ "nuke_B_left_is_outgoing": {
+  "roto_size": "1920x1080",
+  "anchors": 20,
+  "iou_vs_mask": 0.91123,
+  "iou_vs_gt": 0.90662,
+  "centroid_offset_px": [
+   7.376,
+   -4.201
+  ],
+  "first_left_tangent_readback": [
+   -20.323,
+   -4.878
+  ]
+ },
+ "polygon_baseline_from_sam_probe": {
+  "anchors": 61,
+  "iou_vs_mask": 0.99608,
+  "note": "approxPolyDP 1px, no tangents"
+ },
+ "nodes_used": 4
+}

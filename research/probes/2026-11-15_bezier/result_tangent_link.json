@@ -1,0 +1,71 @@
+{
+ "after_set_left": {
+  "left": [
+   -10.0,
+   2.0
+  ],
+  "right": [
+   0.0,
+   0.0
+  ]
+ },
+ "after_set_right": {
+  "left": [
+   -10.0,
+   2.0
+  ],
+  "right": [
+   30.0,
+   9.0
+  ]
+ },
+ "flag_types": [
+  "eActiveFlag",
+  "eBreakFlag",
+  "eKeySelectedFlag",
+  "eLeftTangentSelectedFlag",
+  "eLockedFlag",
+  "eMaxFlag",
+  "eNukeAnimCurveEvalFlag",
+  "eOpenFlag",
+  "ePressureInZFlag",
+  "eRelativeTangentFlag",
+  "eRenderableFlag",
+  "eRightTangentSelectedFlag",
+  "eSelectedFlag",
+  "eTangentLengthLockFlag",
+  "eUndefineFlag",
+  "eVisibleFlag"
+ ],
+ "shape_flags": {
+  "eActiveFlag": false,
+  "eBreakFlag": false,
+  "eKeySelectedFlag": false,
+  "eLeftTangentSelectedFlag": false,
+  "eLockedFlag": false,
+  "eMaxFlag": false,
+  "eNukeAnimCurveEvalFlag": false,
+  "eOpenFlag": false,
+  "ePressureInZFlag": false,
+  "eRelativeTangentFlag": false,
+  "eRenderableFlag": false,
+  "eRightTangentSelectedFlag": false,
+  "eSelectedFlag": true,
+  "eTangentLengthLockFlag": false,
+  "eUndefineFlag": false,
+  "eVisibleFlag": false
+ },
+ "attrs_sample": {
+  "bm": 0.0,
+  "fo": 1.0,
+  "ff": 1.0,
+  "tt": 0.0,
+  "ltn": 1.0,
+  "ltm": 1.0,
+  "inv": 0.0,
+  "fx": 0.0,
+  "fy": 0.0,
+  "str": 1.0
+ },
+ "serialise_head": "{curvegroup Shape1 512 bezier\n  {{cc\n    {f 8192}\n    {p\n     {}\n     {x42c80000 x42c80000 1}\n     {}}}\n   {cc\n    {f 8192}\n    {p\n     {}\n     {}\n     {}}}}\n  {tx 1 0}\n  {a osw x41200000 osf 0 str 1 spx x44800000 spy x44428000 sf x40000000 sb 1}}"
+}
