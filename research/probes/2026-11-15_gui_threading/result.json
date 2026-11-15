@@ -1,0 +1,54 @@
+{
+ "nuke": "17.1v3",
+ "gui": true,
+ "nc": true,
+ "phases": {
+  "baseline": {
+   "ticks": 125,
+   "gap_ms_mean": 16.0,
+   "gap_ms_p99": 19.1,
+   "gap_ms_max": 28.4,
+   "gaps_over_100ms": 0
+  },
+  "worker_job": {
+   "ticks": 156,
+   "gap_ms_mean": 16.0,
+   "gap_ms_p99": 16.8,
+   "gap_ms_max": 17.7,
+   "gaps_over_100ms": 0
+  },
+  "main_thread_job": {
+   "ticks": 10,
+   "gap_ms_mean": 59.2,
+   "gap_ms_p99": 60.0,
+   "gap_ms_max": 60.1,
+   "gaps_over_100ms": 0
+  },
+  "after": {
+   "ticks": 157,
+   "gap_ms_mean": 16.1,
+   "gap_ms_p99": 17.3,
+   "gap_ms_max": 40.0,
+   "gaps_over_100ms": 0
+  }
+ },
+ "_timer": null,
+ "providers": [
+  "CUDAExecutionProvider",
+  "CPUExecutionProvider"
+ ],
+ "marshal_result_(on_main_thread,points)": [
+  true,
+  3
+ ],
+ "worker": {
+  "runs": 40,
+  "ms_mean": 60.7,
+  "error": null
+ },
+ "main_thread_10_runs_s": 0.72,
+ "cancel": {
+  "latency_ms": 38.8,
+  "runs_before_cancel": 15
+ }
+}

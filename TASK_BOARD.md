@@ -17,6 +17,7 @@ Updated 2026-11-15.
 | T-030 | Licence texts: SAM License, S-Lab 1.0, ORT, BiRefNet, Foundry EULA key clauses (partial) | `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md` |
 | T-031 | Missing model categories, first pass (partial) | `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md` |
 | T-021 | Public GitHub repository created and pushed | https://github.com/suryateja963/ST-ROTO (commit 2a0adea) |
+| T-051 | GUI threading verified in interactive Nuke 17.1 (worker thread, marshalling, cancel) | `research/probes/2026-11-15_gui_threading/RESULTS.md` |
 | T-047 | Architecture proposal: `ARCHITECTURE.md` + ADR-0001..0010 (all Proposed, awaiting owner) | `ARCHITECTURE.md`, `docs/adr/` |
 | T-044 | SAM 2.1 video tracking: 5 ONNX graphs + numpy memory logic (IoU vs PyTorch ≥ 0.99997); in Nuke on CUDA ≈ 0.24 s/frame (tiny); animated 16-anchor native Roto shape | `research/probes/2026-11-15_video/RESULTS.md` |
 | T-043 | Bézier fitting prototype (6 unit tests) + Nuke tangent semantics measured; SAM mask → 20-point Bézier Roto shape, IoU 0.9957 | `research/probes/2026-11-15_bezier/RESULTS.md` |
@@ -37,7 +38,6 @@ Updated 2026-11-15.
 | ID | Task |
 |---|---|
 | T-045 | Documented, configurable model-input colour transform (replace hard-coded sRGB re-encode) |
-| T-051 | GUI threading prototype: ORT CUDA job on a worker thread in interactive Nuke, panel responsive (R-37) |
 | T-048 | Tracker: reverse propagation, multiple objects, corrections on tracked frames, resumable state |
 | T-049 | Multi-shape objects (object split into several pieces) and adaptive anchor counts for animated shapes |
 | T-046 | In-memory pixel path Nuke ↔ numpy (avoid disk round-trip) |
