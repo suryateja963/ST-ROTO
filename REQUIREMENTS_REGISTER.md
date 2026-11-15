@@ -54,7 +54,7 @@ First issue, 2026-11-15.
 | REQ-130 | 15 | Model manager: listed 15 functions; three storage locations; no download without approval | Mandatory | REQ-051 | Planned | Functional and offline tests | |
 | REQ-140 | 16 | Fully local operation; no telemetry; no automatic transmission; no account | Mandatory | – | Planned | Offline verification test detecting outbound traffic | |
 | REQ-150 | 17 | Pretrained models first; architecture ready for local learning; correction data artist-controlled; listed investigations | Mandatory (learning features: "investigate") | REQ-080 | Planned | Design review | |
-| REQ-160 | 18 | Project state: listed 16 capabilities incl. autosave, crash recovery, transactions, snapshots | Mandatory | – | Planned | Crash-recovery tests | Database not selected |
+| REQ-160 | 18 | Project state: listed 16 capabilities incl. autosave, crash recovery, transactions, snapshots | Mandatory | – | Implemented (core) | Crash-recovery tests | Partly implemented (core): SQLite project store, transactions, op log, undo/redo, persistence across reopen (unit-tested). Autosave/crash recovery/snapshots/packages not yet. |
 | REQ-161 | 18 | Separation of data classes; portable project packages | Mandatory | REQ-160 | Planned | Package transfer test | |
 | REQ-170 | 19 | Optional collaboration with the listed capabilities; solo use never degraded | Mandatory, feature optional to users | REQ-160 | Planned | Collaboration tests | Five decisions open (OQ-02..06) |
 | REQ-171 | 19.1 | Fourteen approved collaboration decisions | Mandatory | REQ-170 | Planned | Collaboration tests | |

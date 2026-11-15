@@ -130,3 +130,13 @@ GitHub CLI 2.104.0 installed via winget (D-014); owner signed in as suryateja963
 ## 2026-11-15 — GUI threading (T-051, R-37)
 
 Owner approved the architecture (D-026..D-028). Interactive-GUI probe: SAM 2.1 tiny encoder ×40 on a worker thread with CUDA, while the GUI's 16 ms timer averaged 16.0 ms (max 17.7 ms, no gaps > 100 ms). Same work on the main thread gave 60 ms gaps. Main-thread marshalling created a Roto shape; cancellation took 39 ms. ADR-0009 confirmed for Nuke 17.1.
+
+## 2026-11-15 — Phase 4 core v0 (T-052)
+
+**Work.** First product code in `src/st_roto`: `model.py` (provenance, canonical coordinates, validation), `store.py` (per-project SQLite, WAL, foreign keys, versioned migrations, old-SQLite-safe SQL), `commands.py` (operation log with exact inverses, undo/redo, protection rules), `geometry.py` (promoted from the prototype). `pyproject.toml`, `requirements-dev.txt`, GitHub Actions CI (pytest on Windows/Linux × Python 3.9/3.11, Python 3.7 compatibility via vermin).
+
+**Tests.** 22 unit tests passing locally (geometry 7, store/commands 14, layering 1). vermin: minimum required Python 3.7.
+
+**Requirements.** REQ-042 implemented in the core; REQ-160 partly. "Implemented (core)" means unit-tested outside Nuke, not yet tested inside Nuke (§22 status scale).
+
+**Process note.** A register-update script matched `| REQ-160 |` inside the REQ-070 row and aborted halfway; commit 922b956 carried the task-board and REQ-042 changes without this log entry or the REQ-160 update. Fixed in the next commit (line-anchored matching).
