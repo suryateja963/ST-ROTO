@@ -17,6 +17,7 @@ Updated 2026-11-15.
 | T-030 | Licence texts: SAM License, S-Lab 1.0, ORT, BiRefNet, Foundry EULA key clauses (partial) | `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md` |
 | T-031 | Missing model categories, first pass (partial) | `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md` |
 | T-021 | Public GitHub repository created and pushed | https://github.com/suryateja963/ST-ROTO (commit 2a0adea) |
+| T-059 | Prompts (include/exclude via XY viewer handle), Preview, session project with persistent undo, schema v2 host-export records, safe Roto sync (artist-edited shapes never overwritten), object panel, `nuke_plugin/` + `docs/USER_GUIDE_v0.md`. Unit 41, Nuke 4/4, GUI with panel passes | `src/st_roto_nuke/`, `tests/nuke/` |
 | T-061 | 'Load model' button: the one-time GIL pause (≈2.9 s) happens when the artist chooses; afterwards 2 Track runs with zero UI stalls (2 trials) | `research/probes/2026-11-16_gui_stalls/result_preload*.json` |
 | T-062 | fp16 memory attention (tiny + large validated vs PyTorch), default per D-029; regression test of 3 runs in one session (10.5/8.3/8.3 s, peak 3.9 GB) | `research/probes/2026-11-16_fp16/RESULTS.md` |
 | T-058 | GUI stalls diagnosed (GIL during ORT session creation) and fixed for repeat presses (session cache); GPU memory growth across runs found and fixed (arena shrinkage); 2 rejected option sets documented | `research/probes/2026-11-16_gui_stalls/RESULTS.md` |
@@ -44,7 +45,8 @@ Updated 2026-11-15.
 
 | ID | Task |
 |---|---|
-| T-059 | Viewer click to set the prompt (instead of the XY knob) and a docked object panel |
+| T-063 | Import artist edits made in the Roto node back into the project (artist_modified_ai keys) so they can guide re-tracking |
+| T-064 | Object rename should rename its shapes (currently only the object row changes) |
 | T-060 | Reverse tracking, re-tracking under artist-locked keys, several objects per ST_Roto node |
 | T-056 | Model registry from `models/manifests` (licence, revision, checksum verification before load) |
 | T-057 | Update GitHub Actions to Node-24-based action versions (deprecation warning) |

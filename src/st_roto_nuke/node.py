@@ -1,69 +1,68 @@
-"""The ST_Roto node (single-node core under the Non-commercial 10-node cap, D-012) — vertical slice v0.
+"""The ST_Roto node (single-node core under the Non-commercial 10-node cap, D-012) — v0.
 
 Structure: Group "ST_Roto" with  Input -> Roto(STROTO_shapes, alpha) -> Output, plus a disabled Write
-(STROTO_pixels) used to pull pixels into numpy. 5 nodes per shot incl. the group.
-Knobs (tab ST-ROTO): project file, object name, click position (XY, Nuke coordinates) and frame, model, device,
-Track / Cancel buttons, status. Tracking runs on a worker thread; Nuke calls are marshalled to the main thread.
+(STROTO_pixels) that pulls pixels into numpy. 5 nodes per shot including the group.
+
+Artist workflow (knob tab ST-ROTO):
+  1. drag the "point" handle in the viewer onto the object, press "+ Include" (or "- Exclude") - repeat as needed;
+  2. "Preview" shows the AI shape for the current frame (temporary, not saved);
+  3. "Load model" (optional, once per Nuke session) takes the one-time GPU set-up pause now;
+  4. "Track" tracks forward from the prompt frame on a worker thread; the result is stored in the project
+     (AI provenance, undoable) and synchronised into the Roto node without touching shapes edited there.
+Python viewer clicks are not used: Non-commercial cannot load C++ overlays and Nuke offers no supported Python
+mapping from viewer clicks to image coordinates; the XY knob handle is Nuke's native in-viewer point.
 """
 from __future__ import annotations
 
 import os
+import threading
+import traceback
 
 import nuke
-import nuke.rotopaint  # noqa: F401  (ensures the rotopaint module is initialised)
+import nuke.rotopaint  # noqa: F401
 
-from st_roto import jobs
-from st_roto.commands import CommandBus
-from st_roto.store import ProjectStore
-from . import pixels
-from .roto_export import export_shape
-from .track import apply_result, track_object
+from st_roto import jobs, prompts
+from . import pixels, session
+from .roto_export import export_preview, sync_shot
+from .track import apply_result, models_root, track_object
 
 MODELS = ["sam2.1-hiera-tiny", "sam2.1-hiera-large"]
 DEVICES = ["auto", "cpu"]
-_JOBS = {}            # group full name -> running Job
-_INNER = {}           # group full name -> {"write": Node, "roto": Node}: avoids re-fetching nodes (10-node budget)
+_JOBS = {}            # group full name -> last Job
+_INNER = {}           # group full name -> cached Node references (10-node budget: never re-fetch, R-39)
 
 
 class NodeBudgetError(RuntimeError):
     """Nuke Non-commercial / Indie returned None because the 10-Python-Node-object limit was reached (ADR-0003)."""
 
 
-def _inner(group, key, name):
-    cached = _INNER.get(group.fullName(), {}).get(key)
-    if cached is not None:
-        return cached
-    with group:
-        n = nuke.toNode(name)
-    if n is None:
-        raise NodeBudgetError("Nuke returned no node for %s.%s. In Non-commercial/Indie mode Python can access only "
-                              "10 nodes per session; save the script, reopen it and press Track again."
-                              % (group.name(), name))
-    _INNER.setdefault(group.fullName(), {})[key] = n
-    return n
-
-
+# ------------------------------------------------------------------------------------------------ creation
 def create(source=None, project_path: str = ""):
     group = nuke.nodes.Group(name="ST_Roto1")
     if source is not None:
         group.setInput(0, source)
-    tab = nuke.Tab_Knob("stroto_tab", "ST-ROTO")
-    group.addKnob(tab)
+    group.addKnob(nuke.Tab_Knob("stroto_tab", "ST-ROTO"))
     k = nuke.File_Knob("stroto_project", "project file"); group.addKnob(k); k.setValue(project_path)
     group.addKnob(nuke.String_Knob("stroto_object", "object name", "object1"))
-    group.addKnob(nuke.XY_Knob("stroto_click", "click (x, y)"))
-    group.addKnob(nuke.Int_Knob("stroto_click_frame", "click frame"))
+    group.addKnob(nuke.Text_Knob("stroto_div1", "prompts"))
+    xy = nuke.XY_Knob("stroto_click", "point")
+    xy.setTooltip("Drag this handle in the viewer onto the object, then press + Include or - Exclude.")
+    group.addKnob(xy)
+    _button(group, "stroto_add_inc", "+ Include", "n.on_add_point(nuke.thisNode(), 1)")
+    _button(group, "stroto_add_exc", "- Exclude", "n.on_add_point(nuke.thisNode(), 0)", new_line=False)
+    _button(group, "stroto_clear", "Clear points", "n.on_clear_points(nuke.thisNode())", new_line=False)
+    pts = nuke.String_Knob("stroto_points", "points (json)"); group.addKnob(pts)
+    group.addKnob(nuke.Text_Knob("stroto_points_info", "", "no points"))
+    group.addKnob(nuke.Int_Knob("stroto_click_frame", "click frame (if no points)"))
+    group.addKnob(nuke.Text_Knob("stroto_div2", "AI"))
     group.addKnob(nuke.Enumeration_Knob("stroto_model", "model", MODELS))
     group.addKnob(nuke.Enumeration_Knob("stroto_device", "device", DEVICES))
-    lm = nuke.PyScript_Knob("stroto_load", "Load model", "import st_roto_nuke.node as n; n.on_load_model(nuke.thisNode())")
-    lm.setTooltip("Loads the AI model onto the GPU now. Nuke may pause for 1-3 seconds once; Track is smooth afterwards.")
-    group.addKnob(lm)
-    b = nuke.PyScript_Knob("stroto_track", "Track", "import st_roto_nuke.node as n; n.on_track(nuke.thisNode())")
-    group.addKnob(b)
-    c = nuke.PyScript_Knob("stroto_cancel", "Cancel", "import st_roto_nuke.node as n; n.on_cancel(nuke.thisNode())")
-    group.addKnob(c)
-    st = nuke.Text_Knob("stroto_status", "status", "idle")
-    group.addKnob(st)
+    lm = _button(group, "stroto_load", "Load model", "n.on_load_model(nuke.thisNode())")
+    lm.setTooltip("Loads the AI model onto the GPU now. Nuke may pause for a few seconds once; Track is smooth afterwards.")
+    _button(group, "stroto_preview", "Preview", "n.on_preview(nuke.thisNode())", new_line=False)
+    _button(group, "stroto_track", "Track", "n.on_track(nuke.thisNode())", new_line=False)
+    _button(group, "stroto_cancel", "Cancel", "n.on_cancel(nuke.thisNode())", new_line=False)
+    group.addKnob(nuke.Text_Knob("stroto_status", "status", "idle"))
     with group:
         inp = nuke.nodes.Input(name="Input1")
         roto = nuke.nodes.Roto(name="STROTO_shapes", output="alpha")
@@ -74,29 +73,143 @@ def create(source=None, project_path: str = ""):
         w.setInput(0, inp)
         pixels.configure_write(w, pixels.temp_pixel_path(group.name()))
         w["disable"].setValue(True)
-    _INNER[group.fullName()] = {"write": w, "roto": roto}
+    _INNER[group.fullName()] = {"write": w, "roto": roto, "src": source}
     return group
+
+
+def create_from_selection():
+    """Menu entry: create an ST_Roto node below the selected node; project file defaults to <script>.stroto."""
+    try:
+        src = nuke.selectedNode()
+    except ValueError:
+        src = None
+    script = nuke.root().name()
+    project = "" if script in ("", "Root") else os.path.splitext(script)[0] + ".stroto"
+    g = create(src, project)
+    if not project:
+        g["stroto_status"].setValue("set a project file (save the script first for an automatic one)")
+    return g
+
+
+def _button(group, name, label, code, new_line=True):
+    b = nuke.PyScript_Knob(name, label, "import st_roto_nuke.node as n; " + code)
+    if not new_line:
+        b.clearFlag(nuke.STARTLINE)
+    group.addKnob(b)
+    return b
+
+
+# ------------------------------------------------------------------------------------------------ helpers
+def _inner(group, key, name):
+    cached = _INNER.get(group.fullName(), {}).get(key)
+    if cached is not None:
+        return cached
+    if key == "src":
+        n = group.input(0)
+        if n is None:
+            raise ValueError("connect a source to the ST_Roto input")
+    else:
+        with group:
+            n = nuke.toNode(name)
+    if n is None:
+        raise NodeBudgetError("Nuke returned no node for %s.%s. In Non-commercial/Indie mode Python can access only "
+                              "10 nodes per session; save the script, reopen it and try again." % (group.name(), name))
+    _INNER.setdefault(group.fullName(), {})[key] = n
+    return n
 
 
 def _status(group, text):
     def _set():
         group["stroto_status"].setValue(text)
-    if _is_main_thread():
+    if threading.current_thread() is threading.main_thread():
         _set()
     else:
         nuke.executeInMainThread(_set)
 
 
-def _is_main_thread():
-    import threading
-    return threading.current_thread() is threading.main_thread()
+def _height(group):
+    return int(group.height())
+
+
+def _context(group):
+    """Everything a job needs, gathered on the main thread. Raises ValueError with an artist-readable message."""
+    src = _inner(group, "src", None)
+    write, roto = _inner(group, "write", "STROTO_pixels"), _inner(group, "roto", "STROTO_shapes")
+    text = group["stroto_points"].value()
+    if prompts.load(text):
+        frame, xy, labels = prompts.for_tracker(text)
+    else:                                                     # backwards-compatible single click
+        cx, cy = group["stroto_click"].value()
+        frame, xy, labels = int(group["stroto_click_frame"].value()), [(float(cx), _height(group) - float(cy))], [1]
+    first, last = int(src.firstFrame()), int(src.lastFrame())
+    if not first <= frame <= last:
+        raise ValueError("prompt frame %d is outside the source range %d-%d" % (frame, first, last))
+    return {"src": src, "write": write, "roto": roto, "frame": frame, "xy": xy, "labels": labels,
+            "first": first, "last": last, "width": int(src.width()), "height": int(src.height()),
+            "model": group["stroto_model"].value(), "device": group["stroto_device"].value(),
+            "project": group["stroto_project"].value(), "object": group["stroto_object"].value() or "object",
+            "pixel_path": pixels.temp_pixel_path(group.name())}
+
+
+def _renderer(ctx, background):
+    def get_rgb(frame):
+        if background:
+            return nuke.executeInMainThreadWithResult(pixels.render_frame, (ctx["write"], frame, ctx["pixel_path"]))
+        return pixels.render_frame(ctx["write"], frame, ctx["pixel_path"])
+    return get_rgb
+
+
+def _run(group, name, work, apply, background):
+    """Start a job; `apply(job)` runs on the main thread; every failure ends up in the status knob."""
+    prev = _JOBS.get(group.fullName())
+    if prev is not None and prev.status == jobs.RUNNING:
+        _status(group, "busy: %s is still running" % prev.name)
+        return prev
+
+    def safe_apply(job):
+        try:
+            apply(job)
+        except Exception:
+            job.apply_error = traceback.format_exc()
+            job.applied = "failed applying result: " + job.apply_error.strip().splitlines()[-1]
+            group["stroto_status"].setValue(job.applied)
+
+    def finished(job):
+        if job.status == jobs.DONE:
+            nuke.executeInMainThread(safe_apply, (job,)) if background else safe_apply(job)
+        elif job.status == jobs.FAILED:
+            job.applied = "failed: " + job.error.strip().splitlines()[-1]
+            _status(group, job.applied)
+        else:
+            job.applied = "cancelled"
+            _status(group, "cancelled")
+
+    job = jobs.Job(work, name=name, on_finish=finished,
+                   on_progress=lambda j: _status(group, "%s %d%%: %s" % (name, 100 * j.progress, j.message)))
+    job.applied, job.apply_error = None, None
+    _JOBS[group.fullName()] = job
+    return job.start(background=background)
+
+
+# ------------------------------------------------------------------------------------------------ buttons
+def on_add_point(group, label: int):
+    cx, cy = group["stroto_click"].value()
+    try:
+        text = prompts.add(group["stroto_points"].value(), int(nuke.frame()), float(cx), _height(group) - float(cy), label)
+    except ValueError as e:
+        _status(group, "error: %s" % e); return
+    group["stroto_points"].setValue(text)
+    group["stroto_points_info"].setValue(prompts.summary(text))
+
+
+def on_clear_points(group):
+    group["stroto_points"].setValue("")
+    group["stroto_points_info"].setValue("no points")
 
 
 def on_load_model(group):
-    """Load (and cache) the selected model's GPU sessions on the main thread, with an explicit status message.
-    Runs synchronously on purpose: the GIL-bound pause happens now, visibly, instead of mid-Track (R-40)."""
+    """Create the GPU sessions now, synchronously and visibly (the GIL-bound pause, R-40)."""
     from st_roto_ai.sam2 import preload_video
-    from .track import models_root
     model, device = group["stroto_model"].value(), group["stroto_device"].value()
     group["stroto_status"].setValue("loading %s (Nuke may pause briefly)..." % model)
     try:
@@ -117,98 +230,89 @@ def on_cancel(group):
         job.cancel()
 
 
-def on_track(group, background: bool = True):
-    """Button callback. Collects parameters on the main thread, runs tracking on a worker thread, applies the
-    result (project store + native Roto shape) back on the main thread. Returns the Job."""
-    if group.fullName() in _JOBS and _JOBS[group.fullName()].status == jobs.RUNNING:
-        _status(group, "already running")
-        return _JOBS[group.fullName()]
-    src = group.input(0)
-    if src is None:
-        _status(group, "error: connect a source to the ST_Roto input"); return None
-    project = group["stroto_project"].value()
-    if not project:
-        _status(group, "error: set a project file"); return None
-    first, last = int(src.firstFrame()), int(src.lastFrame())
-    click_frame = int(group["stroto_click_frame"].value())
-    width, height = int(src.width()), int(src.height())
-    cx, cy_nuke = group["stroto_click"].value()
-    click_xy = (float(cx), float(height) - float(cy_nuke))           # Nuke (y up) -> canonical (y down)
-    frames = list(range(click_frame, last + 1))
-    if click_frame < first or click_frame > last:
-        _status(group, "error: click frame %d outside source range %d-%d" % (click_frame, first, last)); return None
-    model = group["stroto_model"].value()
-    device = group["stroto_device"].value()
-    obj_name = group["stroto_object"].value() or "object"
+def on_preview(group, background: bool = True):
+    """Segment only the prompt frame and show it as a temporary shape (not saved, not undoable)."""
     try:
-        write = _inner(group, "write", "STROTO_pixels")
-        roto = _inner(group, "roto", "STROTO_shapes")
-    except NodeBudgetError as e:
-        _status(group, "error: " + str(e)); return None
-    path = pixels.temp_pixel_path(group.name())
-
-    def get_rgb(frame):
-        if background:
-            return nuke.executeInMainThreadWithResult(pixels.render_frame, (write, frame, path))
-        return pixels.render_frame(write, frame, path)
+        ctx = _context(group)
+    except (ValueError, NodeBudgetError) as e:
+        _status(group, "error: %s" % e); return None
+    get_rgb = _renderer(ctx, background)
 
     def work(job):
-        return track_object(get_rgb, frames, click_frame, click_xy, model=model, device=device, job=job)
+        return track_object(get_rgb, [ctx["frame"]], ctx["frame"], ctx["xy"], model=ctx["model"],
+                            device=ctx["device"], job=job, labels=ctx["labels"])
 
     def apply(job):
-        # Runs on the main thread via executeInMainThread: exceptions there are NOT propagated anywhere,
-        # so every failure must be caught and shown on the node (found by tests/nuke/gui_track_slice.py).
-        try:
-            _apply(job)
-        except Exception:
-            import traceback
-            job.apply_error = traceback.format_exc()
-            job.applied = "failed applying result: " + job.apply_error.strip().splitlines()[-1]
-            group["stroto_status"].setValue(job.applied)
+        export_preview(ctx["roto"]["curves"], job.result["keys"], ctx["height"])
+        job.applied = "preview on frame %d (%s)" % (ctx["frame"], "object found" if job.result["keys"] else "NO object found")
+        group["stroto_status"].setValue(job.applied)
 
-    def _apply(job):
+    return _run(group, "preview", work, apply, background)
+
+
+def on_track(group, background: bool = True):
+    """Track forward from the prompt frame; store (AI provenance) and sync into the Roto node."""
+    try:
+        ctx = _context(group)
+        if not ctx["project"]:
+            raise ValueError("set a project file")
+    except (ValueError, NodeBudgetError) as e:
+        _status(group, "error: %s" % e); return None
+    get_rgb = _renderer(ctx, background)
+    frames = list(range(ctx["frame"], ctx["last"] + 1))
+
+    def work(job):
+        return track_object(get_rgb, frames, ctx["frame"], ctx["xy"], model=ctx["model"], device=ctx["device"],
+                            job=job, labels=ctx["labels"])
+
+    def apply(job):
         result = job.result
-        store = ProjectStore(project)
-        try:
-            bus = CommandBus(store, author=os.environ.get("USERNAME", "artist"))
-            shot_id = _ensure_shot(store, bus, src, width, height, first, last)
-            oid, sid = apply_result(bus, shot_id, obj_name, result)
-            export_shape(store, sid, roto["curves"], height)
-        finally:
-            store.close()
+        store, bus = session.project(ctx["project"])
+        shot_id = _ensure_shot(store, bus, ctx)
+        apply_result(bus, shot_id, ctx["object"], result)
+        export_preview(ctx["roto"]["curves"], {}, ctx["height"])          # remove the temporary preview
+        rep = sync_shot(store, shot_id, ctx["roto"]["curves"], ctx["height"])
         msg = "done: %d keys, %d frames without object, device %s" % (
             len(result["keys"]), len(result["absent_frames"]), result["device"])
         if result["device_fallback"]:
             msg += " (FALLBACK: %s)" % result["device_reason"]
-        group["stroto_status"].setValue(msg)
+        if rep["conflicts"]:
+            msg += "; NOT updated (edited in Roto): %s" % ", ".join(rep["conflicts"])
+        job.sync_report = rep
         job.applied = msg
+        group["stroto_status"].setValue(msg)
 
-    def finished(job):
-        if job.status == jobs.DONE:
-            if background:
-                nuke.executeInMainThread(apply, (job,))
-            else:
-                apply(job)
-        elif job.status == jobs.FAILED:
-            _status(group, "failed: " + job.error.strip().splitlines()[-1])
-        else:
-            _status(group, "cancelled")
-
-    job = jobs.Job(work, name="track", on_progress=lambda j: _status(group, "tracking %d%%: %s" % (100 * j.progress, j.message)),
-                   on_finish=finished)
-    job.applied = None
-    job.apply_error = None
-    _JOBS[group.fullName()] = job
-    return job.start(background=background)
+    return _run(group, "track", work, apply, background)
 
 
-def _ensure_shot(store, bus, src, width, height, first, last):
-    """One shot per project in v0, keyed by the source node name."""
-    name = src.name()
-    for r in store.conn.execute("SELECT id FROM shots WHERE name = ?", (name,)):
+def resync(group):
+    """Re-synchronise the Roto node after project edits (object panel). Returns the sync report."""
+    ctx_project = group["stroto_project"].value()
+    store, bus = session.project(ctx_project)
+    src = _inner(group, "src", None)
+    shot = store.conn.execute("SELECT id FROM shots WHERE name = ?", (src.name(),)).fetchone()
+    if shot is None:
+        return {"written": [], "updated": [], "removed": [], "unchanged": [], "conflicts": []}
+    rep = sync_shot(store, shot["id"], _inner(group, "roto", "STROTO_shapes")["curves"], _height(group))
+    if rep["conflicts"]:
+        _status(group, "NOT updated (edited in Roto): %s" % ", ".join(rep["conflicts"]))
+    return rep
+
+
+def shot_id_for(group):
+    store, _ = session.project(group["stroto_project"].value())
+    r = store.conn.execute("SELECT id FROM shots WHERE name = ?", (_inner(group, "src", None).name(),)).fetchone()
+    return r["id"] if r else None
+
+
+def _ensure_shot(store, bus, ctx):
+    """One shot per source node name in v0."""
+    name = ctx["src"].name()
+    r = store.conn.execute("SELECT id FROM shots WHERE name = ?", (name,)).fetchone()
+    if r:
         return r["id"]
     from st_roto import model as m
     sid = m.new_id()
-    bus.execute({"op": "create_shot", "row": {"id": sid, "name": name, "width": width, "height": height,
-                                              "first_frame": first, "last_frame": last}})
+    bus.execute({"op": "create_shot", "row": {"id": sid, "name": name, "width": ctx["width"], "height": ctx["height"],
+                                              "first_frame": ctx["first"], "last_frame": ctx["last"]}})
     return sid

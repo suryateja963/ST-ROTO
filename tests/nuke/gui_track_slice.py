@@ -51,6 +51,7 @@ def main():
         nuke.root()["format"].setValue("HD_720")
         rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=meta["frames"] - 1)
         proj = os.path.join(tempfile.mkdtemp(), "gui.stroto")
+        main.proj = proj
         g = stnode.create(rd, proj)
         g["stroto_click"].setValue([meta["click_xy"][0], meta["h"] - meta["click_xy"][1]])
         timer = QtCore.QTimer(); timer.setInterval(16); timer.timeout.connect(lambda: ticks.append(time.perf_counter()))
@@ -66,13 +67,29 @@ def main():
             R["error"] = job.error
             R["status_knob"] = g["stroto_status"].value()
             R["seconds"] = round(time.time() - t0, 1)
-            if True:
-                roto = stnode._INNER[g.fullName()]["roto"]          # cached reference: no extra node access
-                layer = roto["curves"].rootLayer
-                R["shapes_in_roto"] = len(layer)
-                if len(layer):
-                    R["keys_on_point0"] = len(list(layer[0][0].center.getControlPointKeyTimes()))
-            R["passed"] = (job.status == "done" and R.get("keys_on_point0") == meta["frames"])
+            roto = stnode._INNER[g.fullName()]["roto"]              # cached reference: no extra node access
+            layer = roto["curves"].rootLayer
+            R["shapes_in_roto"] = [it.name for it in layer]
+            if len(layer):
+                R["keys_on_point0"] = len(list(layer[0][0].center.getControlPointKeyTimes()))
+            # object panel: instantiate (not docked), list, lock, undo — all through the session command bus
+            try:
+                from st_roto_nuke.panel import ObjectPanel
+                from st_roto_nuke import session
+                p = ObjectPanel(); p.set_group(g)
+                R["panel_rows"] = len(p.rows)
+                p.table.setCurrentCell(0, 0)
+                p.toggle_lock()
+                store, _ = session.project(main.proj)
+                R["locked_after_toggle"] = bool(store.objects(stnode.shot_id_for(g))[0]["locked"])
+                p.undo()
+                R["locked_after_undo"] = bool(store.objects(stnode.shot_id_for(g))[0]["locked"])
+                R["panel_info"] = p.info.text()
+            except Exception:
+                R["panel_error"] = traceback.format_exc()
+            R["passed"] = (job.status == "done" and R.get("keys_on_point0") == meta["frames"]
+                           and R.get("panel_rows") == 1 and R.get("locked_after_toggle") is True
+                           and R.get("locked_after_undo") is False)
             QtCore.QTimer.singleShot(500, finish)
         QtCore.QTimer.singleShot(200, poll)
     except Exception:

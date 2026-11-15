@@ -13,7 +13,7 @@ import json
 import os
 import sqlite3
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _MIGRATIONS = {
     1: [
@@ -44,6 +44,13 @@ _MIGRATIONS = {
             undoes INTEGER REFERENCES operations(seq))""",
         """CREATE INDEX idx_objects_shot ON objects(shot_id)""",
         """CREATE INDEX idx_shapes_object ON shapes(object_id)""",
+    ],
+    2: [
+        # Fingerprint of what ST-ROTO last wrote into a host shape (e.g. a Nuke Roto shape). A host shape whose
+        # current fingerprint differs was edited by the artist in the host and must not be overwritten (REQ-042).
+        """CREATE TABLE host_exports (
+            host_tag TEXT PRIMARY KEY, shape_id TEXT NOT NULL, host TEXT NOT NULL,
+            fingerprint TEXT NOT NULL, exported_utc TEXT NOT NULL)""",
     ],
 }
 

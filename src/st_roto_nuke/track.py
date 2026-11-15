@@ -24,12 +24,15 @@ def models_root() -> str:
 
 
 def track_object(get_rgb, frames, click_frame, click_xy, model="sam2.1-hiera-tiny", device="auto",
-                 job=None, anchors=ANCHORS):
-    """Track one object from a single positive click. Returns dict with per-frame points and run metadata.
+                 job=None, anchors=ANCHORS, labels=None):
+    """Track one object from prompt points on one frame. Returns dict with per-frame points and run metadata.
 
     frames: ordered list of shot frame numbers (any integers); click_frame must be the first of them (forward only, v0).
-    click_xy: canonical image coordinates (y down).
+    click_xy: one (x, y) or a list of (x, y) in canonical image coordinates (y down); labels: 1 include / 0 exclude
+    (default: all include).
     """
+    pts = [tuple(click_xy)] if isinstance(click_xy[0], (int, float)) else [tuple(p) for p in click_xy]
+    labels = [1] * len(pts) if labels is None else list(labels)
     from st_roto_ai.sam2 import Sam2Video          # AI layer is optional: imported only when tracking is requested
     frames = list(frames)
     if not frames or frames[0] != click_frame:
@@ -41,7 +44,7 @@ def track_object(get_rgb, frames, click_frame, click_xy, model="sam2.1-hiera-tin
             job.check(); job.report(pos / float(len(frames)), "frame %d (%d/%d)" % (frame, pos + 1, len(frames)))
         rgb = colour.to_model_input(get_rgb(frame))
         enc = tracker.encode(rgb)
-        out = tracker.add_points(pos, enc, [click_xy], [1]) if pos == 0 else tracker.track(pos, enc)
+        out = tracker.add_points(pos, enc, pts, labels) if pos == 0 else tracker.track(pos, enc)
         pts = mask_to_points(out["logits"], count=anchors, start_hint=prev_anchor0) if out["object_score"] > 0 else []
         if pts:
             keys[frame] = pts
@@ -53,7 +56,8 @@ def track_object(get_rgb, frames, click_frame, click_xy, model="sam2.1-hiera-tin
     return {"keys": keys, "absent_frames": absent, "device": tracker.report.active,
             "device_fallback": tracker.report.fallback, "device_reason": tracker.report.reason,
             "generator": json.dumps({"model": model, "colour": colour.TRANSFORM_ID, "anchors": anchors,
-                                     "click": {"frame": click_frame, "xy": list(click_xy)}}, sort_keys=True)}
+                                     "prompts": {"frame": click_frame, "points": [list(p) for p in pts],
+                                                 "labels": labels}}, sort_keys=True)}
 
 
 def apply_result(bus, shot_id, object_name, result, anchors=ANCHORS):

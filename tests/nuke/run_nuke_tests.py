@@ -166,7 +166,68 @@ def test_repeated_tracking_stable(res):
     return secs[2] <= 1.3 * secs[1] and peak["v"] <= 6500
 
 
-TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable)
+def test_prompts_preview_sync_protection(res):
+    """Prompts (include + exclude) -> Preview -> Track -> second Track -> delete/undo via the session bus, with
+    Roto synchronisation that must never overwrite or remove a shape the artist edited in the Roto node."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    from st_roto_nuke.roto_export import build_shape, read_keys, TAG_RE
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vh, n = meta["h"], 12                                     # 12 frames keep the test short
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "sync.stroto")
+    g = stnode.create(rd, proj)
+    roto = stnode._INNER[g.fullName()]["roto"]
+    layer = roto["curves"].rootLayer
+    names = lambda: [it.name for it in layer]                                    # noqa: E731
+    cx, cy = meta["click_xy"]
+    g["stroto_click"].setValue([cx, vh - cy]); stnode.on_add_point(g, 1)          # include: the target
+    g["stroto_click"].setValue([1050.0, vh - 560.0]); stnode.on_add_point(g, 0)   # exclude: the distractor disc
+    res["points"] = g["stroto_points_info"].value()
+    pj = stnode.on_preview(g, background=False)
+    res["preview"] = {"status": g["stroto_status"].value(), "layer": names()}
+    ok = pj.status == "done" and names() == ["STROTO_preview"]
+    j1 = stnode.on_track(g, background=False)
+    res["track1"] = {"status": g["stroto_status"].value(), "layer": names(), "sync": getattr(j1, "sync_report", None)}
+    ok &= j1.status == "done" and len(names()) == 1 and TAG_RE.search(names()[0]) is not None
+    first_label = names()[0]
+    g["stroto_object"].setValue("second")
+    j2 = stnode.on_track(g, background=False)
+    second_label = [x for x in names() if x != first_label][0]
+    store, bus = session.project(proj)
+    shot = stnode.shot_id_for(g)
+    objs = {o["name"]: o["id"] for o in store.objects(shot)}
+    # unedited shape: delete -> removed from Roto; undo -> written back
+    bus.execute({"op": "delete_subtree", "object_id": objs["second"]})
+    r_del = stnode.resync(g)
+    bus.undo()
+    r_undo = stnode.resync(g)
+    res["unedited"] = {"after_delete": r_del, "after_undo": r_undo, "layer": names()}
+    ok &= second_label in r_del["removed"] and second_label in r_undo["written"]
+    # artist edits the first shape in the Roto node (simulated: replace it by a modified copy with the same name)
+    item = [it for it in layer if it.name == first_label][0]
+    keys = read_keys(item, vh)
+    f0 = sorted(keys)[0]
+    keys[f0][0][0] += 25.0                                   # move one point 25 px on one frame
+    for i in range(len(layer)):
+        if layer[i].name == first_label:
+            layer.remove(i); break
+    layer.append(build_shape(roto["curves"], first_label, keys, vh))
+    bus.execute({"op": "delete_subtree", "object_id": objs["object1"]})
+    r_conf = stnode.resync(g)
+    res["edited"] = {"after_delete": r_conf, "layer": names()}
+    ok &= first_label in r_conf["conflicts"] and first_label in names()      # kept and reported, not removed
+    edited_now = read_keys([it for it in layer if it.name == first_label][0], vh)
+    ok &= abs(edited_now[f0][0][0] - keys[f0][0][0]) < 1e-2                   # artist edit intact
+    res["nodes_accessed_note"] = "Read + ST_Roto group + 4 internal nodes"
+    return bool(ok)
+
+
+TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
+         test_prompts_preview_sync_protection)
 
 
 def main():

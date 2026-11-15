@@ -174,3 +174,11 @@ Owner approved the architecture (D-026..D-028). Interactive-GUI probe: SAM 2.1 t
 **T-061.** "Load model" button on ST_Roto (`on_load_model`, `st_roto_ai.sam2.preload_video`): sessions created synchronously with a status message (≈2.9 s, once). GUI probe, 2 trials of Load + 2 Track runs each: zero UI stalls > 100 ms, mean timer gap 16.0–16.2 ms.
 
 **T-062.** fp16 conversion of memory attention. First two attempts would not load in ORT (stale value_info; model's own fp32 casts); both fixed in `tools/models/convert_fp16.py`. A partially-fp32 variant was measured and rejected (slower, slightly less accurate). fp16 result, verified on raw logits: tiny 7 sign flips in 48×256×256 low-res pixels, large 0; peak GPU tiny 5.06 → 3.92 GB, large 7.77 → 7.00 GB; step 148 → 96 ms (tiny), 192 → 98 ms (large). Made the runtime default (D-029). New regression test (3 runs in one session) passes: 10.5 / 8.3 / 8.3 s, peak 3.9 GB. Unit 38/38, Nuke 3/3.
+
+## 2026-11-16 — Prompts, preview, object panel, safe Roto sync (T-059)
+
+**Decision on "viewer click".** Non-commercial cannot load C++ viewer overlays and Nuke has no supported Python mapping from viewer clicks to image coordinates; hooking the viewer's Qt widget would be fragile. Used Nuke's native XY knob handle (draggable in the viewer) plus Include/Exclude buttons. A true click-in-viewer tool is noted for the C++ path (commercial editions).
+
+**Work.** `st_roto.prompts`, `st_roto.views`, schema v2 (`host_exports`: exact keys last written into each host shape), `st_roto_nuke.roto_export.sync_shot` (writes/updates/removes only shapes whose Roto copy is unchanged since ST-ROTO wrote it; otherwise reports a conflict), `st_roto_nuke.session` (one store + bus per project for the Nuke session → persistent undo), ST_Roto node rewritten (prompts, Preview, Track via session + sync), `st_roto_nuke.panel.ObjectPanel`, `nuke_plugin/` (init/menu), `docs/USER_GUIDE_v0.md`.
+
+**Tests.** Unit 41/41 (incl. v1→v2 migration). Nuke 4/4. New test: include+exclude prompts → preview → track → second track → delete/undo (unedited shape removed and restored) → simulated artist edit in Roto + delete → shape kept, conflict reported, edit intact. GUI: Track 48 frames in 19.4 s, panel lists 1 object, lock → locked, undo → unlocked.
