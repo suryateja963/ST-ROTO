@@ -15,7 +15,7 @@ def object_rows(store, shot_id: str) -> list:
 
 
 def review_for_object(store, object_id: str) -> list:
-    """Frames of an object's shapes that the artist should review: [(frame, reason)]."""
+    """Frames of an object's shapes that the artist should review: [(frame, level, reason)]."""
     from .quality import review_frames
     out = []
     for s in store.shapes(object_id):

@@ -388,14 +388,16 @@ def test_review_flags_reverse(res):
     g["stroto_object"].setValue(obj["name"])
     job = stnode.on_retrack(g, background=False)
     flags = views.review_for_object(store, obj["id"])
-    flagged = [f for f, _ in flags]
+    flagged = [f for f, _, _ in flags]
+    res["lost_level"] = sorted(f for f, lvl, _ in flags if lvl == "lost")
     sid = store.shapes(obj["id"])[0]["id"]
     res.update({"status": g["stroto_status"].value(), "flagged": flagged,
                 "absent_frames": [r["frame"] for r in store.reports(sid) if (r["object_score"] or 0) <= 0],
                 "scores_12_to_24": {r["frame"]: round(r["object_score"], 3) for r in store.reports(sid) if 12 <= r["frame"] <= 24}})
     lost = set(res["absent_frames"])
     return (job is not None and job.status == "done" and lost and lost.issubset(set(flagged))
-            and not any(f in flagged for f in (0, 1, 2, 40, 41, 42)) and "REVIEW frames" in res["status"])
+            and set(res["lost_level"]) == lost and not any(f in flagged for f in (0, 1, 2, 40, 41, 42))
+            and "REVIEW lost" in res["status"])
 
 
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,

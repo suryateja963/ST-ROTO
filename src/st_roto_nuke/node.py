@@ -347,10 +347,10 @@ def on_retrack(group, background: bool = True):
 
 
 def _review_text(store, object_id):
-    """'; review frames 15-17, 22' (heuristic flags, st_roto.quality) or ''."""
+    """'; REVIEW lost 16-20, 22; check 15, 21' (heuristic flags, st_roto.quality) or ''."""
     from st_roto import quality, views
     flags = views.review_for_object(store, object_id)
-    return "; REVIEW frames %s" % quality.ranges([f for f, _ in flags]) if flags else ""
+    return "; REVIEW %s" % quality.summary(flags) if flags else ""
 
 
 def store_ro(path):

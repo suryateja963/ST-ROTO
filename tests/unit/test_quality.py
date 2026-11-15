@@ -10,12 +10,14 @@ def test_review_rules():
                {"frame": 16, "object_score": -0.07, "iou_pred": 0.5},
                {"frame": 17, "object_score": -3.0, "iou_pred": 0.4},
                {"frame": 18, "object_score": 4.0, "iou_pred": 0.6}]
-    flags = dict(quality.review_frames(reports, keyed_frames=[14, 15, 18]))
+    raw = quality.review_frames(reports, keyed_frames=[14, 15, 18])
+    flags = {f: (lvl, why) for f, lvl, why in raw}
     assert 14 not in flags
-    assert "uncertain" in flags[15]
-    assert "uncertain" in flags[16] and "lost between" in flags[16]
-    assert "lost between" in flags[17] and "uncertain" not in flags[17]
-    assert "low predicted mask quality" in flags[18]
+    assert flags[15][0] == quality.CHECK and "uncertain" in flags[15][1]
+    assert flags[16][0] == quality.LOST and "uncertain" in flags[16][1]
+    assert flags[17][0] == quality.LOST and "uncertain" not in flags[17][1]
+    assert flags[18][0] == quality.CHECK and "low predicted mask quality" in flags[18][1]
+    assert quality.summary(raw) == "lost 16-17; check 15, 18"
     assert quality.ranges([3, 4, 5, 9, 11, 12]) == "3-5, 9, 11-12" and quality.ranges([]) == ""
 
 
@@ -30,7 +32,7 @@ def test_reports_undo_and_subtree(tmp_path):
         {"op": "set_report", "shape_id": "P", "frame": 1, "object_score": 0.3, "iou_pred": 0.9},
         {"op": "set_report", "shape_id": "P", "frame": 2, "object_score": -2.0, "iou_pred": 0.2}]}, actor=m.ACTOR_AI)
     assert [r["frame"] for r in s.reports("P")] == [1, 2]
-    assert [f for f, _ in views.review_for_object(s, "O")] == [1]
+    assert [f for f, _, _ in views.review_for_object(s, "O")] == [1]
     bus.execute({"op": "delete_subtree", "object_id": "O"})
     assert s.reports("P") == []
     bus.undo()                                                  # reports come back with the subtree

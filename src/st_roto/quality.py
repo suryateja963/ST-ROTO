@@ -10,24 +10,39 @@ OBJECT_SCORE_MARGIN = 1.0      # |score| below this: the present/absent decision
 IOU_PRED_MIN = 0.7             # the model's own quality estimate of its mask
 
 
+LOST, CHECK = "lost", "check"
+# Measured on the synthetic shot (research/probes/2026-11-16_corrections/forward_reports.json): after an occlusion the
+# object score fell to 0.15-0.94 on frames whose masks were still IoU 0.993-0.996 vs ground truth, while in reverse the
+# same region was really lost. Hence two levels: LOST = object missing between visible frames (fix it);
+# CHECK = model uncertain or low predicted quality (glance at it). Predicted IoU correlated only 0.50 with real IoU there.
+
+
 def review_frames(reports: list, keyed_frames) -> list:
     """reports: [{"frame", "object_score", "iou_pred"}], keyed_frames: frames that currently have a key.
-    Returns [(frame, reason), ...] sorted by frame."""
+    Returns [(frame, level, reason), ...] sorted by frame; level is LOST or CHECK."""
     keyed = set(keyed_frames)
     present = sorted(r["frame"] for r in reports if (r["object_score"] or 0) > 0)
     out = []
     for r in sorted(reports, key=lambda r: r["frame"]):
         f, s, q = r["frame"], r["object_score"], r["iou_pred"]
-        reasons = []
+        reasons, level = [], CHECK
+        if s is not None and s <= 0 and present and present[0] < f < present[-1]:
+            reasons.append("object lost between frames where it is visible"); level = LOST
         if s is not None and abs(s) < OBJECT_SCORE_MARGIN:
             reasons.append("uncertain whether the object is visible (score %.2f)" % s)
-        if s is not None and s <= 0 and present and present[0] < f < present[-1]:
-            reasons.append("object lost between frames where it is visible")
         if q is not None and f in keyed and q < IOU_PRED_MIN:
             reasons.append("low predicted mask quality (%.2f)" % q)
         if reasons:
-            out.append((f, "; ".join(reasons)))
+            out.append((f, level, "; ".join(reasons)))
     return out
+
+
+def summary(flags: list) -> str:
+    """'lost 16-20, 22; check 15, 21' or ''."""
+    lost = [f for f, lvl, _ in flags if lvl == LOST]
+    check = [f for f, lvl, _ in flags if lvl == CHECK]
+    parts = (["lost " + ranges(lost)] if lost else []) + (["check " + ranges(check)] if check else [])
+    return "; ".join(parts)
 
 
 def ranges(frames) -> str:

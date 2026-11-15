@@ -84,11 +84,11 @@ class ObjectPanel(QtWidgets.QWidget):
             frames = "" if r["first"] is None else "%d-%d" % (r["first"], r["last"])
             flags = views.review_for_object(store, r["id"])
             r["review"] = flags
-            review = quality.ranges([f for f, _ in flags])
+            review = quality.summary(flags)
             for j, v in enumerate([r["name"], r["origin"], "yes" if r["locked"] else "", str(r["keys"]), frames, review]):
                 item = QtWidgets.QTableWidgetItem(v)
                 if j == 5 and flags:
-                    item.setToolTip("\n".join("frame %d: %s" % fr for fr in flags))
+                    item.setToolTip("\n".join("frame %d [%s]: %s" % fr for fr in flags))
                 self.table.setItem(i, j, item)
         self.info.setText("%d objects · undo %s · redo %s" % (len(self.rows), "yes" if bus.can_undo() else "no",
                                                             "yes" if bus.can_redo() else "no"))
