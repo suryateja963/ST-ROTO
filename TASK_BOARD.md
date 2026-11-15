@@ -17,6 +17,7 @@ Updated 2026-11-15.
 | T-030 | Licence texts: SAM License, S-Lab 1.0, ORT, BiRefNet, Foundry EULA key clauses (partial) | `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md` |
 | T-031 | Missing model categories, first pass (partial) | `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md` |
 | T-021 | Public GitHub repository created and pushed | https://github.com/suryateja963/ST-ROTO (commit 2a0adea) |
+| T-055 | Vertical slice in product code: ST_Roto node (Track/Cancel/status) → background SAM 2.1 tracking → project DB (AI provenance) → animated native Roto. Headless test: IoU vs GT 0.985 (0.994 excl. split frame); GUI test: 48 frames in 22 s, passes | `src/st_roto_nuke/node.py`, `tests/nuke/`, `tools/run_nuke_tests.py` |
 | T-054 | AI layer v0: `st_roto_ai.runtime` (silent CPU-fallback detection), `st_roto_ai.sam2` (image + video adapters), `st_roto.geometry.mask_to_points`; AI tests pass locally (skip in CI: no weights); CI now runs the suite on real Python 3.7 | `src/st_roto_ai/`, `tests/unit/test_ai_sam2.py` |
 | T-053 | Nuke adapter v0: `st_roto_nuke.convention` + `roto_export`; headless Nuke integration test passing (negative frames included); sub-pixel `trace_contours` + exact `rasterize_*` in core geometry; 31 unit tests | `src/st_roto_nuke/`, `tests/nuke/` |
 | T-052 | Phase 4 core v0: `src/st_roto` (model, SQLite store with migrations, command bus with op log + undo/redo + REQ-042 protection, geometry); 22 unit tests; Python 3.7 compatibility check; CI workflow | `src/`, `tests/unit/`, `.github/workflows/ci.yml` |
@@ -40,7 +41,9 @@ Updated 2026-11-15.
 
 | ID | Task |
 |---|---|
-| T-055 | First in-Nuke vertical slice with product code: ST_Roto group node + worker job: click on a frame → SAM 2.1 track → stored keys → native animated Roto export, inside the 10-node budget |
+| T-058 | Investigate GUI stalls during tracking (max 1.56 s; suspected GIL during ORT session creation or main-thread renders) — R-40 |
+| T-059 | Viewer click to set the prompt (instead of the XY knob) and a docked object panel |
+| T-060 | Reverse tracking, re-tracking under artist-locked keys, several objects per ST_Roto node |
 | T-056 | Model registry from `models/manifests` (licence, revision, checksum verification before load) |
 | T-057 | Update GitHub Actions to Node-24-based action versions (deprecation warning) |
 | T-045 | Documented, configurable model-input colour transform (replace hard-coded sRGB re-encode) |

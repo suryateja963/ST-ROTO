@@ -86,9 +86,62 @@ def test_export_animated_shape(res):
     return ok
 
 
+VIDEO = ROOT + "/research/probes/2026-11-15_video/frames"
+
+
+def test_st_roto_node_track_slice(res):
+    """Vertical slice through PRODUCT code: ST_Roto node -> Track (synchronous in -t) -> project DB -> native Roto."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated (research/probes/2026-11-15_video/make_synthetic_video.py)"
+        return True
+    import st_roto_nuke.node as stnode
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vw, vh, n = meta["w"], meta["h"], meta["frames"]
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "slice.stroto")
+    g = stnode.create(rd, proj)
+    g["stroto_click"].setValue([meta["click_xy"][0], vh - meta["click_xy"][1]])     # canonical -> Nuke y-up
+    g["stroto_click_frame"].setValue(0)
+    job = stnode.on_track(g, background=False)
+    res["status_knob"] = g["stroto_status"].value()
+    res["job_status"] = job.status if job else None
+    if job is None or job.status != "done":
+        res["error"] = job.error if job else "no job"
+        return False
+    store = ProjectStore(proj)
+    objs = store.conn.execute("SELECT * FROM objects").fetchall()
+    shapes = store.conn.execute("SELECT * FROM shapes").fetchall()
+    res["db"] = {"objects": len(objs), "shapes": len(shapes),
+                 "keys": store.conn.execute("SELECT COUNT(*) FROM shape_keys").fetchone()[0],
+                 "origins": sorted(set(r["origin"] for r in store.conn.execute("SELECT origin FROM shape_keys"))),
+                 "ops": len(store.operations())}
+    store.close()
+    w = nuke.nodes.Write(file=OUT + "/slice.####.tif", file_type="tiff", channels="alpha")
+    w["datatype"].setValue("32 bit float"); w["compression"].setValue("none"); w.setInput(0, g)
+    nuke.execute(w, 0, n - 1)
+    ious = []
+    for f in range(n):
+        img = cv2.imread(OUT + "/slice.%04d.tif" % f, cv2.IMREAD_UNCHANGED)
+        a = (img if img.ndim == 2 else img[:, :, -1]) > 0.5
+        gt = cv2.imread(VIDEO + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE) > 127
+        ious.append(iou(a, gt))
+    res["iou_vs_gt"] = {"mean": round(float(np.mean(ious)), 4), "min": round(float(np.min(ious)), 4),
+                        "worst_frame": int(np.argmin(ious)),
+                        "mean_excluding_split_frame_23": round(float(np.mean([v for i, v in enumerate(ious) if i != 23])), 4)}
+    res["nodes_accessed"] = len(nuke.allNodes())
+    return (res["db"]["objects"] == 1 and res["db"]["keys"] == n and res["db"]["origins"] == ["ai_generated"]
+            and res["iou_vs_gt"]["mean"] > 0.98)
+
+
+TESTS = (test_export_animated_shape, test_st_roto_node_track_slice)
+
+
 def main():
+    # One test per Nuke process (tools/run_nuke_tests.py): the Non-commercial 10-node Python budget is per session.
+    wanted = sys.argv[1:] or [t.__name__ for t in TESTS]
     results, failed = {"nuke": nuke.NUKE_VERSION_STRING, "nc": bool(nuke.env.get("nc"))}, 0
-    for t in (test_export_animated_shape,):
+    for t in [t for t in TESTS if t.__name__ in wanted]:
         r = {}
         try:
             ok = t(r)
@@ -97,7 +150,7 @@ def main():
         r["passed"] = bool(ok); failed += 0 if ok else 1
         results[t.__name__] = r
     results["failed"] = failed
-    with open(OUT + "/results.json", "w") as fh:
+    with open(OUT + "/results_%s.json" % ("_".join(wanted) if len(wanted) == 1 else "all"), "w") as fh:
         json.dump(results, fh, indent=1)
     print("NUKE_TESTS_FAILED=%d" % failed)
     sys.exit(1 if failed else 0)
