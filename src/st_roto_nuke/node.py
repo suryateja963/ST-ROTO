@@ -278,10 +278,10 @@ def on_track(group, background: bool = True):
         shot_id = _ensure_shot(store, bus, ctx)
         export_preview(ctx["roto"]["curves"], {}, ctx["height"])          # remove the temporary preview
         import_edits(store, bus, shot_id, ctx["roto"]["curves"], ctx["height"], ctx["frame"])   # capture artist work first
-        apply_result(bus, shot_id, ctx["object"], result)
+        oid, _ = apply_result(bus, shot_id, ctx["object"], result)
         rep = sync_shot(store, shot_id, ctx["roto"]["curves"], ctx["height"])
         msg = "done: %d keys, %d frames without object, device %s" % (
-            len(result["keys"]), len(result["absent_frames"]), result["device"])
+            len(result["keys"]), len(result["absent_frames"]), result["device"]) + _review_text(store, oid)
         if result["device_fallback"]:
             msg += " (FALLBACK: %s)" % result["device_reason"]
         if rep["conflicts"]:
@@ -335,7 +335,8 @@ def on_retrack(group, background: bool = True):
         n = apply_retrack(bus, store, sid, job.result)
         rep = sync_shot(store, shot["id"], curves, height)
         msg = "re-tracked %s: %d AI keys changed, %d artist keys kept, device %s" % (
-            name, n, len(json.loads(job.result["generator"])["retrack"]["artist_frames"]), job.result["device"])
+            name, n, len(json.loads(job.result["generator"])["retrack"]["artist_frames"]), job.result["device"]) \
+            + _review_text(store, obj[0]["id"])
         if rep["conflicts"]:
             msg += "; NOT updated (edited in Roto): %s" % ", ".join(rep["conflicts"])
         job.applied = msg
@@ -343,6 +344,13 @@ def on_retrack(group, background: bool = True):
         group["stroto_status"].setValue(msg)
 
     return _run(group, "re-track", work, apply, background)
+
+
+def _review_text(store, object_id):
+    """'; review frames 15-17, 22' (heuristic flags, st_roto.quality) or ''."""
+    from st_roto import quality, views
+    flags = views.review_for_object(store, object_id)
+    return "; REVIEW frames %s" % quality.ranges([f for f, _ in flags]) if flags else ""
 
 
 def store_ro(path):

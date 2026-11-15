@@ -18,7 +18,7 @@ from st_roto import views
 from . import node as stnode
 from . import session
 
-COLUMNS = ["name", "origin", "locked", "keys", "frames"]
+COLUMNS = ["name", "origin", "locked", "keys", "frames", "review"]
 
 
 class ObjectPanel(QtWidgets.QWidget):
@@ -77,12 +77,19 @@ class ObjectPanel(QtWidgets.QWidget):
             shot = stnode.shot_id_for(self.group)
         except Exception as e:
             self.info.setText(str(e)); return
+        from st_roto import quality
         self.rows = views.object_rows(store, shot) if shot else []
         self.table.setRowCount(len(self.rows))
         for i, r in enumerate(self.rows):
             frames = "" if r["first"] is None else "%d-%d" % (r["first"], r["last"])
-            for j, v in enumerate([r["name"], r["origin"], "yes" if r["locked"] else "", str(r["keys"]), frames]):
-                self.table.setItem(i, j, QtWidgets.QTableWidgetItem(v))
+            flags = views.review_for_object(store, r["id"])
+            r["review"] = flags
+            review = quality.ranges([f for f, _ in flags])
+            for j, v in enumerate([r["name"], r["origin"], "yes" if r["locked"] else "", str(r["keys"]), frames, review]):
+                item = QtWidgets.QTableWidgetItem(v)
+                if j == 5 and flags:
+                    item.setToolTip("\n".join("frame %d: %s" % fr for fr in flags))
+                self.table.setItem(i, j, item)
         self.info.setText("%d objects · undo %s · redo %s" % (len(self.rows), "yes" if bus.can_undo() else "no",
                                                             "yes" if bus.can_redo() else "no"))
 

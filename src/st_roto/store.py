@@ -13,7 +13,7 @@ import json
 import os
 import sqlite3
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 _MIGRATIONS = {
     1: [
@@ -51,6 +51,13 @@ _MIGRATIONS = {
         """CREATE TABLE host_exports (
             host_tag TEXT PRIMARY KEY, shape_id TEXT NOT NULL, host TEXT NOT NULL,
             fingerprint TEXT NOT NULL, exported_utc TEXT NOT NULL)""",
+    ],
+    3: [
+        # Per-frame AI diagnostics of the latest tracking run (also for frames where the AI found NO object).
+        """CREATE TABLE key_reports (
+            shape_id TEXT NOT NULL REFERENCES shapes(id) ON DELETE CASCADE,
+            frame INTEGER NOT NULL, object_score REAL, iou_pred REAL,
+            PRIMARY KEY (shape_id, frame))""",
     ],
 }
 
@@ -121,6 +128,10 @@ class ProjectStore:
         for r in self.conn.execute("SELECT * FROM shape_keys WHERE shape_id = ? ORDER BY frame", (shape_id,)):
             d = dict(r); d["points"] = json.loads(d["points"]); out.append(d)
         return out
+
+    def reports(self, shape_id: str):
+        return [dict(r) for r in self.conn.execute(
+            "SELECT frame, object_score, iou_pred FROM key_reports WHERE shape_id = ? ORDER BY frame", (shape_id,))]
 
     def operations(self):
         return [dict(r) for r in self.conn.execute("SELECT * FROM operations ORDER BY seq")]

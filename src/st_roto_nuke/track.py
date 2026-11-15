@@ -38,22 +38,23 @@ def track_object(get_rgb, frames, click_frame, click_xy, model="sam2.1-hiera-tin
     if not frames or frames[0] != click_frame:
         raise ValueError("v0 tracks forward only: the clicked frame must be the first frame of the range")
     tracker = Sam2Video(os.path.join(models_root(), model, "video"), device=device, num_total_frames=len(frames))
-    keys, prev_anchor0, absent = {}, None, []
+    keys, prev_anchor0, absent, reports = {}, None, [], {}
     for pos, frame in enumerate(frames):
         if job:
             job.check(); job.report(pos / float(len(frames)), "frame %d (%d/%d)" % (frame, pos + 1, len(frames)))
         rgb = colour.to_model_input(get_rgb(frame))
         enc = tracker.encode(rgb)
         out = tracker.add_points(pos, enc, pts, labels) if pos == 0 else tracker.track(pos, enc)
-        pts = mask_to_points(out["logits"], count=anchors, start_hint=prev_anchor0) if out["object_score"] > 0 else []
-        if pts:
-            keys[frame] = pts
-            prev_anchor0 = np.array(pts[0][:2])
+        reports[frame] = (out["object_score"], out["iou_pred"])
+        shape_pts = mask_to_points(out["logits"], count=anchors, start_hint=prev_anchor0) if out["object_score"] > 0 else []
+        if shape_pts:
+            keys[frame] = shape_pts
+            prev_anchor0 = np.array(shape_pts[0][:2])
         else:
             absent.append(frame)
     if job:
         job.report(1.0, "tracked %d frames" % len(frames))
-    return {"keys": keys, "absent_frames": absent, "device": tracker.report.active,
+    return {"keys": keys, "absent_frames": absent, "reports": reports, "device": tracker.report.active,
             "device_fallback": tracker.report.fallback, "device_reason": tracker.report.reason,
             "generator": json.dumps({"model": model, "colour": colour.TRANSFORM_ID, "anchors": anchors,
                                      "prompts": {"frame": click_frame, "points": [list(p) for p in pts],
@@ -81,7 +82,7 @@ def retrack_object(get_rgb, store, shape_id, frames, width, height, model="sam2.
     if not cond:
         raise ValueError("nothing to track from: the object has no artist keys or prompt in this frame range")
     tracker = Sam2Video(os.path.join(models_root(), model, "video"), device=device, num_total_frames=len(frames))
-    results, cache = {}, {}
+    results, cache, reports = {}, {}, {}
 
     def enc(f):
         if f not in cache:
@@ -109,40 +110,56 @@ def retrack_object(get_rgb, store, shape_id, frames, width, height, model="sam2.
             out = tracker.track(pos[f], enc(f), reverse=f < first)
         if f in artist:
             prev_anchor = np.array(artist[f][0][:2]); continue
+        reports[f] = (out["object_score"], out["iou_pred"])
         pts = mask_to_points(out["logits"], count=anchors, start_hint=prev_anchor) if out["object_score"] > 0 else []
         results[f] = pts or None
         if pts:
             prev_anchor = np.array(pts[0][:2])
     gen_out = dict(gen, retrack={"model": model, "colour": colour.TRANSFORM_ID, "conditioning_frames": cond,
                                  "artist_frames": sorted(artist)})
-    return {"keys": results, "device": tracker.report.active, "device_fallback": tracker.report.fallback,
-            "device_reason": tracker.report.reason, "generator": json.dumps(gen_out, sort_keys=True)}
+    return {"keys": results, "reports": reports, "device": tracker.report.active,
+            "device_fallback": tracker.report.fallback, "device_reason": tracker.report.reason,
+            "generator": json.dumps(gen_out, sort_keys=True)}
+
+
+def _report_ops(shape_id, reports, skip=()):
+    return [{"op": "set_report", "shape_id": shape_id, "frame": f, "object_score": s, "iou_pred": q}
+            for f, (s, q) in sorted(reports.items()) if f not in skip]
 
 
 def apply_retrack(bus, store, shape_id, result):
-    """One undoable batch: AI keys replaced/added/removed; artist keys untouched (also enforced by the bus)."""
+    """One undoable batch: AI keys replaced/added/removed and AI diagnostics updated; artist keys untouched (also
+    enforced by the bus) and their frames carry no AI report (the artist decided them)."""
     existing = {k["frame"]: k for k in store.keys(shape_id)}
+    artist = {f for f, k in existing.items() if k["origin"] != m.AI_GENERATED}
     ops = []
     for f, pts in sorted(result["keys"].items()):
         old = existing.get(f)
-        if old is not None and old["origin"] != m.AI_GENERATED:
+        if f in artist:
             continue
         if pts:
             ops.append({"op": "set_key", "shape_id": shape_id, "frame": f, "points": pts, "generator": result["generator"]})
         elif old is not None:
             ops.append({"op": "delete_key", "shape_id": shape_id, "frame": f})
+    n_keys = len(ops)
+    ops += _report_ops(shape_id, result.get("reports", {}), skip=artist)
+    ops += [{"op": "set_report", "shape_id": shape_id, "frame": f, "object_score": None, "iou_pred": None}
+            for f in sorted(artist) if store.conn.execute("SELECT 1 FROM key_reports WHERE shape_id=? AND frame=?",
+                                                           (shape_id, f)).fetchone()]
     if ops:
         bus.execute({"op": "batch", "ops": ops}, actor=m.ACTOR_AI)
-    return len(ops)
+    return n_keys
 
 
 def apply_result(bus, shot_id, object_name, result, anchors=ANCHORS):
-    """Create an AI object + shape and one key per tracked frame. Returns (object_id, shape_id)."""
+    """Create an AI object + shape with its keys and per-frame diagnostics as ONE undoable step.
+    Returns (object_id, shape_id)."""
     oid, sid = m.new_id(), m.new_id()
-    bus.execute({"op": "create_object", "row": {"id": oid, "shot_id": shot_id, "name": object_name}}, actor=m.ACTOR_AI)
-    bus.execute({"op": "create_shape", "row": {"id": sid, "object_id": oid, "name": object_name, "point_count": anchors,
-                                               "generator": result["generator"]}}, actor=m.ACTOR_AI)
-    for frame in sorted(result["keys"]):
-        bus.execute({"op": "set_key", "shape_id": sid, "frame": frame, "points": result["keys"][frame],
-                     "generator": result["generator"]}, actor=m.ACTOR_AI)
+    ops = [{"op": "create_object", "row": {"id": oid, "shot_id": shot_id, "name": object_name}},
+           {"op": "create_shape", "row": {"id": sid, "object_id": oid, "name": object_name, "point_count": anchors,
+                                          "generator": result["generator"]}}]
+    ops += [{"op": "set_key", "shape_id": sid, "frame": f, "points": result["keys"][f], "generator": result["generator"]}
+            for f in sorted(result["keys"])]
+    ops += _report_ops(sid, result.get("reports", {}))
+    bus.execute({"op": "batch", "ops": ops}, actor=m.ACTOR_AI)
     return oid, sid

@@ -198,3 +198,9 @@ Owner approved the architecture (D-026..D-028). Interactive-GUI probe: SAM 2.1 t
 **Validation.** PyTorch reference scenarios (correction: click f0 + mask f24; reverse: click f47). Correction: ONNX vs PyTorch min 0.993, mean 0.998. Reverse: PyTorch itself loses the object on 5 occluded frames; ONNX loses one more (f16). Root-caused with an exact-pixel CPU run (port matches PyTorch on all frames; f16 object score 0.025 at threshold) → preprocessing sensitivity, not a port bug; fp32 gives the same → D-029 unaffected. Own metric bug (empty-vs-empty IoU = 0) found and fixed.
 
 **Tests.** Unit 47/47 (incl. resize vs torch). Nuke 6/6: new `test_retrack_with_corrections` — one hand-drawn shape on frame 6 → all 12 frames, AI IoU vs GT 0.994–0.996; corrected frame kept exactly. GUI test passes (21.0 s).
+
+## 2026-11-16 — Confidence and review flags (T-066)
+
+**Work.** Schema v3 `key_reports` (per-frame object score and predicted IoU of the latest AI run, also for frames where the AI found no object); `set_report` op (undoable, included in subtree/shape snapshots); `st_roto.quality.review_frames` (heuristic rules: |score| < 1.0, object lost between visible frames, predicted IoU < 0.7 on keyed frames); `views.review_for_object`; tracker returns predicted IoU; Track and Re-track write keys + reports in ONE undoable batch (Track was previously one undo step per key); node status "REVIEW frames …"; panel "review" column with per-frame reasons as tooltip.
+
+**Tests.** Unit 49/49 (rules, undo/subtree of reports, genuine v1→v3 migration — my old migration test had to be fixed because it faked a v1 file incompletely). Nuke 7/7: new `test_review_flags_reverse` — hand-drawn last frame, reverse re-track across the occluder: flagged exactly 15–22 (lost 16–20, 22; uncertain 15, 21 at ~0.35–0.38); confident frames score ~1.2–10. GUI passes.

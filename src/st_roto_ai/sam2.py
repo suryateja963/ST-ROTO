@@ -185,8 +185,11 @@ class Sam2Video:
 
     def _result(self, out):
         w, h = self.size
+        iou = out.get("iou")
         return {"low_res": out["low_res"][0, 0], "logits": upscale_logits(out["low_res"][0, 0], w, h),
-                "object_score": float(np.asarray(out["obj_score"]).ravel()[0])}
+                "object_score": float(np.asarray(out["obj_score"]).ravel()[0]),
+                # model's own quality estimate of the chosen mask (None for mask prompts: no prediction made)
+                "iou_pred": None if iou is None else float(np.max(iou))}
 
     def add_points(self, frame: int, enc: dict, points_xy, labels) -> dict:
         w, h = self.size
@@ -255,7 +258,7 @@ class Sam2Video:
                              run_options=self._shrink)[0]
         out = self._decode(enc, pix, np.zeros((1, 1, 1, 2), np.float32), -np.ones((1, 1, 1), np.int32))
         self._encode_memory(enc, out, from_points=False)
-        keep = {k: out[k] for k in ("low_res", "obj_ptr", "obj_score", "maskmem", "maskmem_pos")}
+        keep = {k: out[k] for k in ("low_res", "obj_ptr", "obj_score", "maskmem", "maskmem_pos", "iou")}
         # Every tracked frame is kept (~2 MB/frame), as upstream: a reverse pass reads frames from an earlier forward
         # pass, so pruning would change results. Bounded/disk-backed state for long shots is task T-065 (R-42).
         self.noncond[frame] = keep

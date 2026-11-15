@@ -38,11 +38,15 @@ def test_object_rows(tmp_path):
     s.close()
 
 
-def test_v1_project_migrates_to_v2(tmp_path):
+def test_v1_project_migrates_to_current(tmp_path):
+    from st_roto.store import SCHEMA_VERSION
     p = str(tmp_path / "old.stroto")
     s = ProjectStore(p)
-    s.conn.execute("DROP TABLE host_exports"); s.conn.execute("PRAGMA user_version = 1"); s.close()   # simulate v1 file
+    for t in ("host_exports", "key_reports"):                  # every table added after v1
+        s.conn.execute("DROP TABLE %s" % t)
+    s.conn.execute("PRAGMA user_version = 1"); s.close()        # a genuine v1 file
     s2 = ProjectStore(p)
-    assert s2.schema_version() == 2
-    assert s2.conn.execute("SELECT name FROM sqlite_master WHERE name='host_exports'").fetchone() is not None
+    assert s2.schema_version() == SCHEMA_VERSION
+    for t in ("host_exports", "key_reports"):
+        assert s2.conn.execute("SELECT name FROM sqlite_master WHERE name=?", (t,)).fetchone() is not None
     s2.close()

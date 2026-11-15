@@ -359,8 +359,48 @@ def test_retrack_with_corrections(res):
     return bool(ok)
 
 
+def test_review_flags_reverse(res):
+    """Draw the object by hand on the LAST frame (47) and re-track: the reverse pass crosses the occluder where the
+    model is known to lose the object (PyTorch reference: frames 17-20, 22). Those frames must be flagged for review,
+    and clean frames far from the occlusion must not be."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    from st_roto_nuke.roto_export import build_shape
+    from st_roto.geometry import mask_to_points
+    from st_roto import views
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vh, n = meta["h"], meta["frames"]
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "rev.stroto")
+    g = stnode.create(rd, proj)
+    curves = stnode._INNER[g.fullName()]["roto"]["curves"]
+    gt47 = cv2.imread(VIDEO + "/gt_%04d.png" % 47, cv2.IMREAD_GRAYSCALE) > 127
+    curves.rootLayer.append(build_shape(curves, "drawn", {47: mask_to_points(gt47.astype(float) - 0.5, count=16)}, vh))
+    nuke.frame(47)
+    store, bus = session.project(proj)
+    bus.execute({"op": "create_shot", "row": {"id": "shot1", "name": rd.name(), "width": meta["w"], "height": vh,
+                                              "first_frame": 0, "last_frame": n - 1}})
+    stnode.resync(g)
+    obj = store.objects("shot1")[0]
+    g["stroto_object"].setValue(obj["name"])
+    job = stnode.on_retrack(g, background=False)
+    flags = views.review_for_object(store, obj["id"])
+    flagged = [f for f, _ in flags]
+    sid = store.shapes(obj["id"])[0]["id"]
+    res.update({"status": g["stroto_status"].value(), "flagged": flagged,
+                "absent_frames": [r["frame"] for r in store.reports(sid) if (r["object_score"] or 0) <= 0],
+                "scores_12_to_24": {r["frame"]: round(r["object_score"], 3) for r in store.reports(sid) if 12 <= r["frame"] <= 24}})
+    lost = set(res["absent_frames"])
+    return (job is not None and job.status == "done" and lost and lost.issubset(set(flagged))
+            and not any(f in flagged for f in (0, 1, 2, 40, 41, 42)) and "REVIEW frames" in res["status"])
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
-         test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections)
+         test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
+         test_review_flags_reverse)
 
 
 def main():

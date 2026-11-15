@@ -14,6 +14,16 @@ def object_rows(store, shot_id: str) -> list:
     return rows
 
 
+def review_for_object(store, object_id: str) -> list:
+    """Frames of an object's shapes that the artist should review: [(frame, reason)]."""
+    from .quality import review_frames
+    out = []
+    for s in store.shapes(object_id):
+        keyed = [k["frame"] for k in store.keys(s["id"])]
+        out += review_frames(store.reports(s["id"]), keyed)
+    return sorted(out)
+
+
 def shot_shapes(store, shot_id: str) -> list:
     """All shapes of a shot (id, name, object_id, object_name) in creation order."""
     return [dict(r) for r in store.conn.execute(

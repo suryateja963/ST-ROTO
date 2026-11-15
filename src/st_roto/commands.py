@@ -59,13 +59,14 @@ def _subtree(conn, object_id):
             continue
         objs.append(dict(r))
         frontier.extend(x["id"] for x in conn.execute("SELECT id FROM objects WHERE parent_id = ? ORDER BY id", (oid,)))
-    shapes, keys = [], []
+    shapes, keys, reports = [], [], []
     for o in objs:
         for s in conn.execute("SELECT * FROM shapes WHERE object_id = ? ORDER BY id", (o["id"],)):
             shapes.append(dict(s))
             for k in conn.execute("SELECT * FROM shape_keys WHERE shape_id = ? ORDER BY frame", (s["id"],)):
                 d = dict(k); d["points"] = json.loads(d["points"]); keys.append(d)
-    return {"objects": objs, "shapes": shapes, "keys": keys}
+            reports += [dict(r) for r in conn.execute("SELECT * FROM key_reports WHERE shape_id = ? ORDER BY frame", (s["id"],))]
+    return {"objects": objs, "shapes": shapes, "keys": keys, "reports": reports}
 
 
 def _insert(conn, table, row):
@@ -125,6 +126,8 @@ def _restore_subtree(conn, op, actor):
         _insert(conn, "shapes", s)
     for k in snap["keys"]:
         _insert(conn, "shape_keys", k)
+    for r in snap.get("reports", []):
+        _insert(conn, "key_reports", r)
     return {"op": "delete_subtree", "object_id": snap["objects"][0]["id"]}
 
 
@@ -167,15 +170,33 @@ def _delete_shape(conn, op, actor):
     if actor == m.ACTOR_AI and (s["locked"] or s["origin"] != m.AI_GENERATED
                                 or any(k["origin"] != m.AI_GENERATED for k in keys)):
         raise ProtectedError("AI may not delete shape %s" % s["id"])
+    reports = [dict(r) for r in conn.execute("SELECT * FROM key_reports WHERE shape_id = ? ORDER BY frame", (s["id"],))]
     conn.execute("DELETE FROM shapes WHERE id = ?", (s["id"],))
-    return {"op": "restore_shape", "shape": s, "keys": keys}
+    return {"op": "restore_shape", "shape": s, "keys": keys, "reports": reports}
 
 
 def _restore_shape(conn, op, actor):
     _insert(conn, "shapes", op["shape"])
     for k in op["keys"]:
         _insert(conn, "shape_keys", k)
+    for r in op.get("reports", []):
+        _insert(conn, "key_reports", r)
     return {"op": "delete_shape", "id": op["shape"]["id"]}
+
+
+def _set_report(conn, op, actor):
+    """Store the AI diagnostics of one frame (op: shape_id, frame, object_score, iou_pred; None = remove)."""
+    shape = _shape_row(conn, op["shape_id"])
+    frame = int(op["frame"])
+    prev = conn.execute("SELECT object_score, iou_pred FROM key_reports WHERE shape_id = ? AND frame = ?",
+                        (shape["id"], frame)).fetchone()
+    if op.get("object_score") is None and op.get("iou_pred") is None:
+        conn.execute("DELETE FROM key_reports WHERE shape_id = ? AND frame = ?", (shape["id"], frame))
+    else:
+        conn.execute("INSERT OR REPLACE INTO key_reports (shape_id, frame, object_score, iou_pred) VALUES (?, ?, ?, ?)",
+                     (shape["id"], frame, op.get("object_score"), op.get("iou_pred")))
+    return {"op": "set_report", "shape_id": shape["id"], "frame": frame,
+            "object_score": prev["object_score"] if prev else None, "iou_pred": prev["iou_pred"] if prev else None}
 
 
 def _check_shape_writable(conn, shape, actor, existing_key):
@@ -254,6 +275,7 @@ OPS = {
     "create_shape": _create_shape, "delete_shape": _delete_shape, "restore_shape": _restore_shape,
     "update_shape": _update_shape,
     "set_key": _set_key, "delete_key": _delete_key,
+    "set_report": _set_report,
 }
 
 
