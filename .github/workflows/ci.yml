@@ -25,13 +25,14 @@ jobs:
       - run: python -m pip install -r requirements-dev.txt
       - run: python -m pytest
 
-  python37-compat:
-    # Nuke 13 ships Python 3.7 (D-017): the core must not use newer syntax or stdlib features.
+  python37-tests:
+    # Nuke 13 ships Python 3.7 (D-017). The full unit suite is RUN on 3.7 (a static checker, vermin, gave
+    # non-deterministic results locally and was replaced on 2026-11-15).
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - run: python -m pip install vermin==1.9.2
-      - run: vermin -t=3.7- --violations --no-tips src   # "3.7-": code must run on Python 3.7 or older 3.x
+          python-version: "3.7"
+      - run: python -m pip install "numpy==1.21.6" "opencv-python-headless==4.8.1.78" "pytest==7.4.4"
+      - run: python -m pytest
