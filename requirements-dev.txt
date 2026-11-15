@@ -1,0 +1,4 @@
+# Development and CI dependencies for the pure-Python core (not shipped).
+numpy>=1.21
+opencv-python-headless>=4.8   # used by geometry tests to rasterise shapes
+pytest>=7

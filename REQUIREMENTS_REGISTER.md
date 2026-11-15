@@ -25,7 +25,7 @@ First issue, 2026-11-15.
 | REQ-032 | 5.3 | AI inference executes inside the Nuke process; no external server, cloud or remote dependency | Mandatory | – | Researching | Process and network inspection during inference | Route not selected |
 | REQ-040 | 6 | Dedicated node family (ten proposed modules) with validated I/O, errors, docs | Mandatory | REQ-031 | Planned | Per-node tests in Nuke | Naming and split still to be researched |
 | REQ-041 | 6 | Export native Roto/RotoPaint shapes editable without ST-ROTO installed | Mandatory | – | Researching | Open exported script in clean Nuke | Python curves API confirmed to exist |
-| REQ-042 | 6 | AI updates never silently destroy artist geometry; five provenance classes kept distinct | Mandatory | REQ-080 | Planned | Regression tests | |
+| REQ-042 | 6 | AI updates never silently destroy artist geometry; five provenance classes kept distinct | Mandatory | REQ-080 | Implemented (core) | Regression tests | Implemented (core, unit-tested): AI cannot overwrite, unlock or delete artist/imported/locked content; artist edits of AI keys become artist_modified_ai (tests/unit/test_store_commands.py). Not yet in Nuke. |
 | REQ-050 | 7 | Structured model research with the listed fields per candidate | Mandatory | – | Researching | `MODEL_REGISTER.md` completeness | 10 candidates, many fields empty |
 | REQ-051 | 7 | Modular model-adapter architecture: auto/manual selection, pinning, rollback, routing, isolation of experimental models | Mandatory | REQ-032 | Planned | Adapter tests | |
 | REQ-052 | 7, 15 | Model manager shows provenance and licence | Mandatory | REQ-110 | Planned | UI test | |

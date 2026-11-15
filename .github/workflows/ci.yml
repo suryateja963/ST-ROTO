@@ -1,0 +1,37 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    # Pure-Python core only. Tests that need Nuke run locally with `nuke -t` (Nuke cannot run in CI).
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-2022]
+        python: ["3.9", "3.11"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pytest
+
+  python37-compat:
+    # Nuke 13 ships Python 3.7 (D-017): the core must not use newer syntax or stdlib features.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: python -m pip install vermin==1.9.2
+      - run: vermin -t=3.7- --violations --no-tips src   # "3.7-": code must run on Python 3.7 or older 3.x
