@@ -165,3 +165,21 @@ class Sequencer(object):
                     out[f] = collapsed(p["count"], centroid(p["keys"][near]))
             parts.append(out)
         return {"main": {f: self.main[f] for f in decided if self.main[f]}, "parts": parts, "holes": dict(self.holes)}
+
+
+def sequencer_state(seq: Sequencer) -> dict:
+    """JSON-safe state of a Sequencer (checkpoints, T-048)."""
+    return {"count": seq.count, "parts_enabled": seq.parts_enabled, "min_area": seq.min_area,
+            "min_fraction": seq.min_fraction, "match_px": seq.match_px,
+            "main": [[f, p] for f, p in sorted(seq.main.items())],
+            "parts": [{"count": p["count"], "keys": [[f, k] for f, k in sorted(p["keys"].items())]} for p in seq.parts],
+            "holes": [[f, n] for f, n in sorted(seq.holes.items())]}
+
+
+def sequencer_from_state(d: dict) -> Sequencer:
+    s = Sequencer(count=d["count"], parts=d["parts_enabled"], min_area=d["min_area"], min_fraction=d["min_fraction"],
+                  match_px=d["match_px"])
+    s.main = {int(f): p for f, p in d["main"]}
+    s.parts = [{"count": p["count"], "keys": {int(f): k for f, k in p["keys"]}} for p in d["parts"]]
+    s.holes = {int(f): n for f, n in d["holes"]}
+    return s

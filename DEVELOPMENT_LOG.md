@@ -272,3 +272,7 @@ Knob names measured on Nuke 17.1 (`motionblur_mode`, `global_motionblur`, `globa
 **T-038.** libtorch 2.7.1 (string beside `TORCH_VERSION` / `PT_VERSION`), CUDA 12.8, cuDNN 9.7.1, sm_120, MSVC 2022.
 
 **Tests.** Unit 96/96; Nuke 15/15 (new `test_split_object_parts`: Roto render vs truth ≥ 0.981 on frames 18–28, split frame 0.985); GUI passes (rename → `hero`, `hero_part2`).
+
+## 2026-11-16 — Resumable tracking (T-048)
+
+Checkpointed Track with 'Resume track' (details and numbers: `research/probes/2026-11-16_resume/RESULTS.md`). Identical results after cancel and after a simulated crash (CPU proof); +1.2 % tracking time; ~2.4 MB per object-frame on disk while interrupted (R-44). Unit 99/99, Nuke 15/15.

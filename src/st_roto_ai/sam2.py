@@ -272,6 +272,32 @@ class Sam2Video:
         return self._result(keep)
 
 
+    # -- checkpoints (T-048) --------------------------------------------------------------------
+    def save_state(self, directory: str) -> dict:
+        """Write the complete tracking state (conditioning frames, every tracked frame's memory) into `directory`
+        incrementally; restoring it continues tracking with identical results. Returns the state index."""
+        os.makedirs(directory, exist_ok=True)
+        for pos, out in self.cond.items():
+            dst = os.path.join(directory, "cond_%d.npz" % pos)
+            if not os.path.exists(dst):
+                np.savez(dst + ".part.npz", **{k: v for k, v in out.items() if isinstance(v, np.ndarray)})
+                os.replace(dst + ".part.npz", dst)
+        noncond = self.noncond.export_to(os.path.join(directory, "noncond"))
+        return {"cond": sorted(self.cond), "noncond": noncond, "size": list(self.size) if self.size else None,
+                "num_total_frames": self.num_total_frames, "memattn_file": self.memattn_file}
+
+    def load_state(self, directory: str, index: dict) -> None:
+        if index["memattn_file"] != self.memattn_file:
+            raise ValueError("checkpoint was made with %s, this tracker uses %s" % (index["memattn_file"], self.memattn_file))
+        self.cond = {}
+        for pos in index["cond"]:
+            with np.load(os.path.join(directory, "cond_%d.npz" % pos)) as z:
+                self.cond[int(pos)] = {k: z[k] for k in z.files}
+        self.noncond.import_from(os.path.join(directory, "noncond"), index["noncond"])
+        self.size = tuple(index["size"]) if index["size"] else None
+        self.num_total_frames = index["num_total_frames"]
+
+
 class Sam2MultiVideo:
     """Several objects in ONE pass (T-067): every frame is encoded once and shared; each object keeps its own memory
     bank, object pointers and conditioning frames in its own `Sam2Video` state.

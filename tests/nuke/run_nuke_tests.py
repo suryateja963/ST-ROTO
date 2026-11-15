@@ -765,11 +765,70 @@ def test_split_object_parts(res):
     return bool(parts and real and min(ious.values()) > 0.95 and res["min_iou_split_frames"] > 0.95)
 
 
+def test_cancel_and_resume_track(res):
+    """T-048: a Track cancelled after 5 frames leaves a checkpoint and says how to resume; a changed colour setting
+    refuses to resume; 'Resume track' finishes the run (one object, every frame, accurate) and removes it."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    from st_roto_nuke.track import read_checkpoint
+    from st_roto.geometry import Anchor
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vw, vh, n = meta["w"], meta["h"], 12
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "resume.stroto")
+    g = stnode.create(rd, proj)
+    g["stroto_click"].setValue([meta["click_xy"][0], vh - meta["click_xy"][1]]); stnode.on_add_point(g, 1)
+    real_renderer = stnode._renderer
+    calls = {"n": 0}
+
+    def cancelling_renderer(ctx, background):
+        inner = real_renderer(ctx, background)
+
+        def get_rgb(f):
+            calls["n"] += 1
+            if calls["n"] == 6:
+                stnode._JOBS[g.fullName()].cancel()          # what the Cancel button does, during frame 5
+            return inner(f)
+        return get_rgb
+    stnode._renderer = cancelling_renderer
+    j1 = stnode.on_track(g, background=False)
+    stnode._renderer = real_renderer
+    ck = stnode.checkpoint_dir(proj, rd.name())
+    m = read_checkpoint(ck)
+    res["after_cancel"] = {"job": j1.status, "status": g["stroto_status"].value(),
+                           "checkpoint_next_frame": m and m["next_frame"]}
+    ok = j1.status == "cancelled" and m is not None and m["next_frame"] == 6 and "Resume track" in res["after_cancel"]["status"]
+    g["stroto_colour"].setValue("acescg_to_srgb_encoded_v1")
+    j_bad = stnode.on_resume_track(g, background=False)
+    res["refused"] = g["stroto_status"].value()
+    ok &= j_bad is None and "changed" in res["refused"]
+    g["stroto_colour"].setValue("auto")
+    stnode.on_clear_points(g, every_object=True)                   # resuming does not need the node's prompts
+    j2 = stnode.on_resume_track(g, background=False)
+    res["resume_status"] = g["stroto_status"].value()
+    store, _ = session.project(proj)
+    objs = store.objects(store.conn.execute("SELECT id FROM shots").fetchone()["id"])
+    from st_roto import views
+    main = views.main_shape(store, objs[0]["id"])
+    ious = []
+    for k in store.keys(main["id"]):
+        a = [Anchor(p=np.array(p[:2]), h_in=np.array(p[2:4]), h_out=np.array(p[4:]), corner=False) for p in k["points"]]
+        gt = cv2.imread(VIDEO + "/gt_%04d.png" % k["frame"], cv2.IMREAD_GRAYSCALE) > 127
+        ious.append(round(iou(rasterize_spline(a, vh, vw), gt), 4))
+    res["objects"], res["iou_vs_gt"] = len(objs), ious
+    ok &= (j2 is not None and j2.status == "done" and "(resumed)" in res["resume_status"] and len(objs) == 1
+           and len(ious) == n and min(ious) > 0.98 and not os.path.exists(ck))
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
          test_export_import_shapes, test_crash_recovery_and_package, test_motion_blur_links,
-         test_colour_auto_follows_script, test_split_object_parts)
+         test_colour_auto_follows_script, test_split_object_parts, test_cancel_and_resume_track)
 
 
 def main():

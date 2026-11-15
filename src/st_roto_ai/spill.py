@@ -67,3 +67,28 @@ class SpillDict:
     def close(self):
         if self._own_dir:
             shutil.rmtree(self.dir, ignore_errors=True)
+
+    # -- checkpoints (T-048) ------------------------------------------------------------------
+    def export_to(self, directory: str) -> list:
+        """Write every entry to `directory` as f<key>.npz, skipping files already there (entries never change
+        once written: tracked-frame state is immutable). Returns the keys."""
+        os.makedirs(directory, exist_ok=True)
+        keys = sorted(set(self._ram) | self._disk)
+        for k in keys:
+            dst = os.path.join(directory, "f%d.npz" % k)
+            if os.path.exists(dst):
+                continue
+            tmp = dst + ".part.npz"
+            if k in self._ram:
+                np.savez(tmp, **self._ram[k])
+            else:
+                shutil.copyfile(self._path(k), tmp)
+            os.replace(tmp, dst)
+        return keys
+
+    def import_from(self, directory: str, keys) -> None:
+        """Adopt entries exported by `export_to` (copied into this store's own folder, loaded on demand)."""
+        for k in keys:
+            shutil.copyfile(os.path.join(directory, "f%d.npz" % k), self._path(k))
+            self._ram.pop(k, None)
+            self._disk.add(k)

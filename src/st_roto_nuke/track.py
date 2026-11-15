@@ -34,7 +34,8 @@ def _ram_budget(n_objects, total=24, horizon=16):
 
 # ------------------------------------------------------------------------------------------------ track
 def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="auto", job=None, anchors=ANCHORS,
-                  colour_transform=colour.TRANSFORM_ID, parts=True):
+                  colour_transform=colour.TRANSFORM_ID, parts=True, checkpoint_dir=None, checkpoint_every=10,
+                  resume=False):
     """Track several objects forward in ONE pass (T-067): each frame is rendered and encoded once, every object
     keeps its own tracker memory (st_roto_ai.sam2.Sam2MultiVideo).
 
@@ -43,11 +44,15 @@ def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="a
     length a single-object run over that range uses, so per-object results equal tracking each object alone.
     anchors: point count of the main shape, or "auto" (chosen on the prompt frame, st_roto.pieces.choose_count).
     parts: pieces the object splits into become part shapes (T-049).
+    checkpoint_dir: if given, the complete state is saved there every `checkpoint_every` frames and when the job is
+    cancelled (T-048); `resume=True` continues from it (frames/objects/model/settings must match: use
+    `read_checkpoint`). A finished run removes its checkpoint. Resumed results equal an uninterrupted run.
     Returns {"objects": [per-object result, input order], "device", "device_fallback", "device_reason"}; a
     per-object result has "name", "keys" (main shape), "parts" ([{frame: points}], collapsed where absent),
     "anchors", "absent_frames", "holes", "reports", "generator".
     """
     from st_roto_ai.sam2 import Sam2MultiVideo     # AI layer is optional: imported only when tracking is requested
+    from st_roto import jobs
     frames = list(frames)
     if not objects:
         raise ValueError("no objects to track")
@@ -55,6 +60,17 @@ def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="a
     for o in objects:
         if o["frame"] not in index:
             raise ValueError("prompt frame %d of %r is outside the frame range" % (o["frame"], o["name"]))
+    definition = {"frames": frames, "model": model, "colour": colour.transform_id(colour_transform),
+                  "anchors": anchors, "parts": bool(parts),
+                  "objects": [{"name": o["name"], "frame": o["frame"], "points": [list(p) for p in o["points"]],
+                               "labels": None if o.get("labels") is None else list(o["labels"])} for o in objects]}
+    saved = None
+    if resume:
+        saved = read_checkpoint(checkpoint_dir)
+        if saved is None:
+            raise ValueError("no checkpoint to resume in %s" % checkpoint_dir)
+        if saved["definition"] != json.loads(json.dumps(definition)):
+            raise ValueError("the checkpoint belongs to a different tracking run (prompts, frames or settings differ)")
     multi = Sam2MultiVideo(os.path.join(models_root(), model, "video"), device=device)
     runs = []
     for i, o in enumerate(objects):
@@ -66,9 +82,23 @@ def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="a
                                              max_frames_in_ram=_ram_budget(len(objects))),
                      "seq": pieces.Sequencer(count=anchors, parts=parts), "absent": [], "reports": {}, "last": None})
     first = min(r["start"] for r in runs)
+    begin = first
+    if saved:
+        begin = saved["next_idx"]
+        for r, st in zip(runs, saved["runs"]):
+            r["trk"].load_state(os.path.join(checkpoint_dir, "obj%d" % runs.index(r)), st["trk"])
+            r["seq"] = pieces.sequencer_from_state(st["seq"])
+            r["absent"] = list(st["absent"])
+            r["reports"] = {int(f): (s, q) for f, s, q in st["reports"]}
+            r["last"] = st["last"]
     n = len(frames) - first
+
+    def save(next_idx):
+        _write_checkpoint(checkpoint_dir, definition, next_idx, runs)
+
+    idx = begin
     try:
-        for idx in range(first, len(frames)):
+        for idx in range(begin, len(frames)):
             frame = frames[idx]
             if job:
                 job.check(); job.report((idx - first) / float(n), "frame %d (%d/%d)" % (frame, idx - first + 1, n))
@@ -85,8 +115,16 @@ def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="a
                     r["last"] = frame
                 else:
                     r["absent"].append(frame)
+            if checkpoint_dir and (idx + 1 - first) % checkpoint_every == 0 and idx + 1 < len(frames):
+                save(idx + 1)
+    except jobs.Cancelled:
+        if checkpoint_dir:
+            save(idx)                                       # frames before idx are complete for every object
+        raise
     finally:
         multi.close()                                   # remove spilled per-frame state (T-065)
+    if checkpoint_dir:
+        discard_checkpoint(checkpoint_dir)
     if job:
         job.report(1.0, "tracked %d frames, %d object(s)" % (n, len(runs)))
     results = []
@@ -403,3 +441,38 @@ def _part_key_ops(shape_id, keys, generator, skip=()):
         gen = _collapsed_generator(generator) if pieces.is_collapsed(pts) else generator
         ops.append({"op": "set_key", "shape_id": shape_id, "frame": f, "points": pts, "generator": gen})
     return ops
+
+
+def _write_checkpoint(directory, definition, next_idx, runs):
+    """Incremental, crash-safe: per-object tensors first (immutable files, written once), meta.json LAST via an
+    atomic replace, so a checkpoint interrupted half-way leaves the previous one valid."""
+    import datetime
+    os.makedirs(directory, exist_ok=True)
+    states = []
+    for i, r in enumerate(runs):
+        states.append({"trk": r["trk"].save_state(os.path.join(directory, "obj%d" % i)),
+                       "seq": pieces.sequencer_state(r["seq"]), "absent": r["absent"], "last": r["last"],
+                       "reports": [[f, s, q] for f, (s, q) in sorted(r["reports"].items())]})
+    meta = {"format": "st_roto.track_checkpoint", "version": 1, "definition": definition, "next_idx": next_idx,
+            "next_frame": definition["frames"][next_idx] if next_idx < len(definition["frames"]) else None,
+            "saved_utc": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z", "runs": states}
+    tmp = os.path.join(directory, "meta.json.part")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(meta, fh)
+    os.replace(tmp, os.path.join(directory, "meta.json"))
+
+
+def read_checkpoint(directory):
+    """The checkpoint's meta (with "definition": frames, objects, model, colour id, anchors, parts) or None."""
+    p = os.path.join(directory or "", "meta.json")
+    if not directory or not os.path.exists(p):
+        return None
+    with open(p, encoding="utf-8") as fh:
+        meta = json.load(fh)
+    return meta if meta.get("format") == "st_roto.track_checkpoint" else None
+
+
+def discard_checkpoint(directory):
+    import shutil
+    if directory and os.path.isdir(directory):
+        shutil.rmtree(directory, ignore_errors=True)

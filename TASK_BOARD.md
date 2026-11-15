@@ -6,6 +6,7 @@ Updated 2026-11-16.
 
 | ID | Task | Evidence |
 |---|---|---|
+| T-048 | Resumable tracking: checkpoints every 10 frames and on Cancel (incremental, atomic meta), 'Resume track' continues with identical results (CPU proof incl. simulated crash); +1.2 % time, ~2.4 MB per object-frame while interrupted | `research/probes/2026-11-16_resume/RESULTS.md` |
 | T-049 | Split objects: extra pieces become part shapes (centroid-matched, collapsed zero-area keys where absent, explicit `part_of`), adaptive point counts ('points' = auto, 0.3 px mean fit), Re-track carries parts, rename carries parts. Synthetic split frame IoU ~0.6 → 0.985-0.992; 48-frame mean 0.985 → 0.993 | `src/st_roto/pieces.py`, `research/probes/2026-11-16_pieces/` |
 | T-038 | Nuke 17.1v3 bundles libtorch 2.7.1 (CUDA 12.8, cuDNN 9.7.1, sm_120, MSVC 2022) | `research/probes/2026-11-16_nuke_libtorch/RESULTS.md` |
 | T-045 | Configurable AI input colour: built-in transforms derived from primaries + Bradford (Rec.709, ACEScg, ACES2065-1, Rec.2020, P3-D65, display-encoded), OCIO transforms; node 'AI input colour' (auto follows the script: Nuke default or OCIO working space). Built-ins = OCIO ACES config within 2e-5; ACES mode tracking IoU 0.994-0.995 | `src/st_roto/colour.py`, `tests/unit/test_colour.py`, `tests/nuke` |
@@ -64,7 +65,6 @@ Updated 2026-11-16.
 | T-073 | Interchange: RotoPaint export; feather storage + export; Silhouette/Mocha direct formats need their apps to validate |
 | T-075 | Package unpack from inside Nuke (UI), shot relink dialog, source fingerprints (checksums of first/last frame) |
 | T-072 | Learned matting model (hair) — waits for OQ-22 |
-| T-048 | Tracker: resumable state (reverse, multiple objects, corrections done: T-060, T-067) |
 | T-046 | In-memory pixel path Nuke ↔ numpy (avoid disk round-trip) |
 | T-012 | Split requirements register to one ID per bullet |
 | T-030b | Remaining licence texts: Cutie weights, Adobe DIM dataset, SEA-RAFT/RTMPose weights, NVIDIA, PyTorch, DirectML, OpenVINO |

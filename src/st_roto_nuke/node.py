@@ -77,6 +77,9 @@ def create(source=None, project_path: str = ""):
     _button(group, "stroto_preview", "Preview", "n.on_preview(nuke.thisNode())", new_line=False)
     _button(group, "stroto_track", "Track", "n.on_track(nuke.thisNode())", new_line=False)
     _button(group, "stroto_cancel", "Cancel", "n.on_cancel(nuke.thisNode())", new_line=False)
+    rs = _button(group, "stroto_resume", "Resume track", "n.on_resume_track(nuke.thisNode())", new_line=False)
+    rs.setTooltip("Continues a Track that was cancelled, failed or interrupted by a crash, from its last checkpoint "
+                  "(same result as an uninterrupted run).")
     rt = _button(group, "stroto_retrack", "Re-track object", "n.on_retrack(nuke.thisNode())")
     rt.setTooltip("Re-tracks the object named above in both directions, using every frame you corrected or drew as a "
                   "guide. Your keys are never changed; only AI keys are replaced.")
@@ -214,13 +217,16 @@ def _height(group):
     return int(group.height())
 
 
-def _context(group):
-    """Everything a job needs, gathered on the main thread. Raises ValueError with an artist-readable message."""
+def _context(group, need_prompts: bool = True):
+    """Everything a job needs, gathered on the main thread. Raises ValueError with an artist-readable message.
+    need_prompts=False (resuming): prompts come from the checkpoint, the node may have none."""
     src = _inner(group, "src", None)
     write, roto = _inner(group, "write", "STROTO_pixels"), _inner(group, "roto", "STROTO_shapes")
     text = group["stroto_points"].value()
     current = _object_name(group)
-    if prompts.load(text):
+    if not need_prompts:
+        objects = []
+    elif prompts.load(text):
         objects = prompts.objects_for_tracker(text, current)
     else:                                                     # backwards-compatible single click
         cx, cy = group["stroto_click"].value()
@@ -265,8 +271,9 @@ def _renderer(ctx, background):
     return get_rgb
 
 
-def _run(group, name, work, apply, background):
-    """Start a job; `apply(job)` runs on the main thread; every failure ends up in the status knob."""
+def _run(group, name, work, apply, background, stop_hint=None):
+    """Start a job; `apply(job)` runs on the main thread; every failure ends up in the status knob.
+    stop_hint(): text appended when the job is cancelled or fails (e.g. how to resume it)."""
     prev = _JOBS.get(group.fullName())
     if prev is not None and prev.status == jobs.RUNNING:
         _status(group, "busy: %s is still running" % prev.name)
@@ -284,11 +291,11 @@ def _run(group, name, work, apply, background):
         if job.status == jobs.DONE:
             nuke.executeInMainThread(safe_apply, (job,)) if background else safe_apply(job)
         elif job.status == jobs.FAILED:
-            job.applied = "failed: " + job.error.strip().splitlines()[-1]
+            job.applied = "failed: " + job.error.strip().splitlines()[-1] + (stop_hint() if stop_hint else "")
             _status(group, job.applied)
         else:
-            job.applied = "cancelled"
-            _status(group, "cancelled")
+            job.applied = "cancelled" + (stop_hint() if stop_hint else "")
+            _status(group, job.applied)
 
     job = jobs.Job(work, name=name, on_finish=finished,
                    on_progress=lambda j: _status(group, "%s %d%%: %s" % (name, 100 * j.progress, j.message)))
@@ -367,32 +374,51 @@ def on_preview(group, background: bool = True):
     return _run(group, "preview", work, apply, background)
 
 
-def on_track(group, background: bool = True):
+def on_track(group, background: bool = True, resume: bool = False):
     """Track every prompted object forward from its prompt frame in one pass; store (AI provenance, one undo step)
-    and sync into the Roto node."""
+    and sync into the Roto node. The run is checkpointed (T-048): after Cancel, a failure or a crash,
+    `resume=True` ('Resume track') continues it from the checkpoint with identical results."""
+    from .track import discard_checkpoint, read_checkpoint
     try:
-        ctx = _context(group)
+        ctx = _context(group, need_prompts=not resume)
         if not ctx["project"]:
             raise ValueError("set a project file")
+        ck = checkpoint_dir(ctx["project"], ctx["src"].name())
+        saved = read_checkpoint(ck) if resume else None
+        if resume:
+            if saved is None:
+                raise ValueError("nothing to resume for %s" % ctx["src"].name())
+            d = saved["definition"]
+            if d["colour"] != colour.transform_id(ctx["colour"]):
+                raise ValueError("'AI input colour' changed since the interrupted run (it used %s); set it back to "
+                                 "resume" % d["colour"])
+            ctx.update(objects=[dict(o, points=[tuple(p) for p in o["points"]]) for o in d["objects"]],
+                       model=d["model"], anchors=d["anchors"], parts=d["parts"])
+            frames = list(d["frames"])
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None
     store, _ = _open_project(group, ctx["project"])
     shot = store.conn.execute("SELECT id FROM shots WHERE name = ?", (ctx["src"].name(),)).fetchone()
     existing = {o["name"] for o in store.objects(shot["id"])} if shot else set()
-    already = [o["name"] for o in ctx["objects"] if o["name"] in existing]
-    ctx["objects"] = [o for o in ctx["objects"] if o["name"] not in existing]
-    if not ctx["objects"]:
-        _status(group, "error: already tracked: %s - use Re-track, or delete the object first (or rename it and "
-                       "prompt again)" % ", ".join(already))
-        return None
-    skipped_note = ("; skipped %s (already tracked: use Re-track)" % ", ".join(already)) if already else ""
+    skipped_note = ""
+    if not resume:
+        already = [o["name"] for o in ctx["objects"] if o["name"] in existing]
+        ctx["objects"] = [o for o in ctx["objects"] if o["name"] not in existing]
+        if not ctx["objects"]:
+            _status(group, "error: already tracked: %s - use Re-track, or delete the object first (or rename it and "
+                           "prompt again)" % ", ".join(already))
+            return None
+        skipped_note = ("; skipped %s (already tracked: use Re-track)" % ", ".join(already)) if already else ""
+        start = min(o["frame"] for o in ctx["objects"])
+        frames = list(range(start, ctx["last"] + 1))
+        discard_checkpoint(ck)                              # a new run replaces any interrupted one
+    start = frames[0]
     get_rgb = _renderer(ctx, background)
-    start = min(o["frame"] for o in ctx["objects"])
-    frames = list(range(start, ctx["last"] + 1))
 
     def work(job):
         return track_objects(get_rgb, frames, ctx["objects"], model=ctx["model"], device=ctx["device"], job=job,
-                             colour_transform=ctx["colour"], anchors=ctx["anchors"])
+                             colour_transform=ctx["colour"], anchors=ctx["anchors"], parts=ctx.get("parts", True),
+                             checkpoint_dir=ck, resume=resume)
 
     def apply(job):
         result = job.result
@@ -410,7 +436,8 @@ def on_track(group, background: bool = True):
             parts.append("%s%d keys (%d points)%s, %d frames without object" % (
                 "" if len(ids) == 1 else r["name"] + ": ", len(r["keys"]), r.get("anchors") or 16, extra,
                 len(r["absent_frames"])) + _review_text(store, oid))
-        msg = "done: %s; device %s%s" % (" | ".join(parts), result["device"], skipped_note)
+        msg = "done%s: %s; device %s%s" % (" (resumed)" if resume else "", " | ".join(parts), result["device"],
+                                            skipped_note)
         if result["device_fallback"]:
             msg += " (FALLBACK: %s)" % result["device_reason"]
         if rep["conflicts"]:
@@ -419,7 +446,11 @@ def on_track(group, background: bool = True):
         job.applied = msg
         group["stroto_status"].setValue(msg)
 
-    return _run(group, "track", work, apply, background)
+    def hint():
+        m = read_checkpoint(ck)
+        return (" - 'Resume track' continues from frame %s" % m["next_frame"]) if m else ""
+
+    return _run(group, "track", work, apply, background, stop_hint=hint)
 
 
 def on_retrack(group, background: bool = True, every_object: bool = False):
@@ -722,3 +753,15 @@ def _ensure_shot(store, bus, ctx):
                                               "first_frame": ctx["first"], "last_frame": ctx["last"],
                                               "source_path": src_file or None}})
     return sid
+
+
+
+def on_resume_track(group, background: bool = True):
+    return on_track(group, background, resume=True)
+
+
+def checkpoint_dir(project: str, shot_name: str) -> str:
+    """Where an interrupted Track keeps its state (inside the project's cache folder, never packaged)."""
+    from st_roto import exr
+    return os.path.join(os.path.splitext(os.path.abspath(project))[0] + "_cache", "track_resume",
+                        exr.layer_name(shot_name))
