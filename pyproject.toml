@@ -18,3 +18,4 @@ where = ["src"]
 testpaths = ["tests/unit"]
 pythonpath = ["src"]
 addopts = "-q -p no:cacheprovider"
+

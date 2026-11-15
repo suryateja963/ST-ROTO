@@ -240,6 +240,98 @@ def fit_fixed_count(contour: np.ndarray, k: int, start_hint: np.ndarray | None =
             for j in range(k)]
 
 
+# ----------------------------------------------------------------------------- mask <-> contour (sub-pixel)
+# Pixel (row r, col c) has its centre at canonical (c + 0.5, r + 0.5) (st_roto.model). cv2.findContours returns
+# centres of the INSIDE boundary pixels, i.e. 0.5 px inside the true region edge; shapes fitted to it are too small
+# (measured in tests/nuke, 2026-11-15). Use trace_contours instead.
+
+def trace_contours(field: np.ndarray, level: float = 0.0) -> list:
+    """Marching squares: closed iso-contours where `field` crosses `level` (inside = field > level).
+
+    `field` can be soft logits (sub-pixel accurate edges) or a binary mask converted with `mask - 0.5`.
+    Returns a list of (N,2) float arrays in canonical coordinates; outer boundaries and holes are separate loops.
+    Saddle cells are resolved by the cell-centre average.
+    """
+    f = np.asarray(field, np.float64) - level
+    lo = min(-1.0, float(f.min()) - 1.0)
+    f = np.pad(f, 1, constant_values=lo)                   # guarantees closed loops at the image border
+    a, b = f[:-1, :-1], f[:-1, 1:]                         # top-left, top-right
+    c, d = f[1:, 1:], f[1:, :-1]                           # bottom-right, bottom-left
+    case = (a > 0) * 1 + (b > 0) * 2 + (c > 0) * 4 + (d > 0) * 8
+    centre = (a + b + c + d) / 4.0
+    # edge ids: 0 top (a-b), 1 right (b-c), 2 bottom (d-c), 3 left (a-d)
+    table = {1: [(3, 0)], 2: [(0, 1)], 3: [(3, 1)], 4: [(1, 2)], 6: [(0, 2)], 7: [(3, 2)], 8: [(2, 3)],
+             9: [(2, 0)], 11: [(2, 1)], 12: [(1, 3)], 13: [(1, 0)], 14: [(0, 3)]}
+    rows, cols = np.nonzero((case != 0) & (case != 15))
+    nxt = {}
+
+    def eid(r, cc, e):                                     # global id of a cell edge (shared by neighbours)
+        if e == 0:
+            return ("h", r, cc)
+        if e == 2:
+            return ("h", r + 1, cc)
+        if e == 3:
+            return ("v", r, cc)
+        return ("v", r, cc + 1)
+
+    for r, cc in zip(rows.tolist(), cols.tolist()):
+        k = int(case[r, cc])
+        if k == 5:
+            segs = [(3, 0), (1, 2)] if centre[r, cc] <= 0 else [(3, 2), (1, 0)]
+        elif k == 10:
+            segs = [(0, 1), (2, 3)] if centre[r, cc] <= 0 else [(0, 3), (2, 1)]
+        else:
+            segs = table[k]
+        for e0, e1 in segs:
+            nxt[eid(r, cc, e0)] = eid(r, cc, e1)
+
+    def point(e):
+        kind, r, cc = e                                    # coordinates in the padded grid
+        if kind == "h":                                    # between (r,cc) and (r,cc+1)
+            v0, v1 = f[r, cc], f[r, cc + 1]
+            t = v0 / (v0 - v1)
+            x, y = cc + t, r
+        else:                                              # between (r,cc) and (r+1,cc)
+            v0, v1 = f[r, cc], f[r + 1, cc]
+            t = v0 / (v0 - v1)
+            x, y = cc, r + t
+        return (x - 1 + 0.5, y - 1 + 0.5)                  # unpad, then pixel-centre -> canonical
+
+    loops, seen = [], set()
+    for start in list(nxt):
+        if start in seen:
+            continue
+        loop, e = [], start
+        while e not in seen and e in nxt:
+            seen.add(e); loop.append(point(e)); e = nxt[e]
+        if len(loop) >= 3:
+            loops.append(np.array(loop, np.float64))
+    return loops
+
+
+def rasterize_closed(poly: np.ndarray, height: int, width: int) -> np.ndarray:
+    """Exact even-odd rasterisation: pixel (r,c) is inside if its centre (c+0.5, r+0.5) is inside `poly`."""
+    p = np.asarray(poly, np.float64)
+    q = np.roll(p, -1, axis=0)
+    out = np.zeros((height, width), bool)
+    ys = np.arange(height) + 0.5
+    y0, y1 = p[:, 1][None, :], q[:, 1][None, :]
+    cross = ((y0 <= ys[:, None]) & (y1 > ys[:, None])) | ((y1 <= ys[:, None]) & (y0 > ys[:, None]))
+    with np.errstate(divide="ignore", invalid="ignore"):
+        t = (ys[:, None] - y0) / (y1 - y0)
+    xs = p[:, 0][None, :] + t * (q[:, 0] - p[:, 0])[None, :]
+    centres = np.arange(width) + 0.5
+    for r in range(height):
+        xr = np.sort(xs[r][cross[r]])
+        for i in range(0, len(xr) - 1, 2):
+            out[r, (centres > xr[i]) & (centres <= xr[i + 1])] = True
+    return out
+
+
+def rasterize_spline(anchors: list, height: int, width: int, per_segment: int = 64) -> np.ndarray:
+    return rasterize_closed(sample_spline(anchors, per_segment), height, width)
+
+
 def sample_spline(anchors: list[Anchor], per_segment: int = 64) -> np.ndarray:
     """Dense closed polyline of the spline (for rasterising / error measurement)."""
     t = np.linspace(0, 1, per_segment, endpoint=False)

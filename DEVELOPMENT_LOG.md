@@ -140,3 +140,11 @@ Owner approved the architecture (D-026..D-028). Interactive-GUI probe: SAM 2.1 t
 **Requirements.** REQ-042 implemented in the core; REQ-160 partly. "Implemented (core)" means unit-tested outside Nuke, not yet tested inside Nuke (§22 status scale).
 
 **Process note.** A register-update script matched `| REQ-160 |` inside the REQ-070 row and aborted halfway; commit 922b956 carried the task-board and REQ-042 changes without this log entry or the REQ-160 update. Fixed in the next commit (line-anchored matching).
+
+## 2026-11-15 — Nuke adapter v0 and sub-pixel contours (T-053)
+
+**Work.** `src/st_roto_nuke/convention.py` (y flip, 2× tangents, inverse for import) and `roto_export.py` (keyed points built before `append`). Core geometry gained `trace_contours` (marching squares, sub-pixel, holes, border-safe) and exact pixel-centre rasterisers. Headless Nuke integration test `tests/nuke/run_nuke_tests.py`.
+
+**Results.** Unit tests 31/31 passing. The first Nuke test run FAILED (IoU 0.9926, and negative-frame renders "missing"). Investigation: Nuke names negative frames `name.-002.tif`, and the test's reference rasteriser (cv2.fillPoly) paints outline pixels, making shapes ~0.5 px fat. A real bias was found too: shapes fitted to cv2 contours are ~0.5 px too small (R-38). After the fixes: render vs exact spline 0.9980–0.9984, vs analytic ellipse 0.9968–0.9978 on frames −2..5; test passes. The 0.998 threshold has little margin.
+
+**CI.** First GitHub Actions runs green (Windows/Linux × Python 3.9/3.11, Python 3.7 compatibility). Node 20 deprecation warning on actions to address.

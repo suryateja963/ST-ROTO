@@ -49,3 +49,7 @@ research/**/*.npz
 
 # Derived model artefacts (exports, constants extracted from weights): never committed (D-008)
 models/onnx/
+
+# Nuke integration test output
+tests/nuke/out/
+tests/nuke/out_*.txt

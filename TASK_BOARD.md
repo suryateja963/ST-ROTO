@@ -17,6 +17,7 @@ Updated 2026-11-15.
 | T-030 | Licence texts: SAM License, S-Lab 1.0, ORT, BiRefNet, Foundry EULA key clauses (partial) | `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md` |
 | T-031 | Missing model categories, first pass (partial) | `docs/RESEARCH_2026-11-15_LICENCES_AND_MODELS.md` |
 | T-021 | Public GitHub repository created and pushed | https://github.com/suryateja963/ST-ROTO (commit 2a0adea) |
+| T-053 | Nuke adapter v0: `st_roto_nuke.convention` + `roto_export`; headless Nuke integration test passing (negative frames included); sub-pixel `trace_contours` + exact `rasterize_*` in core geometry; 31 unit tests | `src/st_roto_nuke/`, `tests/nuke/` |
 | T-052 | Phase 4 core v0: `src/st_roto` (model, SQLite store with migrations, command bus with op log + undo/redo + REQ-042 protection, geometry); 22 unit tests; Python 3.7 compatibility check; CI workflow | `src/`, `tests/unit/`, `.github/workflows/ci.yml` |
 | T-051 | GUI threading verified in interactive Nuke 17.1 (worker thread, marshalling, cancel) | `research/probes/2026-11-15_gui_threading/RESULTS.md` |
 | T-047 | Architecture proposal: `ARCHITECTURE.md` + ADR-0001..0010 (all Proposed, awaiting owner) | `ARCHITECTURE.md`, `docs/adr/` |
@@ -38,7 +39,6 @@ Updated 2026-11-15.
 
 | ID | Task |
 |---|---|
-| T-053 | Nuke host adapter v0 (`src/st_roto_nuke`): export a stored shape track to a native Roto shape (tangent and key-before-append rules), headless test |
 | T-054 | AI layer v0 (`src/st_roto_ai`): SAM 2.1 adapter (image + video) from the prototypes, model manifests, CUDA/CPU detection with reporting |
 | T-045 | Documented, configurable model-input colour transform (replace hard-coded sRGB re-encode) |
 | T-048 | Tracker: reverse propagation, multiple objects, corrections on tracked frames, resumable state |
