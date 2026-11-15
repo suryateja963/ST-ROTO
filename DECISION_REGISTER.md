@@ -8,7 +8,7 @@
 | D-004 | 2026-11-15 | Evidence labels [V] verified / [U] unverified are used in all research documents | Claude (delegated) | §2.3 and §32: no untested claim presented as fact |
 | D-005 | 2026-11-15 | Models under non-commercial, GPL or unread licences are classed research-only until reviewed | Claude (delegated; conservative reading of §24) | §24 forbids restricted weights in the production set |
 | D-006 | 2026-11-15 | D-001 covers everything built: code, probes, model weights, venvs, caches, build output, test data | Project owner (restated) | Owner instruction during audit |
-| D-007 | 2026-11-15 | Public GitHub repository named `ST-ROTO`; everything related to the project is uploaded there | Project owner | Owner instruction |
+| D-007 | 2026-11-15 | Public GitHub repository named `ST-ROTO` (https://github.com/suryateja963/ST-ROTO); everything related to the project is uploaded there | Project owner | Owner instruction |
 | D-008 | 2026-11-15 | Repository excludes local tools (`.tools/`), caches, build output and model weights; commits use the owner's GitHub no-reply address, not a personal email | Claude (delegated; §16 privacy, §24 weights) | Weights redistribution must follow each licence; personal email must not be published without consent |
 | D-009 | 2026-11-15 | Stay on Nuke Non-commercial for development (no developer or commercial licence for now) | Project owner | OQ-01 answer |
 | D-010 | 2026-11-15 | Continue full development on Non-commercial despite EULA 2.1(g)(e) ambiguity; owner accepts that risk | Project owner | OQ-01 / R-23 answer |
