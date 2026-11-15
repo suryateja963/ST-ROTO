@@ -23,7 +23,7 @@ def default_output_dir(project_path: str, shot_name: str) -> str:
 
 
 def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, radius=8, eps=1e-4,
-                  objects=None, compression="zip", job=None):
+                  objects=None, compression="zip", job=None, colour_transform=colour.TRANSFORM_ID):
     """Write `<out_dir>/<shot>_mattes.####.exr` for `frames`. objects: object ids (default: every object of the
     shot). Returns {"pattern", "files", "layers": {object name: layer}, "frames_interpolated": {name: [frames]},
     "frames_held": {...}, "seconds"}."""
@@ -38,13 +38,13 @@ def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, r
         raise ValueError("no objects with shapes to render")
     base = exr.layer_name(shot["name"]) + "_mattes"
     settings = {"pass": PASS_ID, "soft": bool(soft), "band": band, "radius": radius, "eps": eps,
-                "guide_colour": colour.TRANSFORM_ID if soft else None}
+                "guide_colour": colour.transform_id(colour_transform) if soft else None}
     files, layers, interp, held = [], {}, {}, {}
     frames = list(frames)
     for i, f in enumerate(frames):
         if job:
             job.check(); job.report(i / float(len(frames)), "matte frame %d (%d/%d)" % (f, i + 1, len(frames)))
-        guide = colour.to_model_input(get_rgb(f)) if soft else None
+        guide = colour.to_model_input(get_rgb(f), colour_transform) if soft else None
         alphas = {}
         for o in objs:
             m, how = matte.object_mask(store, o["id"], f, h, w)

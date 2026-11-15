@@ -670,10 +670,53 @@ def test_motion_blur_links(res):
             and res["on"]["x_extent"] - res["off"]["x_extent"] > 40 and abs(res["on"]["y_extent"] - res["off"]["y_extent"]) < 10)
 
 
+def test_colour_auto_follows_script(res):
+    """T-045: 'AI input colour' = auto. Nuke colour management -> the v0 linear-sRGB transform; OCIO with the ACES cg
+    config (Read converts the sRGB PNGs into ACEScg) -> an OCIO transform back to sRGB-encoded, tracking as accurate
+    as before, and the OCIO transform recorded in the provenance."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import colour as ncol
+    from st_roto import model as m
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vw, vh, n = meta["w"], meta["h"], 6
+    r = nuke.root()
+    res["nuke_mode"] = ncol.transform_id(ncol.resolve("auto"))
+    r["colorManagement"].setValue("OCIO")
+    r["OCIO_config"].setValue("fn-nuke_cg-config-v2.2.0_aces-v1.3_ocio-v2.4")
+    r["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    res["read_colorspace"] = rd["colorspace"].value()
+    res["working_space"] = r["workingSpaceLUT"].value()
+    g = stnode.create(rd, os.path.join(tempfile.mkdtemp(), "col.stroto"))
+    res["knob_default"] = g["stroto_colour"].value()
+    g["stroto_click"].setValue([meta["click_xy"][0], vh - meta["click_xy"][1]])
+    job = stnode.on_track(g, background=False)
+    res["status"] = g["stroto_status"].value()
+    from st_roto_nuke import session
+    store, _ = session.project(g["stroto_project"].value())
+    sh = store.conn.execute("SELECT * FROM shapes").fetchone()
+    gen = json.loads(sh["generator"])
+    res["provenance_colour"] = gen["colour"]
+    ious = []
+    from st_roto.geometry import Anchor
+    for k in store.keys(sh["id"]):
+        a = [Anchor(p=np.array(p[:2]), h_in=np.array(p[2:4]), h_out=np.array(p[4:]), corner=False) for p in k["points"]]
+        gt = cv2.imread(VIDEO + "/gt_%04d.png" % k["frame"], cv2.IMREAD_GRAYSCALE) > 127
+        ious.append(round(iou(rasterize_spline(a, vh, vw), gt), 4))
+    res["iou_vs_gt"] = ious
+    src_space = res["provenance_colour"].split("|")[-2] if res["provenance_colour"].startswith("ocio_v1:") else None
+    return bool(res["nuke_mode"] == "linear_srgb_to_srgb_encoded_v0" and res["knob_default"] == "auto"
+                and job is not None and job.status == "done" and src_space == res["working_space"]
+                and len(ious) == n and min(ious) > 0.98)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
-         test_export_import_shapes, test_crash_recovery_and_package, test_motion_blur_links)
+         test_export_import_shapes, test_crash_recovery_and_package, test_motion_blur_links,
+         test_colour_auto_follows_script)
 
 
 def main():

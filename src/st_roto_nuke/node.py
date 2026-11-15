@@ -25,7 +25,7 @@ import nuke
 import nuke.rotopaint  # noqa: F401
 
 from st_roto import jobs, prompts
-from . import pixels, session
+from . import colour, pixels, session
 from .roto_export import export_preview, import_edits, sync_shot
 from .track import apply_results, models_root, track_object, track_objects
 
@@ -63,6 +63,9 @@ def create(source=None, project_path: str = ""):
     group.addKnob(nuke.Text_Knob("stroto_div2", "AI"))
     group.addKnob(nuke.Enumeration_Knob("stroto_model", "model", MODELS))
     group.addKnob(nuke.Enumeration_Knob("stroto_device", "device", DEVICES))
+    ck = nuke.Enumeration_Knob("stroto_colour", "AI input colour", colour.CHOICES)
+    ck.setTooltip("Colour space of the plate as the AI sees it. auto: follow the script (Nuke default = linear sRGB; OCIO = the working space through the script's OCIO config). Recorded with every AI result.")
+    group.addKnob(ck)
     lm = _button(group, "stroto_load", "Load model", "n.on_load_model(nuke.thisNode())")
     lm.setTooltip("Loads the AI model onto the GPU now. Nuke may pause for a few seconds once; Track is smooth afterwards.")
     _button(group, "stroto_preview", "Preview", "n.on_preview(nuke.thisNode())", new_line=False)
@@ -225,8 +228,18 @@ def _context(group):
     return {"src": src, "write": write, "roto": roto, "objects": objects, "current": mine[0] if mine else None,
             "first": first, "last": last, "width": int(src.width()), "height": int(src.height()),
             "model": group["stroto_model"].value(), "device": group["stroto_device"].value(),
+            "colour": _colour(group),
             "project": group["stroto_project"].value(), "object": current,
             "pixel_path": pixels.temp_pixel_path(group.name())}
+
+
+def _colour(group):
+    """The node's AI input colour transform (main thread). Old nodes without the knob use auto."""
+    choice = group["stroto_colour"].value() if "stroto_colour" in group.knobs() else colour.AUTO
+    try:
+        return colour.resolve(choice)
+    except Exception as e:
+        raise ValueError("AI input colour: %s" % e)
 
 
 def _object_name(group):
@@ -332,7 +345,7 @@ def on_preview(group, background: bool = True):
 
     def work(job):
         return track_object(get_rgb, [o["frame"]], o["frame"], o["points"], model=ctx["model"],
-                            device=ctx["device"], job=job, labels=o["labels"])
+                            device=ctx["device"], job=job, labels=o["labels"], colour_transform=ctx["colour"])
 
     def apply(job):
         export_preview(ctx["roto"]["curves"], job.result["keys"], ctx["height"])
@@ -367,7 +380,8 @@ def on_track(group, background: bool = True):
     frames = list(range(start, ctx["last"] + 1))
 
     def work(job):
-        return track_objects(get_rgb, frames, ctx["objects"], model=ctx["model"], device=ctx["device"], job=job)
+        return track_objects(get_rgb, frames, ctx["objects"], model=ctx["model"], device=ctx["device"], job=job,
+                             colour_transform=ctx["colour"])
 
     def apply(job):
         result = job.result
@@ -419,11 +433,16 @@ def on_retrack(group, background: bool = True, every_object: bool = False):
     get_rgb = _renderer(ctx, background)
     sids = [sid for _, _, sid in targets]
     model, device = group["stroto_model"].value(), group["stroto_device"].value()     # read knobs on main thread
+    try:
+        ctransform = _colour(group)
+    except ValueError as e:
+        _status(group, "error: %s" % e); return None
 
     def work(job):
         ro = store_ro(project)          # worker thread: its own connection (SQLite objects are thread-bound)
         try:
-            return retrack_objects(get_rgb, ro, sids, frames, width, height, model=model, device=device, job=job)
+            return retrack_objects(get_rgb, ro, sids, frames, width, height, model=model, device=device, job=job,
+                                   colour_transform=ctransform)
         finally:
             ro.close()
 
@@ -465,6 +484,7 @@ def on_render_mattes(group, background: bool = True):
         out_dir = group["stroto_matte_dir"].value().strip() or default_output_dir(project, src.name())
         soft = bool(group["stroto_soft"].value())
         band, radius = max(1, int(group["stroto_band"].value())), max(1, int(group["stroto_radius"].value()))
+        ctransform = _colour(group)
         ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name())}
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None
@@ -474,7 +494,7 @@ def on_render_mattes(group, background: bool = True):
         ro = store_ro(project)          # worker thread: its own connection
         try:
             return render_mattes(get_rgb, ro, shot["id"], frames, out_dir, soft=soft, band=band, radius=radius,
-                                 job=job)
+                                 job=job, colour_transform=ctransform)
         finally:
             ro.close()
 

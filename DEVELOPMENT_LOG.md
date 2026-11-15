@@ -252,3 +252,13 @@ Knob names measured on Nuke 17.1 (`motionblur_mode`, `global_motionblur`, `globa
 **T-057.** actions/checkout v7 and actions/setup-python v7 (both declare `using: node24`, checked in their action.yml).
 
 **T-056.** The weights manifests existed, but the ONNX exports the runtime loads had no checksums and nothing was checked before loading. `tools/models/register_exports.py` writes `models/manifests/<name>.exports.json` (SHA-256 + size of every exported file, source revision); `st_roto_ai.registry.verify_file` runs before every ORT session and before the tracker's constants/config are read: refuses files outside a model folder, unlisted files, size or SHA-256 mismatches, exports from another revision, non-production licences and models without owner approval. Hashing runs at ~1.2 GB/s (large: 2 GB in 1.7 s); verified files are stamped per (path, size, mtime) in `models/.verified.json` (git-ignored). Tests: unit (tampering with same size, appended data, unlisted file, NC licence, missing approval, revision mismatch, escape hatch, real models verify); Nuke track test passes with verification on (8 files stamped).
+
+## 2026-11-16 — Configurable AI input colour (T-045)
+
+**Measured first.** Nuke 17.1 ships PyOpenColorIO 2.4.2 and Foundry's ACES configs; root knobs `colorManagement`, `OCIOConfigPath` (actual config file) and `workingSpaceLUT` give everything needed.
+
+**Work.** `st_roto.colour`: matrices DERIVED from published primaries/white points with Bradford adaptation (Rec.709/sRGB, ACEScg AP1, ACES2065-1 AP0, Rec.2020, P3-D65) + sRGB curve; display-encoded passthrough; `OcioTransform` for any config/space. `st_roto_nuke.colour.resolve`: node knob *AI input colour*; *auto* = v0 transform under Nuke colour management, OCIO working space → sRGB-encoded Rec.709 under OCIO. The transform id (OCIO: config path, cache id, both spaces) goes into provenance of tracks, re-tracks and matte settings.
+
+**Validation.** Derived AP1→Rec.709 and AP0→Rec.709 equal the published Bradford matrices (1e-5); all five built-ins equal OCIO's ACES cg config 2.2.0 to < 2e-5. Default transform output unchanged (old results reproducible). Nuke: script in OCIO/ACES cg mode, PNG plates read into ACEScg, auto → OCIO transform recorded, tracking IoU vs truth 0.994–0.995 (same as default mode).
+
+**Own bug caught by a test.** `OcioTransform` converted in place and `np.ascontiguousarray` does not copy an already-contiguous float32 array: it overwrote the caller's frame. My first ad-hoc comparison passed only because it passed a copy. Fixed (explicit copy) + regression test. Also: a test compared 0.9999999999999999 == 1.0 exactly (test bug).

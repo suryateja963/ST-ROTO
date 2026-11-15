@@ -60,3 +60,5 @@ Owner's full specification: `docs/MASTER_PROMPT.md` (authoritative). Public repo
 - Objects created in the same second sort by id (`store.objects`): tests must look objects up by name.
 - Nuke reads EXR channel `<layer>.A` as `<layer>.alpha` and plain `A` as `rgba.alpha` (measured).
 - The Bash tool breaks on heredocs with nested quotes in some commands: write multi-line edit scripts to the scratchpad with the Write tool, then run them.
+- `tests/nuke/run_nuke_tests.py` has CRLF line endings: string-replace scripts with LF text silently miss; use the Edit tool.
+- OCIO `applyRGB` is in place; never pass the caller's array (`st_roto.colour.OcioTransform` copies).

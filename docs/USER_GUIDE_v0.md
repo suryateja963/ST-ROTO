@@ -39,6 +39,6 @@ Restart Nuke. You should see **Nodes › ST-ROTO › ST_Roto** and the pane **ST
 ## Things to know
 
 - Shapes you edit directly in the Roto node are **never** overwritten or removed by ST-ROTO; such a shape is reported as "NOT updated (edited in Roto)". **Save Roto edits to project** (or any Track / Re-track) records your edits in the project, undoably.
-- The colour conversion for the AI input assumes Nuke's default linear sRGB working space (not ACES yet).
+- **AI input colour** (default *auto*) follows the script: Nuke's default linear sRGB, or with OCIO colour management (e.g. ACES) the working space converted through the script's OCIO config. Choose a space explicitly if your plates are, for example, already display-encoded. The choice is recorded with every AI result.
 - If you see "Nuke returned no node … 10 nodes per session", save, reopen the script and try again (Non-commercial limit).
 - Report problems with the status text and the Script Editor output.

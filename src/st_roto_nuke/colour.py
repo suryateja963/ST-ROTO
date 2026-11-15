@@ -1,17 +1,43 @@
-"""Model-input colour transform (ADR-0010) — v0.
+"""Model-input colour transform for Nuke (ADR-0010, T-045).
 
-v0 implements ONE explicit, documented transform: scene-linear Rec.709/sRGB primaries -> sRGB-encoded (IEC 61966-2-1
-piecewise curve), clipped to [0,1]. It is correct when Nuke's working space is linear sRGB/Rec.709 (Nuke's default
-nuke-default config); it is NOT correct for ACES or other working spaces. The OCIO-based, configurable version is
-task T-045. The transform id is written into every AI-generated key's provenance so results stay reproducible.
+The transforms themselves live in `st_roto.colour` (derived matrices + optional OpenColorIO). This module picks
+one for an ST_Roto node: an explicit choice on the node, or "auto", which follows the script's colour management:
+  * root colorManagement = "Nuke" (nuke-default)  -> scene-linear Rec.709/sRGB -> sRGB encoded (the v0 transform);
+  * root colorManagement = "OCIO"                 -> OpenColorIO processor from the script's working space
+                                                     (root workingSpaceLUT) to sRGB-encoded Rec.709, using the
+                                                     config file in root OCIOConfigPath.
+The transform id goes into every AI result's provenance.
 """
 from __future__ import annotations
 
 import numpy as np
 
-TRANSFORM_ID = "linear_srgb_to_srgb_encoded_v0"
+from st_roto import colour as _c
+
+TRANSFORM_ID = _c.DEFAULT                   # kept for callers/tests written against v0
+AUTO = "auto"
+CHOICES = [AUTO] + list(_c.TRANSFORMS)
+LABELS = dict([(AUTO, "auto (follow the script's colour management)")] +
+              [(k, v[0]) for k, v in _c.TRANSFORMS.items()])
 
 
-def to_model_input(linear_rgb: np.ndarray) -> np.ndarray:
-    x = np.clip(np.asarray(linear_rgb, np.float32), 0.0, 1.0)
-    return np.where(x <= 0.0031308, x * 12.92, 1.055 * np.power(x, 1 / 2.4) - 0.055).astype(np.float32)
+def to_model_input(rgb: np.ndarray, transform=_c.DEFAULT) -> np.ndarray:
+    return _c.to_model_input(rgb, transform)
+
+
+def transform_id(transform) -> str:
+    return _c.transform_id(transform)
+
+
+def resolve(choice: str, root=None):
+    """Node choice -> a transform usable by to_model_input (built-in id or OcioTransform). Main thread only."""
+    if choice != AUTO:
+        if choice not in _c.TRANSFORMS:
+            raise ValueError("unknown colour transform %r" % choice)
+        return choice
+    if root is None:
+        import nuke
+        root = nuke.root()
+    if root["colorManagement"].value() != "OCIO":
+        return _c.DEFAULT
+    return _c.OcioTransform(root["OCIOConfigPath"].value(), root["workingSpaceLUT"].value())

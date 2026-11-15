@@ -6,6 +6,7 @@ Updated 2026-11-16.
 
 | ID | Task | Evidence |
 |---|---|---|
+| T-045 | Configurable AI input colour: built-in transforms derived from primaries + Bradford (Rec.709, ACEScg, ACES2065-1, Rec.2020, P3-D65, display-encoded), OCIO transforms; node 'AI input colour' (auto follows the script: Nuke default or OCIO working space). Built-ins = OCIO ACES config within 2e-5; ACES mode tracking IoU 0.994-0.995 | `src/st_roto/colour.py`, `tests/unit/test_colour.py`, `tests/nuke` |
 | T-056 | Model registry: export manifests (`models/manifests/<name>.exports.json`, SHA-256 of every loaded file, source revision); every session/constant load verified (licence in production set, owner approval, pinned revision, size + SHA-256); verified stamps per (path,size,mtime); dev escape hatch `ST_ROTO_MODEL_VERIFY=0` | `src/st_roto_ai/registry.py`, `tests/unit/test_registry.py` |
 | T-057 | CI on Node-24 actions (checkout v7, setup-python v7) | `.github/workflows/ci.yml` |
 | T-074 | Nuke's own Roto motion blur exposed on ST_Roto (mode, samples, shutter, offset: linked knobs); 60 px/frame shape renders a ~50 px trail along the motion only | `tests/nuke` `test_motion_blur_links` |
@@ -61,7 +62,6 @@ Updated 2026-11-16.
 | T-073 | Interchange: RotoPaint export; feather storage + export; Silhouette/Mocha direct formats need their apps to validate |
 | T-075 | Package unpack from inside Nuke (UI), shot relink dialog, source fingerprints (checksums of first/last frame) |
 | T-072 | Learned matting model (hair) — waits for OQ-22 |
-| T-045 | Documented, configurable model-input colour transform (replace hard-coded sRGB re-encode) |
 | T-048 | Tracker: resumable state (reverse, multiple objects, corrections done: T-060, T-067) |
 | T-049 | Multi-shape objects (object split into several pieces) and adaptive anchor counts for animated shapes |
 | T-046 | In-memory pixel path Nuke ↔ numpy (avoid disk round-trip) |

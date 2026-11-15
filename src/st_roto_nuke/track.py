@@ -32,7 +32,8 @@ def _ram_budget(n_objects, total=24, horizon=16):
 
 
 # ------------------------------------------------------------------------------------------------ track
-def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="auto", job=None, anchors=ANCHORS):
+def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="auto", job=None, anchors=ANCHORS,
+                  colour_transform=colour.TRANSFORM_ID):
     """Track several objects forward in ONE pass (T-067): each frame is rendered and encoded once, every object
     keeps its own tracker memory (st_roto_ai.sam2.Sam2MultiVideo).
 
@@ -67,7 +68,7 @@ def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="a
             frame = frames[idx]
             if job:
                 job.check(); job.report((idx - first) / float(n), "frame %d (%d/%d)" % (frame, idx - first + 1, n))
-            enc = multi.encode(colour.to_model_input(get_rgb(frame)))
+            enc = multi.encode(colour.to_model_input(get_rgb(frame), colour_transform))
             for r in runs:
                 p = idx - r["start"]
                 if p < 0:
@@ -87,7 +88,7 @@ def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="a
         job.report(1.0, "tracked %d frames, %d object(s)" % (n, len(runs)))
     results = []
     for r in runs:
-        gen = json.dumps({"model": model, "colour": colour.TRANSFORM_ID, "anchors": anchors,
+        gen = json.dumps({"model": model, "colour": colour.transform_id(colour_transform), "anchors": anchors,
                           "prompts": {"frame": frames[r["start"]], "points": [list(p) for p in r["pts"]],
                                       "labels": r["labels"]}}, sort_keys=True)
         results.append({"name": r["name"], "keys": r["keys"], "absent_frames": r["absent"], "reports": r["reports"],
@@ -97,7 +98,7 @@ def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="a
 
 
 def track_object(get_rgb, frames, click_frame, click_xy, model="sam2.1-hiera-tiny", device="auto",
-                 job=None, anchors=ANCHORS, labels=None):
+                 job=None, anchors=ANCHORS, labels=None, colour_transform=colour.TRANSFORM_ID):
     """Track one object from prompt points on one frame. Returns dict with per-frame points and run metadata.
 
     frames: ordered list of shot frame numbers (any integers); click_frame must be the first of them (forward only).
@@ -109,7 +110,7 @@ def track_object(get_rgb, frames, click_frame, click_xy, model="sam2.1-hiera-tin
     if not frames or frames[0] != click_frame:
         raise ValueError("Track runs forward only: the prompt frame must be the first frame of the range")
     res = track_objects(get_rgb, frames, [{"name": "", "frame": click_frame, "points": pts, "labels": labels}],
-                        model=model, device=device, job=job, anchors=anchors)
+                        model=model, device=device, job=job, anchors=anchors, colour_transform=colour_transform)
     one = res["objects"][0]
     return {"keys": one["keys"], "absent_frames": one["absent_frames"], "reports": one["reports"],
             "device": res["device"], "device_fallback": res["device_fallback"],
@@ -135,7 +136,7 @@ def retrack_plan(store, shape_id, frames):
 
 
 def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam2.1-hiera-tiny", device="auto",
-                    job=None):
+                    job=None, colour_transform=colour.TRANSFORM_ID):
     """Re-track several shapes in ONE pass (T-067). Each shape uses every ARTIST key as a mask prompt (plus its
     original click prompts, if any) and is tracked forward from its first conditioning frame and in reverse to the
     first frame of `frames` (master prompt section 11: propagate corrections forward and backward). Each frame is
@@ -159,7 +160,7 @@ def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam
     def enc(f):
         if f not in cache:
             cache.clear()                                   # keep at most one encoding in memory
-            cache[f] = multi.encode(colour.to_model_input(get_rgb(f)))
+            cache[f] = multi.encode(colour.to_model_input(get_rgb(f), colour_transform))
         return cache[f]
 
     def step(p, f, reverse):
@@ -208,7 +209,7 @@ def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam
         multi.close()                                       # remove spilled per-frame state (T-065)
     shapes = {}
     for p in plans:
-        gen_out = dict(p["gen"], retrack={"model": model, "colour": colour.TRANSFORM_ID,
+        gen_out = dict(p["gen"], retrack={"model": model, "colour": colour.transform_id(colour_transform),
                                           "conditioning_frames": p["cond"], "artist_frames": sorted(p["artist"])})
         shapes[p["shape_id"]] = {"keys": p["results"], "reports": p["reports"],
                                  "generator": json.dumps(gen_out, sort_keys=True)}
@@ -217,10 +218,11 @@ def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam
 
 
 def retrack_object(get_rgb, store, shape_id, frames, width, height, model="sam2.1-hiera-tiny", device="auto",
-                   job=None):
+                   job=None, colour_transform=colour.TRANSFORM_ID):
     """Re-track one stored shape (see retrack_objects). Returns "keys" {frame: points | None}, "reports",
     "generator" and the device fields."""
-    res = retrack_objects(get_rgb, store, [shape_id], frames, width, height, model=model, device=device, job=job)
+    res = retrack_objects(get_rgb, store, [shape_id], frames, width, height, model=model, device=device, job=job,
+                          colour_transform=colour_transform)
     one = res["shapes"][shape_id]
     return dict(one, device=res["device"], device_fallback=res["device_fallback"], device_reason=res["device_reason"])
 
