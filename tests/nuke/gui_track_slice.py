@@ -84,12 +84,16 @@ def main():
                 R["locked_after_toggle"] = bool(store.objects(stnode.shot_id_for(g))[0]["locked"])
                 p.undo()
                 R["locked_after_undo"] = bool(store.objects(stnode.shot_id_for(g))[0]["locked"])
+                p.table.setCurrentCell(0, 0)
+                p.rename("hero")                                      # object + its shape renamed, Roto label follows
+                R["after_rename_layer"] = [it.name for it in layer]
                 R["panel_info"] = p.info.text()
             except Exception:
                 R["panel_error"] = traceback.format_exc()
             R["passed"] = (job.status == "done" and R.get("keys_on_point0") == meta["frames"]
                            and R.get("panel_rows") == 1 and R.get("locked_after_toggle") is True
-                           and R.get("locked_after_undo") is False)
+                           and R.get("locked_after_undo") is False
+                           and any(x.startswith("hero_st") for x in R.get("after_rename_layer", [])))
             QtCore.QTimer.singleShot(500, finish)
         QtCore.QTimer.singleShot(200, poll)
     except Exception:

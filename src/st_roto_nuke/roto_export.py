@@ -150,7 +150,82 @@ def sync_shot(store, shot_id: str, curves_knob, height: float) -> dict:
     return report
 
 
-def export_preview(curves_knob, keys: dict, height: float, label: str = "STROTO_preview"):
+PREVIEW_LABEL = "STROTO_preview"
+
+
+def import_edits(store, bus, shot_id: str, curves_knob, height: float, static_frame: int = 0) -> dict:
+    """Capture artist work done in the Roto node into the project (actor = artist, one undoable batch per shape).
+
+    * Tagged ST-ROTO shapes whose keys differ from what ST-ROTO last wrote: changed/added keys -> set_key,
+      removed keys -> delete_key (edited AI keys become artist_modified_ai through the command rules).
+    * Untagged shapes the artist drew in this Roto node: imported as new artist_created objects; the Roto shape is
+      then renamed with its tag so later syncs recognise it.
+    Not imported (reported in "skipped"): point count changed in Roto (topology changes unsupported in v0),
+    locked objects/shapes, shapes whose object was deleted in the project.
+    """
+    import nuke.rotopaint as rp
+    from st_roto import model as m
+    from st_roto.commands import ProtectedError
+    layer = curves_knob.rootLayer
+    report = {"imported": [], "new_objects": [], "skipped": []}
+    for item in list(layer):
+        name = getattr(item, "name", "") or ""
+        if name == PREVIEW_LABEL:
+            continue
+        if not isinstance(item, rp.Shape):                 # Layers (and strokes) are not imported in v0
+            report["skipped"].append((name, "not a shape (layers/strokes are not imported in v0)")); continue
+        match = TAG_RE.search(name)
+        if match:
+            tag = match.group(1)
+            row = store.conn.execute("SELECT shape_id FROM host_exports WHERE host_tag = ? AND host = ?",
+                                     (tag, HOST)).fetchone()
+            shape = store.row("shapes", row["shape_id"]) if row else None
+            if shape is None:
+                report["skipped"].append((name, "its object was deleted in the project; shape kept as is")); continue
+            rec = _recorded(store, tag) or {}
+            host = read_keys(item, height)
+            if keys_equal(host, rec):
+                continue
+            if any(len(p) != int(shape["point_count"]) for p in host.values()):
+                report["skipped"].append((name, "point count changed in Roto (%d expected); not imported in v0"
+                                          % shape["point_count"])); continue
+            ops = [{"op": "set_key", "shape_id": shape["id"], "frame": f, "points": host[f]}
+                   for f in sorted(host) if f not in rec or not keys_equal({f: host[f]}, {f: rec[f]})]
+            ops += [{"op": "delete_key", "shape_id": shape["id"], "frame": f} for f in sorted(rec) if f not in host]
+            try:
+                bus.execute({"op": "batch", "ops": ops})
+            except ProtectedError as e:
+                report["skipped"].append((name, "protected: %s" % e)); continue
+            _record(store, shape["id"], host)
+            report["imported"].append(name)
+        else:
+            host = read_keys(item, height) or _static_keys(item, height, static_frame)
+            if not host or len(next(iter(host.values()))) < 2:
+                report["skipped"].append((name, "empty shape")); continue
+            oid, sid = m.new_id(), m.new_id()
+            n = len(next(iter(host.values())))
+            ops = [{"op": "create_object", "row": {"id": oid, "shot_id": shot_id, "name": name}},
+                   {"op": "create_shape", "row": {"id": sid, "object_id": oid, "name": name, "point_count": n}}]
+            ops += [{"op": "set_key", "shape_id": sid, "frame": f, "points": host[f]} for f in sorted(host)]
+            bus.execute({"op": "batch", "ops": ops})
+            label = shape_label(name, sid)
+            _remove(layer, item)                                   # re-create with the tag (rename-safe)
+            layer.append(build_shape(curves_knob, label, host, height))
+            _record(store, sid, host)
+            report["new_objects"].append(label)
+    return report
+
+
+def _static_keys(shape, height, frame):
+    """Shapes drawn without animation have no key times: read their current positions as one key at `frame`."""
+    pts = []
+    for cp in list(shape):
+        c, l, r = cp.center.getPosition(frame), cp.leftTangent.getPosition(frame), cp.rightTangent.getPosition(frame)
+        pts.append(nuke_to_key((c.x, c.y), (l.x, l.y), (r.x, r.y), height))
+    return {int(frame): pts} if pts else {}
+
+
+def export_preview(curves_knob, keys: dict, height: float, label: str = PREVIEW_LABEL):
     """Show a temporary, unrecorded shape (prompt preview); replaces any previous preview."""
     layer = curves_knob.rootLayer
     for item in list(layer):

@@ -23,7 +23,7 @@ import nuke.rotopaint  # noqa: F401
 
 from st_roto import jobs, prompts
 from . import pixels, session
-from .roto_export import export_preview, sync_shot
+from .roto_export import export_preview, import_edits, sync_shot
 from .track import apply_result, models_root, track_object
 
 MODELS = ["sam2.1-hiera-tiny", "sam2.1-hiera-large"]
@@ -62,6 +62,8 @@ def create(source=None, project_path: str = ""):
     _button(group, "stroto_preview", "Preview", "n.on_preview(nuke.thisNode())", new_line=False)
     _button(group, "stroto_track", "Track", "n.on_track(nuke.thisNode())", new_line=False)
     _button(group, "stroto_cancel", "Cancel", "n.on_cancel(nuke.thisNode())", new_line=False)
+    imp = _button(group, "stroto_import", "Save Roto edits to project", "n.on_import_edits(nuke.thisNode())")
+    imp.setTooltip("Records shapes you edited or drew in this node's Roto into the ST-ROTO project (undoable).")
     group.addKnob(nuke.Text_Knob("stroto_status", "status", "idle"))
     with group:
         inp = nuke.nodes.Input(name="Input1")
@@ -269,8 +271,9 @@ def on_track(group, background: bool = True):
         result = job.result
         store, bus = session.project(ctx["project"])
         shot_id = _ensure_shot(store, bus, ctx)
-        apply_result(bus, shot_id, ctx["object"], result)
         export_preview(ctx["roto"]["curves"], {}, ctx["height"])          # remove the temporary preview
+        import_edits(store, bus, shot_id, ctx["roto"]["curves"], ctx["height"], ctx["frame"])   # capture artist work first
+        apply_result(bus, shot_id, ctx["object"], result)
         rep = sync_shot(store, shot_id, ctx["roto"]["curves"], ctx["height"])
         msg = "done: %d keys, %d frames without object, device %s" % (
             len(result["keys"]), len(result["absent_frames"]), result["device"])
@@ -285,18 +288,37 @@ def on_track(group, background: bool = True):
     return _run(group, "track", work, apply, background)
 
 
-def resync(group):
-    """Re-synchronise the Roto node after project edits (object panel). Returns the sync report."""
-    ctx_project = group["stroto_project"].value()
-    store, bus = session.project(ctx_project)
+def resync(group, import_first: bool = True):
+    """Capture artist edits made in the Roto node (import_edits), then make the Roto node reflect the project
+    (sync_shot). Returns the sync report with the import report under "import"."""
+    store, bus = session.project(group["stroto_project"].value())
     src = _inner(group, "src", None)
     shot = store.conn.execute("SELECT id FROM shots WHERE name = ?", (src.name(),)).fetchone()
+    empty = {"written": [], "updated": [], "removed": [], "unchanged": [], "conflicts": [], "import": None}
     if shot is None:
-        return {"written": [], "updated": [], "removed": [], "unchanged": [], "conflicts": []}
-    rep = sync_shot(store, shot["id"], _inner(group, "roto", "STROTO_shapes")["curves"], _height(group))
+        return empty
+    curves = _inner(group, "roto", "STROTO_shapes")["curves"]
+    imp = import_edits(store, bus, shot["id"], curves, _height(group), int(nuke.frame())) if import_first else None
+    rep = sync_shot(store, shot["id"], curves, _height(group))
+    rep["import"] = imp
+    notes = []
+    if imp and (imp["imported"] or imp["new_objects"]):
+        notes.append("imported Roto edits: %s" % ", ".join(imp["imported"] + imp["new_objects"]))
+    if imp and imp["skipped"]:
+        notes.append("not imported: %s" % "; ".join("%s (%s)" % s for s in imp["skipped"]))
     if rep["conflicts"]:
-        _status(group, "NOT updated (edited in Roto): %s" % ", ".join(rep["conflicts"]))
+        notes.append("NOT updated (edited in Roto): %s" % ", ".join(rep["conflicts"]))
+    if notes:
+        _status(group, " | ".join(notes))
     return rep
+
+
+def on_import_edits(group):
+    try:
+        return resync(group)
+    except Exception as e:
+        _status(group, "error: %s" % e)
+        return None
 
 
 def shot_id_for(group):

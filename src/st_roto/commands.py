@@ -233,7 +233,21 @@ def _update_shape(conn, op, actor):
     return {"op": "update_shape", "id": s["id"], "fields": old}
 
 
+def _batch(conn, op, actor):
+    """Several operations as ONE undoable step (all-or-nothing: the bus wraps it in a single transaction)."""
+    inverses = []
+    for sub in op["ops"]:
+        if sub.get("op") == "batch":
+            raise ValueError("nested batches are not supported")
+        fn = OPS.get(sub.get("op"))
+        if fn is None:
+            raise ValueError("unknown operation %r in batch" % sub.get("op"))
+        inverses.append(fn(conn, sub, actor))
+    return {"op": "batch", "ops": list(reversed(inverses))}
+
+
 OPS = {
+    "batch": _batch,
     "create_shot": _create_shot, "delete_shot": _delete_shot,
     "create_object": _create_object, "delete_subtree": _delete_subtree, "restore_subtree": _restore_subtree,
     "update_object": _update_object,

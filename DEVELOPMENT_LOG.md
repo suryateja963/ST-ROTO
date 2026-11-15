@@ -184,3 +184,9 @@ Owner approved the architecture (D-026..D-028). Interactive-GUI probe: SAM 2.1 t
 **Tests.** Unit 41/41 (incl. v1→v2 migration). Nuke 4/4. New test: include+exclude prompts → preview → track → second track → delete/undo (unedited shape removed and restored) → simulated artist edit in Roto + delete → shape kept, conflict reported, edit intact. GUI: Track 48 frames in 19.4 s, panel lists 1 object, lock → locked, undo → unlocked.
 
 **Plugin smoke test (same day).** `tests/nuke/gui_plugin_smoke.py` with NUKE_PATH set for that one Nuke process only (user environment untouched): ST-ROTO menu entry present, Objects panel registered, menu command creates an ST_Roto node with the expected 'set a project file' status, panel widget constructs. Passes.
+
+## 2026-11-16 — Artist edits captured into the project (T-063) and rename (T-064)
+
+**Work.** `batch` command (several ops = one atomic, undoable step). `roto_export.import_edits`: changed/added/removed keys of ST-ROTO shapes edited in the Roto node become artist ops (edited AI keys → artist_modified_ai); untagged hand-drawn shapes become artist_created objects and are re-created with their tag; point-count changes, locked content and deleted objects are reported, not imported. `resync` now imports then syncs; Track imports pending edits before applying AI results; node button "Save Roto edits to project". Panel rename also renames the object's shapes (one batch).
+
+**Tests.** Unit 42/42 (batch atomicity and single-step undo). Nuke 5/5: new `test_import_artist_edits` (edit frame 3 + delete frame 5 → imported, origins correct; undo → project and Roto shape reverted; hand-drawn shape → artist_created + tagged; removing a point → reported, kept). GUI: rename → Roto shape relabelled `hero_st…`. A type bug (Roto layers would have been treated as shapes) was caught in review before testing.

@@ -226,8 +226,80 @@ def test_prompts_preview_sync_protection(res):
     return bool(ok)
 
 
+def test_import_artist_edits(res):
+    """Artist edits in the Roto node are captured into the project (one undoable step per shape); undo reverts the
+    Roto shape too; hand-drawn shapes become artist_created objects; topology changes are reported, not guessed."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import nuke.rotopaint as rp
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    from st_roto_nuke.roto_export import build_shape, read_keys, keys_equal, TAG_RE
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vh, n = meta["h"], 8
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "imp.stroto")
+    g = stnode.create(rd, proj)
+    curves = stnode._INNER[g.fullName()]["roto"]["curves"]
+    layer = curves.rootLayer
+    g["stroto_click"].setValue([meta["click_xy"][0], vh - meta["click_xy"][1]])
+    job = stnode.on_track(g, background=False)
+    ok = job.status == "done"
+    label = [it.name for it in layer][0]
+    store, bus = session.project(proj)
+    sid = store.conn.execute("SELECT shape_id FROM host_exports").fetchone()[0]
+
+    def replace(name, keys, count=None):
+        for i in range(len(layer)):
+            if layer[i].name == name:
+                layer.remove(i); break
+        if count is not None:
+            keys = {f: p[:count] for f, p in keys.items()}
+        layer.append(build_shape(curves, name, keys, vh))
+
+    # 1. edit frame 3, delete the key on frame 5
+    keys = read_keys([it for it in layer if it.name == label][0], vh)
+    edited = {f: [list(p) for p in v] for f, v in keys.items()}
+    edited[3][0][0] += 30.0; edited[3][0][2] += 30.0; edited[3][0][4] += 30.0
+    del edited[5]
+    replace(label, edited)
+    r1 = stnode.resync(g)
+    k3, k5, k2 = store.key(sid, 3), store.key(sid, 5), store.key(sid, 2)
+    res["edit"] = {"import": r1["import"], "k3_origin": k3["origin"], "k5": k5, "k2_origin": k2["origin"]}
+    ok &= label in r1["import"]["imported"] and k3["origin"] == "artist_modified_ai" and k5 is None \
+        and k2["origin"] == "ai_generated" and abs(k3["points"][0][0] - edited[3][0][0]) < 1e-2
+    # 2. undo -> project reverted; resync -> Roto shape reverted too
+    bus.undo()
+    r2 = stnode.resync(g)
+    host = read_keys([it for it in layer if it.name == label][0], vh)
+    db = {k["frame"]: k["points"] for k in store.keys(sid)}
+    res["undo"] = {"sync": {k: v for k, v in r2.items() if k != "import"}, "host_equals_db": keys_equal(host, db),
+                   "frames": sorted(host)}
+    ok &= keys_equal(host, db) and 5 in host and store.key(sid, 3)["origin"] == "ai_generated"
+    # 3. artist draws a new static shape in the Roto node
+    sh = rp.Shape(curves)
+    for x, y in ((100.0, 600.0), (300.0, 600.0), (300.0, 450.0), (100.0, 450.0)):
+        sh.append(rp.ShapeControlPoint(x, y))
+    sh.name = "hand_drawn"
+    layer.append(sh)
+    r3 = stnode.resync(g)
+    new_label = (r3["import"]["new_objects"] or [""])[0]
+    objs = {o["name"]: o for o in store.objects(stnode.shot_id_for(g))}
+    res["hand_drawn"] = {"import": r3["import"], "layer": [it.name for it in layer],
+                         "origin": objs.get("hand_drawn", {}).get("origin")}
+    ok &= bool(TAG_RE.search(new_label)) and new_label in [it.name for it in layer] \
+        and objs.get("hand_drawn", {}).get("origin") == "artist_created"
+    # 4. topology change (one point removed in Roto) -> reported, not imported
+    replace(label, read_keys([it for it in layer if it.name == label][0], vh), count=15)
+    r4 = stnode.resync(g)
+    res["topology"] = r4["import"]["skipped"]
+    ok &= any(label == s[0] and "point count" in s[1] for s in r4["import"]["skipped"]) and label in r4["conflicts"]
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
-         test_prompts_preview_sync_protection)
+         test_prompts_preview_sync_protection, test_import_artist_edits)
 
 
 def main():

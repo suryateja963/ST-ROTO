@@ -156,6 +156,24 @@ def test_shot_with_objects_cannot_be_deleted(env):
         bus.execute({"op": "delete_shot", "id": "S"})
 
 
+def test_batch_is_one_atomic_undoable_step(env):
+    store, bus = env
+    bus.execute({"op": "set_key", "shape_id": "P", "frame": 1, "points": pts(4)})
+    bus.execute({"op": "batch", "ops": [
+        {"op": "set_key", "shape_id": "P", "frame": 1, "points": pts(4, dx=5)},
+        {"op": "set_key", "shape_id": "P", "frame": 2, "points": pts(4, dx=6)},
+        {"op": "delete_key", "shape_id": "P", "frame": 1}]})
+    assert store.key("P", 1) is None and store.key("P", 2)["points"] == pts(4, dx=6)
+    bus.undo()                                                    # one undo reverts the whole batch
+    assert store.key("P", 1)["points"] == pts(4) and store.key("P", 2) is None
+    n_ops = len(store.operations())
+    with pytest.raises(ValueError):                               # failure inside a batch: nothing applied
+        bus.execute({"op": "batch", "ops": [
+            {"op": "set_key", "shape_id": "P", "frame": 3, "points": pts(4)},
+            {"op": "set_key", "shape_id": "P", "frame": 4, "points": pts(2)}]})
+    assert store.key("P", 3) is None and len(store.operations()) == n_ops
+
+
 def test_undo_is_logged(env):
     store, bus = env
     seq = bus.execute({"op": "set_key", "shape_id": "P", "frame": 1, "points": pts(4)})
