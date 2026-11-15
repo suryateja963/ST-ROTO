@@ -584,10 +584,96 @@ def test_export_import_shapes(res):
     return bool(ok)
 
 
+def test_crash_recovery_and_package(res):
+    """T-071: a project left open by a process that died, with a damaged database file -> opening it from an
+    ST_Roto node reports the crash, restores the newest backup (damaged file kept); 'Package project' produces a
+    package that unpacks to a project passing the integrity check, with the same content."""
+    import subprocess
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    from st_roto import persistence
+    tmp = tempfile.mkdtemp()
+    proj = os.path.join(tmp, "crash.stroto")
+    s = ProjectStore(proj); bus = CommandBus(s)
+    bus.execute({"op": "create_shot", "row": {"id": "S", "name": "Read1", "width": 64, "height": 48}})
+    bus.execute({"op": "create_object", "row": {"id": "O", "shot_id": "S", "name": "kept"}})
+    good = persistence.backup(proj)
+    s.close()
+    py = os.path.join(os.path.dirname(sys.executable), "python.exe")
+    py = py if os.path.exists(py) else "C:/Program Files/Nuke17.1v3/python.exe"
+    code = "import os,sys; sys.path.insert(0,%r); from st_roto.persistence import SessionMarker; " \
+           "SessionMarker(%r).acquire({'app':'nuke'}); os._exit(9)" % (ROOT + "/src", proj)
+    res["crasher_exit"] = subprocess.call([py, "-c", code])
+    with open(proj, "r+b") as fh:
+        fh.seek(0); fh.write(b"\0" * 4096)
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=1)
+    g = stnode.create(rd, proj)
+    store, _ = stnode._open_project(g, proj)
+    rep = session.open_report(proj)
+    res["report_text"] = session.report_text(proj)
+    res["status"] = g["stroto_status"].value()
+    res["objects_after_open"] = [o["name"] for o in store.objects("S")]
+    damaged = (rep.get("recovery") or {}).get("damaged") or []
+    ok = (res["crasher_exit"] == 9 and rep["previous_session"]["state"] == "crashed"
+          and rep["recovery"]["action"] == "restored" and rep["recovery"]["from"] == good
+          and damaged and all(os.path.exists(d) for d in damaged)
+          and res["objects_after_open"] == ["kept"] and "restored backup" in res["status"])
+    zp = stnode.on_package(g, os.path.join(tmp, "pkg.zip"))
+    out = persistence.unpack(zp, os.path.join(tmp, "unpacked"))
+    t = ProjectStore(out["project"])
+    res["unpacked_objects"] = [o["name"] for o in t.objects("S")]
+    t.close()
+    ok &= res["unpacked_objects"] == ["kept"] and persistence.check(out["project"])["ok"]
+    session.close(proj)
+    res["marker_removed_on_close"] = not os.path.exists(proj + ".session.json")
+    ok &= res["marker_removed_on_close"]
+    return bool(ok)
+
+
+def test_motion_blur_links(res):
+    """T-074: the ST_Roto 'motion blur' knobs drive the inner Roto's global motion blur: a shape moving 60 px per
+    frame renders with a soft trail when on, hard edges when off; the trail lies along the motion."""
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke.roto_export import build_shape
+    from st_roto.geometry import mask_to_points
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=2)
+    g = stnode.create(rd, os.path.join(tempfile.mkdtemp(), "mb.stroto"))
+    curves = stnode._INNER[g.fullName()]["roto"]["curves"]
+    yy, xx = np.mgrid[0:H, 0:W] + 0.5
+    keys = {f: mask_to_points(80.0 - np.hypot(xx - (400 + 60 * f), yy - 360), count=12) for f in range(3)}
+    curves.rootLayer.append(build_shape(curves, "mover", keys, H))
+    w = nuke.nodes.Write(file=OUT + "/mb.####.tif", file_type="tiff", channels="alpha")
+    w["datatype"].setValue("32 bit float"); w["compression"].setValue("none"); w.setInput(0, g)
+
+    def render(tag):
+        nuke.execute(w, 1, 1)
+        img = cv2.imread(OUT + "/mb.0001.tif", cv2.IMREAD_UNCHANGED)
+        a = img if img.ndim == 2 else img[:, :, -1]
+        soft = (a > 0.05) & (a < 0.95)
+        ys, xs = np.nonzero(soft)
+        return {"soft_px": int(soft.sum()), "x_extent": int(np.ptp(xs)) if len(xs) else 0,
+                "y_extent": int(np.ptp(ys)) if len(ys) else 0}
+
+    res["links"] = {n: g[n].value() for n, _, _ in stnode.MOTIONBLUR_LINKS}
+    res["off"] = render("off")
+    g["stroto_mb_mode"].setValue("global"); g["stroto_mb_samples"].setValue(10); g["stroto_mb_shutter"].setValue(1.0)
+    roto = stnode._INNER[g.fullName()]["roto"]
+    res["inner_after_set"] = {"mode": roto["motionblur_mode"].value(), "samples": roto["global_motionblur"].value(),
+                              "shutter": roto["global_motionblur_shutter"].value()}
+    res["on"] = render("on")
+    return (res["inner_after_set"] == {"mode": "global", "samples": 10.0, "shutter": 1.0}
+            # motion is 60 px/frame along x with shutter 1 -> a trail of ~60 px along x only (measured: +50 px in x,
+            # -2 px in y; soft pixels 1,401 -> 17,243, the 'off' ones being Nuke's anti-aliased edge)
+            and res["on"]["soft_px"] > 5 * res["off"]["soft_px"]
+            and res["on"]["x_extent"] - res["off"]["x_extent"] > 40 and abs(res["on"]["y_extent"] - res["off"]["y_extent"]) < 10)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
-         test_export_import_shapes)
+         test_export_import_shapes, test_crash_recovery_and_package, test_motion_blur_links)
 
 
 def main():

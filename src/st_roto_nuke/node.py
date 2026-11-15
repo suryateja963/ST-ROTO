@@ -95,6 +95,11 @@ def create(source=None, project_path: str = ""):
     im = _button(group, "stroto_import_shapes", "Import shapes (JSON)", "n.on_import_shapes(nuke.thisNode())",
                  new_line=False)
     im.setTooltip("Adds the objects of an ST-ROTO JSON file to this shot (one undo step; marked as imported).")
+    bk = _button(group, "stroto_backup", "Back up now", "n.on_backup(nuke.thisNode())")
+    bk.setTooltip("Snapshot of the project file into <project>_backups/ (automatic backups also run every 5 minutes "
+                  "after changes).")
+    pk = _button(group, "stroto_package", "Package project", "n.on_package(nuke.thisNode())", new_line=False)
+    pk.setTooltip("Portable zip: project, mattes, exports and a checksummed manifest (no model weights).")
     group.addKnob(nuke.Text_Knob("stroto_status", "status", "idle"))
     with group:
         inp = nuke.nodes.Input(name="Input1")
@@ -106,8 +111,27 @@ def create(source=None, project_path: str = ""):
         w.setInput(0, inp)
         pixels.configure_write(w, pixels.temp_pixel_path(group.name()))
         w["disable"].setValue(True)
+    _add_motionblur_links(group)
     _INNER[group.fullName()] = {"write": w, "roto": roto, "src": source}
     return group
+
+
+MOTIONBLUR_LINKS = (("stroto_mb_mode", "motion blur", "motionblur_mode"),
+                    ("stroto_mb_samples", "samples", "global_motionblur"),
+                    ("stroto_mb_shutter", "shutter", "global_motionblur_shutter"),
+                    ("stroto_mb_offset", "shutter offset", "global_motionblur_shutter_offset_type"))
+
+
+def _add_motionblur_links(group):
+    """Nuke's own Roto motion blur on the ST_Roto node (T-074): the shapes are real animated splines, so Nuke blurs
+    them along their tracked motion. Linked knobs of the inner Roto (knob names measured on Nuke 17.1)."""
+    group.addKnob(nuke.Text_Knob("stroto_div_mb", "motion blur"))
+    for name, label, target in MOTIONBLUR_LINKS:
+        k = nuke.Link_Knob(name, label)
+        k.setLink("STROTO_shapes." + target)
+        if name != "stroto_mb_mode":
+            k.clearFlag(nuke.STARTLINE)
+        group.addKnob(k)
 
 
 def create_from_selection():
@@ -149,6 +173,23 @@ def _inner(group, key, name):
                               "10 nodes per session; save the script, reopen it and try again." % (group.name(), name))
     _INNER.setdefault(group.fullName(), {})[key] = n
     return n
+
+
+_REPORTED = set()
+
+
+def _open_project(group, path):
+    """session.project + show, once per project and Nuke session, anything found when opening it (crash,
+    recovery, another Nuke using it) in the node status."""
+    store, bus = session.project(path)
+    key = os.path.normcase(os.path.abspath(path))
+    if key not in _REPORTED:
+        _REPORTED.add(key)
+        note = session.report_text(path)
+        if note:
+            _status(group, "project: " + note)
+            nuke.tprint("ST-ROTO: %s: %s" % (path, note))
+    return store, bus
 
 
 def _status(group, text):
@@ -311,7 +352,7 @@ def on_track(group, background: bool = True):
             raise ValueError("set a project file")
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None
-    store, _ = session.project(ctx["project"])
+    store, _ = _open_project(group, ctx["project"])
     shot = store.conn.execute("SELECT id FROM shots WHERE name = ?", (ctx["src"].name(),)).fetchone()
     existing = {o["name"] for o in store.objects(shot["id"])} if shot else set()
     already = [o["name"] for o in ctx["objects"] if o["name"] in existing]
@@ -330,7 +371,7 @@ def on_track(group, background: bool = True):
 
     def apply(job):
         result = job.result
-        store, bus = session.project(ctx["project"])
+        store, bus = _open_project(group, ctx["project"])
         shot_id = _ensure_shot(store, bus, ctx)
         export_preview(ctx["roto"]["curves"], {}, ctx["height"])          # remove the temporary preview
         import_edits(store, bus, shot_id, ctx["roto"]["curves"], ctx["height"], start)   # capture artist work first
@@ -363,7 +404,7 @@ def on_retrack(group, background: bool = True, every_object: bool = False):
         project = group["stroto_project"].value()
         if not project:
             raise ValueError("set a project file")
-        store, bus = session.project(project)
+        store, bus = _open_project(group, project)
         curves, height = roto["curves"], int(src.height())
         shot = store.conn.execute("SELECT id FROM shots WHERE name = ?", (src.name(),)).fetchone()
         if shot is None:
@@ -415,7 +456,7 @@ def on_render_mattes(group, background: bool = True):
         project = group["stroto_project"].value()
         if not project:
             raise ValueError("set a project file")
-        store, bus = session.project(project)
+        store, bus = _open_project(group, project)
         shot = store.conn.execute("SELECT id FROM shots WHERE name = ?", (src.name(),)).fetchone()
         if shot is None:
             raise ValueError("nothing tracked or imported yet for %s" % src.name())
@@ -457,7 +498,7 @@ def _shot_for(group):
     project = group["stroto_project"].value()
     if not project:
         raise ValueError("set a project file")
-    store, bus = session.project(project)
+    store, bus = _open_project(group, project)
     shot = store.conn.execute("SELECT * FROM shots WHERE name = ?", (src.name(),)).fetchone()
     return store, bus, src, project, shot
 
@@ -514,6 +555,37 @@ def on_import_shapes(group, path: str = None):
     return {"ids": ids, "sync": rep}
 
 
+def on_backup(group):
+    try:
+        project = group["stroto_project"].value()
+        if not project:
+            raise ValueError("set a project file")
+        _open_project(group, project)
+        path = session.backup_now(project)
+    except Exception as e:
+        _status(group, "error: backup failed: %s" % e); return None
+    _status(group, "backup: %s" % path)
+    return path
+
+
+def on_package(group, zip_path: str = None, include_sources: bool = False):
+    """Portable package of the project (T-071). Sources are not included by default (size); relink on unpack."""
+    from st_roto import persistence
+    import datetime
+    try:
+        project = group["stroto_project"].value()
+        if not project:
+            raise ValueError("set a project file")
+        _open_project(group, project)
+        zip_path = zip_path or "%s_package_%s.zip" % (os.path.splitext(os.path.abspath(project))[0],
+                                                      datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
+        man = persistence.pack(project, zip_path, include_sources=include_sources, tool_version="v0")
+    except Exception as e:
+        _status(group, "error: packaging failed: %s" % e); return None
+    _status(group, "package: %s (%d files)" % (zip_path, len(man["files"])))
+    return zip_path
+
+
 def _ranges(frames):
     from st_roto import quality
     return quality.ranges(frames)
@@ -565,7 +637,7 @@ def store_ro(path):
 def resync(group, import_first: bool = True):
     """Capture artist edits made in the Roto node (import_edits), then make the Roto node reflect the project
     (sync_shot). Returns the sync report with the import report under "import"."""
-    store, bus = session.project(group["stroto_project"].value())
+    store, bus = _open_project(group, group["stroto_project"].value())
     src = _inner(group, "src", None)
     shot = store.conn.execute("SELECT id FROM shots WHERE name = ?", (src.name(),)).fetchone()
     empty = {"written": [], "updated": [], "removed": [], "unchanged": [], "conflicts": [], "import": None}
@@ -596,7 +668,7 @@ def on_import_edits(group):
 
 
 def shot_id_for(group):
-    store, _ = session.project(group["stroto_project"].value())
+    store, _ = _open_project(group, group["stroto_project"].value())
     r = store.conn.execute("SELECT id FROM shots WHERE name = ?", (_inner(group, "src", None).name(),)).fetchone()
     return r["id"] if r else None
 
@@ -609,6 +681,8 @@ def _ensure_shot(store, bus, ctx):
         return r["id"]
     from st_roto import model as m
     sid = m.new_id()
+    src_file = ctx["src"]["file"].value() if "file" in ctx["src"].knobs() else None     # for relinking (T-071)
     bus.execute({"op": "create_shot", "row": {"id": sid, "name": name, "width": ctx["width"], "height": ctx["height"],
-                                              "first_frame": ctx["first"], "last_frame": ctx["last"]}})
+                                              "first_frame": ctx["first"], "last_frame": ctx["last"],
+                                              "source_path": src_file or None}})
     return sid
