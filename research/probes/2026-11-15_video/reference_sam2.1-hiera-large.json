@@ -1,0 +1,301 @@
+{
+ "model": "sam2.1-hiera-large",
+ "frames": 48,
+ "init_session_s": 0.81,
+ "per_frame": [
+  {
+   "frame": 0,
+   "iou": 0.9955,
+   "pred_px": 65102,
+   "gt_px": 65040
+  },
+  {
+   "frame": 1,
+   "iou": 0.9947,
+   "pred_px": 67017,
+   "gt_px": 67284
+  },
+  {
+   "frame": 2,
+   "iou": 0.9968,
+   "pred_px": 68607,
+   "gt_px": 68598
+  },
+  {
+   "frame": 3,
+   "iou": 0.9949,
+   "pred_px": 70643,
+   "gt_px": 70884
+  },
+  {
+   "frame": 4,
+   "iou": 0.9961,
+   "pred_px": 71981,
+   "gt_px": 72175
+  },
+  {
+   "frame": 5,
+   "iou": 0.9953,
+   "pred_px": 72113,
+   "gt_px": 72405
+  },
+  {
+   "frame": 6,
+   "iou": 0.9965,
+   "pred_px": 73525,
+   "gt_px": 73612
+  },
+  {
+   "frame": 7,
+   "iou": 0.9967,
+   "pred_px": 73397,
+   "gt_px": 73472
+  },
+  {
+   "frame": 8,
+   "iou": 0.9969,
+   "pred_px": 73866,
+   "gt_px": 73912
+  },
+  {
+   "frame": 9,
+   "iou": 0.997,
+   "pred_px": 73553,
+   "gt_px": 73622
+  },
+  {
+   "frame": 10,
+   "iou": 0.9969,
+   "pred_px": 72528,
+   "gt_px": 72633
+  },
+  {
+   "frame": 11,
+   "iou": 0.9967,
+   "pred_px": 71531,
+   "gt_px": 71674
+  },
+  {
+   "frame": 12,
+   "iou": 0.9972,
+   "pred_px": 69555,
+   "gt_px": 69637
+  },
+  {
+   "frame": 13,
+   "iou": 0.9969,
+   "pred_px": 68280,
+   "gt_px": 68372
+  },
+  {
+   "frame": 14,
+   "iou": 0.9971,
+   "pred_px": 66551,
+   "gt_px": 66666
+  },
+  {
+   "frame": 15,
+   "iou": 0.9968,
+   "pred_px": 64651,
+   "gt_px": 64790
+  },
+  {
+   "frame": 16,
+   "iou": 0.9971,
+   "pred_px": 63048,
+   "gt_px": 63133
+  },
+  {
+   "frame": 17,
+   "iou": 0.9972,
+   "pred_px": 60564,
+   "gt_px": 60658
+  },
+  {
+   "frame": 18,
+   "iou": 0.997,
+   "pred_px": 58419,
+   "gt_px": 58511
+  },
+  {
+   "frame": 19,
+   "iou": 0.9976,
+   "pred_px": 56371,
+   "gt_px": 56429
+  },
+  {
+   "frame": 20,
+   "iou": 0.9971,
+   "pred_px": 54349,
+   "gt_px": 54415
+  },
+  {
+   "frame": 21,
+   "iou": 0.9974,
+   "pred_px": 49812,
+   "gt_px": 49859
+  },
+  {
+   "frame": 22,
+   "iou": 0.9973,
+   "pred_px": 34046,
+   "gt_px": 34010
+  },
+  {
+   "frame": 23,
+   "iou": 0.5727,
+   "pred_px": 14569,
+   "gt_px": 25418
+  },
+  {
+   "frame": 24,
+   "iou": 0.981,
+   "pred_px": 27962,
+   "gt_px": 28346
+  },
+  {
+   "frame": 25,
+   "iou": 0.9948,
+   "pred_px": 43846,
+   "gt_px": 43919
+  },
+  {
+   "frame": 26,
+   "iou": 0.9954,
+   "pred_px": 44368,
+   "gt_px": 44445
+  },
+  {
+   "frame": 27,
+   "iou": 0.9955,
+   "pred_px": 43426,
+   "gt_px": 43478
+  },
+  {
+   "frame": 28,
+   "iou": 0.9959,
+   "pred_px": 42518,
+   "gt_px": 42525
+  },
+  {
+   "frame": 29,
+   "iou": 0.9957,
+   "pred_px": 41499,
+   "gt_px": 41527
+  },
+  {
+   "frame": 30,
+   "iou": 0.9959,
+   "pred_px": 41525,
+   "gt_px": 41498
+  },
+  {
+   "frame": 31,
+   "iou": 0.9962,
+   "pred_px": 41102,
+   "gt_px": 41126
+  },
+  {
+   "frame": 32,
+   "iou": 0.9959,
+   "pred_px": 40631,
+   "gt_px": 40629
+  },
+  {
+   "frame": 33,
+   "iou": 0.9951,
+   "pred_px": 40850,
+   "gt_px": 40820
+  },
+  {
+   "frame": 34,
+   "iou": 0.9949,
+   "pred_px": 41317,
+   "gt_px": 41318
+  },
+  {
+   "frame": 35,
+   "iou": 0.9907,
+   "pred_px": 41721,
+   "gt_px": 42105
+  },
+  {
+   "frame": 36,
+   "iou": 0.9942,
+   "pred_px": 43248,
+   "gt_px": 43324
+  },
+  {
+   "frame": 37,
+   "iou": 0.9956,
+   "pred_px": 44511,
+   "gt_px": 44521
+  },
+  {
+   "frame": 38,
+   "iou": 0.9959,
+   "pred_px": 45646,
+   "gt_px": 45648
+  },
+  {
+   "frame": 39,
+   "iou": 0.9962,
+   "pred_px": 47509,
+   "gt_px": 47527
+  },
+  {
+   "frame": 40,
+   "iou": 0.9965,
+   "pred_px": 48980,
+   "gt_px": 49042
+  },
+  {
+   "frame": 41,
+   "iou": 0.9948,
+   "pred_px": 50733,
+   "gt_px": 50962
+  },
+  {
+   "frame": 42,
+   "iou": 0.9967,
+   "pred_px": 53222,
+   "gt_px": 53272
+  },
+  {
+   "frame": 43,
+   "iou": 0.9968,
+   "pred_px": 55509,
+   "gt_px": 55638
+  },
+  {
+   "frame": 44,
+   "iou": 0.9973,
+   "pred_px": 57968,
+   "gt_px": 58038
+  },
+  {
+   "frame": 45,
+   "iou": 0.9971,
+   "pred_px": 60213,
+   "gt_px": 60309
+  },
+  {
+   "frame": 46,
+   "iou": 0.997,
+   "pred_px": 62564,
+   "gt_px": 62673
+  },
+  {
+   "frame": 47,
+   "iou": 0.9964,
+   "pred_px": 64862,
+   "gt_px": 65044
+  }
+ ],
+ "propagate_s": 484.2,
+ "s_per_frame_cpu": 10.09,
+ "iou_mean": 0.987,
+ "iou_min": 0.5727,
+ "iou_mean_occluded_frames": 0.9086,
+ "torch": "2.15.0+cpu"
+}

@@ -1,0 +1,12 @@
+{
+ "num_maskmem": 7,
+ "max_cond_frame_num": -1,
+ "max_object_pointers_in_encoder": 16,
+ "sigmoid_scale_for_mem_enc": 20.0,
+ "sigmoid_bias_for_mem_enc": -10.0,
+ "multimask_output_in_sam": true,
+ "multimask_output_for_tracking": true,
+ "multimask_min_pt_num": 0,
+ "multimask_max_pt_num": 1,
+ "mem_dim": 64
+}

@@ -203,6 +203,41 @@ def fit_closed_contour(contour: np.ndarray, tol: float = 1.0, smooth_sigma: floa
     return anchors
 
 
+def fit_fixed_count(contour: np.ndarray, k: int, start_hint: np.ndarray | None = None,
+                    smooth_sigma: float = 1.5) -> list[Anchor]:
+    """Fit a closed spline with exactly `k` anchors (needed for animated Roto shapes: constant topology).
+
+    Anchors are placed at equal arc-length spacing, starting at the contour point closest to `start_hint`
+    (e.g. anchor 0 of the previous frame) so that anchor i corresponds across frames. Handles are least-squares
+    fitted per segment (Schneider's generator) with G1 tangents estimated from the smoothed contour.
+    """
+    pts = np.asarray(contour, np.float64).reshape(-1, 2)
+    s = smooth_closed(pts, smooth_sigma)
+    n = len(s)
+    if start_hint is not None:
+        s = np.roll(s, -int(np.argmin(((s - start_hint) ** 2).sum(1))), axis=0)
+    seg = np.linalg.norm(np.diff(np.vstack([s, s[:1]]), axis=0), axis=1)
+    cum = np.concatenate([[0.0], np.cumsum(seg)])
+    total = cum[-1]
+    targets = np.arange(k) * total / k
+    idx = np.searchsorted(cum, targets).clip(0, n - 1)
+    # +-6 contour points: +-2 was measured too noisy (ellipse, k=16: IoU 0.9955 vs 0.9980 with +-6)
+    tangents = [_unit(s[(i + 6) % n] - s[(i - 6) % n]) for i in idx]
+    anchors_p = [s[i] for i in idx]
+    handles = []
+    for j in range(k):
+        i0, i1 = idx[j], idx[(j + 1) % k]
+        chunk = s[np.arange(i0, i1 + (n if i1 <= i0 else 0) + 1) % n]
+        if len(chunk) < 3:
+            d = np.linalg.norm(chunk[-1] - chunk[0]) / 3.0
+            handles.append((chunk[0] + tangents[j] * d, chunk[-1] - tangents[(j + 1) % k] * d))
+            continue
+        c = _generate(chunk, _chord_params(chunk), tangents[j], -tangents[(j + 1) % k])
+        handles.append((c[1], c[2]))
+    return [Anchor(p=anchors_p[j].copy(), h_in=handles[j - 1][1].copy(), h_out=handles[j][0].copy(), corner=False)
+            for j in range(k)]
+
+
 def sample_spline(anchors: list[Anchor], per_segment: int = 64) -> np.ndarray:
     """Dense closed polyline of the spline (for rasterising / error measurement)."""
     t = np.linspace(0, 1, per_segment, endpoint=False)

@@ -72,6 +72,21 @@ def test_smoothing_preserves_closed_length():
     assert np.abs(np.linalg.norm(s, axis=1) - 100).max() < 0.2
 
 
+def test_fixed_count_topology_and_correspondence():
+    from bezier_fit import fit_fixed_count
+    prev = None
+    for f in range(5):                                   # moving, rotating ellipse
+        m = np.zeros((600, 800), np.uint8)
+        cv2.ellipse(m, (300 + 30 * f, 300), (200, 110), 10 * f, 0, 360, 1, -1)
+        c = _contour(m)
+        a = fit_fixed_count(c, 16, start_hint=None if prev is None else prev[0].p)
+        assert len(a) == 16
+        assert _iou(_raster(a, m.shape), m.astype(bool)) > 0.995
+        if prev is not None:                             # anchor 0 must move smoothly, not jump around the loop
+            assert np.linalg.norm(a[0].p - prev[0].p) < 80
+        prev = a
+
+
 def test_too_short_contour_raises():
     with pytest.raises(ValueError):
         fit_closed_contour(np.array([[0, 0], [1, 0], [0, 1]]))

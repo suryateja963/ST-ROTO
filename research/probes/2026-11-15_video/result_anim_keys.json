@@ -1,0 +1,71 @@
+{
+ "ctor_zero_then_keys": {
+  "0": {
+   "area": 0,
+   "xmin": null
+  },
+  "1": {
+   "area": 0,
+   "xmin": null
+  },
+  "2": {
+   "area": 0,
+   "xmin": null
+  },
+  "3": {
+   "area": 0,
+   "xmin": null
+  },
+  "key_times_point0": [],
+  "pos_point0_f2": [
+   0.0,
+   0.0
+  ]
+ },
+ "ctor_first_frame_then_keys": {
+  "0": {
+   "area": 90000,
+   "xmin": 200
+  },
+  "1": {
+   "area": 90000,
+   "xmin": 200
+  },
+  "2": {
+   "area": 90000,
+   "xmin": 200
+  },
+  "3": {
+   "area": 90000,
+   "xmin": 200
+  },
+  "key_times_point0": [],
+  "pos_point0_f2": [
+   200.0,
+   200.0
+  ]
+ },
+ "append_layer_before_keys": {
+  "0": {
+   "area": 0,
+   "xmin": null
+  },
+  "1": {
+   "area": 0,
+   "xmin": null
+  },
+  "2": {
+   "area": 0,
+   "xmin": null
+  },
+  "3": {
+   "area": 0,
+   "xmin": null
+  },
+  "key_times_point0": [],
+  "pos_point0_f2": [
+   0.0,
+   0.0
+  ]
+ }
+}
