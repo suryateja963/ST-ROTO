@@ -65,3 +65,5 @@ Owner's full specification: `docs/MASTER_PROMPT.md` (authoritative). Public repo
 - Nuke reports Read paths as `d:/…/name_%04d.ext` (lowercase drive, %04d) even if set as `D:/…/name_####.ext`: compare paths case-insensitively and accept both frame spellings.
 - This Bash tool collapses `\` to `\` even inside quoted heredocs: put Python edit scripts in files with the Write tool (`tools/dev/replace_functions.py` replaces whole functions, CRLF-safe).
 - Nuke NC CatFileCreator writes `.catnc` (not `.cat`); create via `nuke.execute(node, nuke.FrameRanges([1]))`. TorchScript must come from torch 2.7.x (`.tools/torch27-venv`), Nuke's libtorch.
+- Nuke's standalone `python.exe` cannot load the CUDA DLLs: ONNX Runtime silently falls back to CPU (measured). For GPU runs of tools use `Nuke17.1.exe --nc -t tool.py`.
+- SA-V (D-031): links come only after the owner's consent click on Meta's downloads page and expire; `tools/benchmark/fetch_sav_subset.py --links <file>` streams just the subset into `data/benchmarks/sa-v` (git-ignored).

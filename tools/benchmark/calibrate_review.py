@@ -7,11 +7,15 @@ Sequence sources:
   * --dir D: every sub-folder with frames/*.png|jpg and masks/*.png (same names; >127 = object) - for approved real
     footage (OQ-13). The prompt is the truth mask's most interior pixel on the first frame.
 Run: .venv/Scripts/python.exe tools/benchmark/calibrate_review.py [--dir D] [--device cpu|auto] [--out folder]
+GPU: run INSIDE Nuke (Nuke's standalone python.exe cannot load the CUDA DLLs and silently falls back to CPU, measured):
+     Nuke17.1.exe --nc -t tools/benchmark/calibrate_review.py --dir D
 """
 import argparse, glob, json, os, sys, time
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "src"))
+if "nuke" in os.path.basename(os.path.dirname(sys.executable)).lower():   # Nuke (-t): packages it needs
+    sys.path.append(os.path.join(ROOT, ".tools", "nuke-py311"))
 import numpy as np   # noqa: E402
 import cv2           # noqa: E402
 
@@ -68,8 +72,16 @@ def folder_sequences(d):
             if os.path.exists(m):
                 frames[i] = p
                 gt[i] = cv2.imread(m, cv2.IMREAD_GRAYSCALE) > 127
-        out.append((os.path.basename(seq), sorted(frames), frames, gt))
+        order = sorted(frames)
+        first_visible = next((f for f in order if gt[f].sum() > 50), None)
+        if first_visible is None:
+            continue                                        # object never visible: nothing to prompt
+        order = [f for f in order if f >= first_visible]   # prompt on the first frame the object is visible
+        out.append((os.path.basename(seq), order, frames, gt))
     return out
+
+
+DEVICES = set()
 
 
 def run(seqs, device):
@@ -79,8 +91,10 @@ def run(seqs, device):
         t0 = time.time()
         first = order[0]
         get_rgb = lambda f: srgb_to_linear(cv2.cvtColor(cv2.imread(frames[f]), cv2.COLOR_BGR2RGB) / 255.0)  # noqa: E731
-        res = track_objects(get_rgb, order, [{"name": name, "frame": first, "points": [interior_point(gt[first])],
-                                              "labels": [1]}], device=device, anchors=16, parts=True)["objects"][0]
+        full = track_objects(get_rgb, order, [{"name": name, "frame": first, "points": [interior_point(gt[first])],
+                                               "labels": [1]}], device=device, anchors=16, parts=True)
+        res = full["objects"][0]
+        DEVICES.add(full["device"] + (" (FALLBACK: %s)" % full["device_reason"] if full["device_fallback"] else ""))
         h, w = gt[first].shape
         for f in order:
             s, q = res["reports"][f]
@@ -109,7 +123,8 @@ def main():
     records = run(seqs, a.device)
     ev = evaluate(records)
     os.makedirs(a.out, exist_ok=True)
-    json.dump({"source": a.dir or "synthetic (PROVISIONAL)", "evaluation": ev, "records": records},
+    print("device(s): %s" % ", ".join(sorted(DEVICES)))
+    json.dump({"source": a.dir or "synthetic (PROVISIONAL)", "devices": sorted(DEVICES), "evaluation": ev, "records": records},
               open(os.path.join(a.out, "calibration.json"), "w"), indent=1)
     cur = [g for g in ev["grid"] if g["margin"] == 1.0 and g["iou_min"] == 0.7][0]
     print("frames %d, bad %d; current (1.0, 0.7): %s; best: %s; corr(iou_pred, iou) %s"

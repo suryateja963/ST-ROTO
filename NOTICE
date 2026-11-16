@@ -16,3 +16,8 @@ SAM 2.1 tiny and large checkpoints (Hugging Face facebook/sam2.1-hiera-tiny revi
 facebook/sam2.1-hiera-large revision 665f8e2a): models/onnx/<model>/video/constants.npz and config.json.
 They were removed from the working tree in commit d5bffac. Model weights are otherwise not distributed
 with this repository; they are downloaded by the user with recorded checksums (models/manifests/).
+
+
+Benchmark data (not distributed with ST-ROTO; used locally for calibration, D-031):
+SA-V dataset (Segment Anything Video), Meta AI, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), https://ai.meta.com/datasets/segment-anything-video/ .
+Figures derived from it and published by ST-ROTO carry this attribution.

@@ -70,7 +70,7 @@ Updated 2026-11-16 (second session).
 
 | ID | Task | Blocked by |
 |---|---|---|
-| T-068 | Calibrate review thresholds on REAL footage: tool ready (`tools/benchmark/calibrate_review.py --dir`); needs owner approval of a dataset licence (D-020, recommendation SA-V subset). Also evaluate a temporal-consistency rule (confidently wrong split frame found) | owner approval of a dataset licence (D-020 / OQ-23) |
+| T-068 | Calibrate review thresholds on REAL footage: tool ready (`tools/benchmark/calibrate_review.py --dir`); needs owner approval of a dataset licence (D-020, recommendation SA-V subset). Also evaluate a temporal-consistency rule (confidently wrong split frame found) | approved (D-031); waiting for the SA-V links file (owner's consent click on Meta's page; links expire). Then: `tools/benchmark/fetch_sav_subset.py --links <file>` and `Nuke17.1.exe --nc -t tools/benchmark/calibrate_review.py --dir data/benchmarks/sa-v` |
 | T-077 | Silhouette / Mocha direct shape formats — need those applications (or published specs) to validate; both already export Nuke Roto, which ST-ROTO ingests | Silhouette / Mocha applications or published specs to validate against |
 | T-011b | In-process inference prototypes, routes B and D (NDK C++) | D-019: Build Tools only with a plug-in-capable licence (D-009/D-011) |
 
