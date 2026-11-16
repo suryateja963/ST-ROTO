@@ -34,7 +34,7 @@ This is the foundation of an **operation-based replication** design: peers excha
 
 1. Two copies of one package edited offline (different frames → auto-merge, same frame → branch candidate) — unit test with two SQLite files and the file transport.
 2. Crash during sync → queue survives, re-sync idempotent (op_uuid de-duplication).
-3. Lease expiry and supervisor override after the idle threshold (needs OQ-16/17).
+3. Lease expiry and supervisor override after the idle threshold — implemented in the core (T-083, `st_roto.leases`, schema v8), unit-tested (`tests/unit/test_leases.py`); Nuke UI and network heartbeats pending.
 4. Small / medium / large studio benchmarks (§19.1) with a local server.
 
 ## 5. Open points for the owner

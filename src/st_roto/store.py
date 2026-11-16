@@ -13,9 +13,17 @@ import json
 import os
 import sqlite3
 
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 
 _MIGRATIONS = {
+    8: [
+        # Collaboration (T-083, D-024/D-035/D-036): object leases, per-user presence heartbeats, project roles.
+        """CREATE TABLE leases (
+            object_id TEXT PRIMARY KEY REFERENCES objects(id) ON DELETE CASCADE,
+            holder TEXT NOT NULL, acquired_utc TEXT NOT NULL)""",
+        """CREATE TABLE presence (user TEXT PRIMARY KEY, heartbeat_utc TEXT NOT NULL, frame INTEGER, activity TEXT)""",
+        """CREATE TABLE members (user TEXT PRIMARY KEY, role TEXT NOT NULL)""",
+    ],
     1: [
         """CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)""",
         """CREATE TABLE shots (

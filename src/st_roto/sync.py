@@ -55,6 +55,10 @@ def touched(op: dict) -> set:
         return {("object", op["snapshot"]["objects"][0]["id"])}
     if kind in ("update_shot", "delete_shot"):
         return {("shot", op["id"])}
+    if kind == "set_lease":                                 # two sites taking the same lease: owner resolves
+        return {("lease", op["object_id"])}
+    if kind == "set_role":
+        return {("role", op["user"])}
     return set()                                            # create_* (new ids) and set_report
 
 

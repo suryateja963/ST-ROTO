@@ -50,7 +50,7 @@ def test_v1_project_migrates_to_current(tmp_path):
     s.conn.execute("DROP INDEX idx_operations_uuid")                       # v6 additions
     for c in ("op_uuid", "site_id"):
         s.conn.execute("ALTER TABLE operations DROP COLUMN %s" % c)
-    for t in ("sync_peers", "branch_candidates", "key_feather"):        # v6 + v7 tables
+    for t in ("sync_peers", "branch_candidates", "key_feather", "leases", "presence", "members"):  # v6-v8 tables
         s.conn.execute("DROP TABLE %s" % t)
     s.conn.execute("PRAGMA user_version = 1"); s.close()        # a genuine v1 file
     s2 = ProjectStore(p)

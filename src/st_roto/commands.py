@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 
+from . import leases as _leases
 from . import model as m
 from .store import ProjectStore, utc_now
 
@@ -321,6 +322,7 @@ OPS = {
     "update_shape": _update_shape,
     "set_key": _set_key, "delete_key": _delete_key,
     "set_report": _set_report, "set_key_feather": _set_key_feather,
+    "set_lease": _leases.apply_set_lease, "set_role": _leases.apply_set_role,
 }
 
 
@@ -374,6 +376,12 @@ class CommandBus:
             raise ValueError("unknown operation %r" % op.get("op"))
         conn = self.store.conn
         with self.store.transaction():
+            # Leases (T-083): an op MADE here is checked against leases, roles and the idle rule; a replayed peer
+            # op was checked where it was made; undo may not write into an object someone else now leases.
+            if origin is None and check:
+                _leases.check_made(conn, op, self.author)
+            elif origin is None:
+                _leases.check_edit(conn, op, self.author)
             # Undo restores an exact previous state, so it applies as the original actor's inverse without
             # re-running protection (protection was enforced when the original op was accepted).
             inverse = fn(conn, op, actor if check else m.ACTOR_ARTIST)
