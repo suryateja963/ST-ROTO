@@ -1,0 +1,77 @@
+{
+ "gui": false,
+ "nc": true,
+ "viewer_functions": [
+  "Viewer",
+  "ViewerProcess",
+  "ViewerWindow",
+  "activeViewer",
+  "connectViewer",
+  "toggleViewers"
+ ],
+ "activeViewer": "None",
+ "ViewerWindow_methods": [
+  "activateInput",
+  "activeInput",
+  "frameControl",
+  "getCurrentErrorMessage",
+  "getGLCameraMatrix",
+  "getGeometryNodes",
+  "getStatusMessage",
+  "hideStatusMessage",
+  "isOverlayShown",
+  "nextView",
+  "node",
+  "play",
+  "previousView",
+  "setView",
+  "showOverlay",
+  "showStatusMessage",
+  "stop",
+  "view"
+ ],
+ "viewer_node_knobs_roi": [
+  "channels",
+  "gain",
+  "gamma",
+  "zoom_lock",
+  "roi",
+  "viewerProcess",
+  "input_process"
+ ],
+ "PyCustom_Knob": true,
+ "PythonCustomKnob_in_NC": "added",
+ "XY_Knob_viewer_handle": true,
+ "Box3_or_BBox_Knob": [
+  "BBox_Knob",
+  "Box3_Knob",
+  "UV_Knob",
+  "XYZ_Knob"
+ ],
+ "knobChanged_callbacks": [
+  "addKnobChanged",
+  "addOnUserCreate",
+  "addUpdateUI"
+ ],
+ "deep_nodes_create": [
+  "DeepRead",
+  "DeepMerge",
+  "DeepToImage",
+  "DeepFromImage",
+  "DeepHoldout2",
+  "DeepRecolor"
+ ],
+ "deepSample_method": true,
+ "views": [
+  "main"
+ ],
+ "addView": [
+  "main",
+  "right"
+ ],
+ "oneView_views_knobs": [
+  "view"
+ ],
+ "JoinViews": "JoinViews",
+ "BlinkScript": "BlinkScript"
+}

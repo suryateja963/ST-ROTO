@@ -24,14 +24,14 @@ Classes:
 | M-11 | EdgeTAM | Efficient promptable video segmentation (SAM 2 family) | huggingface.co/facebook/EdgeTAM | Apache-2.0 | Production-candidate, verify | Secondary (HF card via search) |
 | M-12 | TAPIR / BootsTAPIR / TAPNext | Point tracking | github.com/google-deepmind/tapnet | **Apache-2.0 for code and checkpoints** (README) | Production-candidate | Official README |
 | M-13 | RAFT | Optical flow | github.com/princeton-vl/RAFT | BSD-3-Clause | Verify | Mirror only |
-| M-14 | SEA-RAFT | Optical flow | github.com/princeton-vl/SEA-RAFT | Code BSD-3-Clause; weights not stated | Verify weights | Repository page |
+| M-14 | SEA-RAFT | Optical flow | github.com/princeton-vl/SEA-RAFT | Code BSD-3-Clause; weights not stated (re-checked 2026-11-16) | Not usable until weights terms known | Repository page |
 | M-15 | SAM2Long | Long-term VOS on SAM 2 | github.com/Mark12Ding/SAM2Long | CC BY-NC 4.0 (own code) | Research-only | Secondary |
 | M-16 | SAMURAI, DAM4SAM | Long-term tracking on SAM 2.1 weights | github.com/yangchris11/samurai | Not established | Not classified | – |
 | M-17 | BackgroundMattingV2 | Matting with clean background plate | github.com/PeterL1n/BackgroundMattingV2 | MIT (relicensed to permit commercial use) | Candidate, locked-off shots only | Secondary |
 | M-18 | VideoMaMa | Video matting | via OpenMatte table | CC BY-NC / Stability Community | Research-only | Secondary |
 | M-19 | OWLv2 base | Open-vocabulary detection | google/owlv2-base-patch16-ensemble | Apache-2.0 | Production-candidate | HF card |
 | M-20 | Florence-2 large | Vision-language grounding/captioning | microsoft/Florence-2-large | MIT | Production-candidate | HF card |
-| M-21 | Grounding DINO base | Text-grounded detection | IDEA-Research/grounding-dino-base | Apache-2.0 on card; one source says original weights research-use | Conflict to resolve | HF card vs secondary |
+| M-21 | Grounding DINO base | Text-grounded detection | IDEA-Research/grounding-dino-base | Code Apache-2.0; **official weights: no licence stated**; trained on O365, GoldG, Cap4M (+COCO, OpenImage… for B) | **Resolved 2026-11-16: not in the production set** (weights terms not established) | Official README (T-030b) |
 | M-22 | ViTPose base | Pose estimation | usyd-community/vitpose-base-simple | Apache-2.0 | Production-candidate | HF card |
 | M-23 | RTMPose / RTMO | Pose estimation | open-mmlab/mmpose | Code Apache-2.0; weights not stated | Verify | Secondary |
 | M-24 | ProPainter / DiffuEraser | Video inpainting | sczhou/ProPainter | S-Lab NC (DiffuEraser Apache but depends on ProPainter) | Research-only | Secondary |
@@ -62,3 +62,10 @@ Hair-specific segmentation, motion-blur reconstruction, occlusion reasoning (bey
 2. ~~No commercially usable point tracker~~ TAPIR/BootsTAPIR/TAPNext checkpoints are Apache-2.0 (M-12).
 3. Training-data licences behind every "production-candidate" are unaudited. ViTMatte (Composition-1k) is the concrete case.
 4. Measured runtime fact: ONNX models can run on the GPU inside Nuke 17.1 with onnxruntime-gpu 1.26.0 (`research/probes/2026-11-15_gpu_ort/RESULTS.md`).
+
+
+## Added 2026-11-16 (T-030b / T-031b)
+
+- M-03 Cutie: weights licence **not stated** on the repository (re-checked); not usable until known.
+- M-26 Netflix VOID (video object removal, CogVideoX-based): reported Apache-2.0 by secondary sources — verify primary repository and base-model licence.
+- Hair-specific, motion-blur reconstruction, occlusion reasoning: no permissive candidates (see `docs/RESEARCH_2026-11-16_LICENCES_AND_CATEGORIES.md`).

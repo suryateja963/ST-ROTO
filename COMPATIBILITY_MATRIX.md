@@ -47,3 +47,25 @@ Status vocabulary (§5.1): Fully supported · Supported with limitations · Expe
 ## Measured 2026-11-16 (T-038)
 
 Nuke 17.1v3 (Windows): libtorch **2.7.1**, CUDA runtime 12.8, cuDNN 9.7.1, CUDA kernels incl. sm_120. Evidence: `research/probes/2026-11-16_nuke_libtorch/RESULTS.md`.
+
+## Nuke 13 → 17.1: Python, Qt, compiler, CUDA (T-032, 2026-11-16)
+
+Sources: Foundry release notes (v1 of each line) and NDK developer guides; VFX Reference Platform table; **17.1 measured on this machine** (Python, PySide, CUDA runtime, cuDNN, libtorch: T-010, T-038). "–" = not stated by the source.
+
+| Nuke | VFX platform | Python | Qt / Python binding | OCIO | OpenEXR | NDK compiler (Windows) | GPU / CUDA (driver) | libtorch |
+|---|---|---|---|---|---|---|---|---|
+| 13.0 | CY2020 (Python 3.7) | **3.7.7** | PySide2 5.12.6 (patched) | – | 2.4.2 | **VS 2017** | CUDA 10.1+ drivers (≥ 418.96 Win), compute ≥ 3.0 | – |
+| 14.0 | CY2022 | **3.9.1** | Qt 5.15.2, PySide2 5.15 | 2.1.2 | 3.1.4 | **VS 2019** | – (GPU section exists, versions not quoted) | – |
+| 15.0 | CY2023 | 3.10 (platform) | Qt/PySide2 5.15 (platform) | 2.2 | – | – | CUDA 11.8+ (≥ 522.06 Win) | – |
+| 16.0 | CY2024 | **3.11** | **Qt 6.5, PySide6 6.5** | 2.3 | 3.2 | **VS 2022** | CUDA 11.8+ (≥ 522.06 Win) | – |
+| 17.0 | CY2025 | 3.11 (platform) | Qt/PySide6 6.5 (platform) | 2.4.2 | 3.3.6 | – | CUDA 11.8+; cuDNN ≥ 9.7.0 | – |
+| **17.1v3 (measured)** | CY2025 | **3.11.11** | **PySide6 6.5.3** | 2.4.2 (PyOpenColorIO) | – | – | CUDA runtime **12.8**, cuDNN **9.7.1** | **2.7.1** |
+
+**Consequences for ST-ROTO.**
+- Two Qt bindings (PySide2 for 13–15, PySide6 for 16+): `st_roto_nuke.panel` already falls back PySide6 → PySide2; other UI code must keep doing so.
+- Python 3.7 floor: the core stays 3.7-compatible (CI runs the suite on real 3.7, D-017).
+- NDK C++ (route B/D, T-011b) needs one build per line with the matching compiler (VS 2017 / 2019 / 2022) and CMake (from 12.1) — part of OQ-14.
+- AI runtime: ONNX Runtime GPU builds must match each line's bundled CUDA/cuDNN (17.1: onnxruntime-gpu 1.26.0, CUDA 12; R-09). For 13.x (CUDA 10.1-era drivers) a GPU-capable ORT build is unlikely → OQ-20 (CPU-only AI on Nuke 13?) stays open until measured on a Nuke 13 install.
+- Route A (Inference/.cat, T-011a) needs TorchScript made with each line's libtorch (17.1: 2.7.1); earlier lines' libtorch versions are not stated by Foundry and must be measured per install (method: `research/probes/2026-11-16_nuke_libtorch`).
+
+Sources: https://learn.foundry.com/nuke/17.1/content/release_notes/13.0/nuke_13.0v1_releasenotes.html · https://learn.foundry.com/nuke/17.1/content/release_notes/14.0/nuke_14.0v1_releasenotes.html · https://learn.foundry.com/nuke/17.1/content/release_notes/15.0/nuke_15.0v1_releasenotes.html · https://learn.foundry.com/nuke/17.1/content/release_notes/16.0/nuke_16.0v1_releasenotes.html · https://learn.foundry.com/nuke/17.1/content/release_notes/17.0/nuke_17.0v1_releasenotes.html · https://learn.foundry.com/nuke/developers/130/ndkdevguide/appendixa/windows.html · https://learn.foundry.com/nuke/developers/140/ndkdevguide/appendixa/windows.html · https://learn.foundry.com/nuke/developers/160/ndkdevguide/appendixa/windows.html · https://vfxplatform.com/platform_history.html
