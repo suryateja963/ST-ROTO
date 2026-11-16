@@ -23,7 +23,16 @@ Restart Nuke. You should see **Nodes › ST-ROTO › ST_Roto** and the pane **ST
 1. Save your script (the project file defaults to `<script>.stroto` next to it).
 2. Select your Read node, then **Nodes › ST-ROTO › ST_Roto**. View the ST_Roto node.
 3. Type an **object name** (e.g. `hero`). Go to the frame you want to prompt on, drag the **point** handle in the viewer onto the object and press **+ Include**. Add **− Exclude** points on things that must not be included. Each object's points must be on one frame.
-   **Box (recommended for parts of something bigger, e.g. a sleeve, a bag, one person in a group):** drag the corners of the **box** rectangle in the viewer around the object and press **Set box**, then add include/exclude points if needed. On real footage a single click picked the wrong object in 19 of 51 tests, a box in 2 of 51. **Clear box** removes only the box; **Clear points** removes the object's box and points.
+   **Box (recommended for parts of something bigger, e.g. a sleeve, a bag, one person in a group):** drag the corners of the **box** rectangle in the viewer around the object and press **Set box**, then add include/exclude points if needed. Measured on real footage (51 tests, SA-V):
+
+   | prompt | wrong object at the start | mean IoU over the shot |
+   |---|---|---|
+   | 1 click | 19 of 51 | 0.54 |
+   | 3 clicks | 13 of 51 | 0.58 |
+   | box only | 2 of 51 | 0.67 |
+   | box + 1 click | 2 of 51 | 0.68 |
+
+   A click alone is as good as a box when it picks the right object (check with **Preview**); the box mainly stops SAM choosing a different object or part. Recommended: a box plus one include click. **Clear box** removes only the box; **Clear points** removes the object's box and points.
 4. More objects: change **object name** (e.g. `car`) and add points for it, on any frame. The line under the points lists every prompted object. **Clear points** clears the named object, **Clear all** clears every object.
 5. **Preview** shows the AI shape of the named object on its prompt frame (temporary).
 6. **Load model** once per Nuke session (Nuke pauses for a few seconds once), then **Track**. All prompted objects are tracked in one pass (each frame is analysed once), forward from each object's prompt frame. The status line shows progress; **Cancel** stops it. The whole pass is **one undo step**. If you cancel, or Nuke crashes, **Resume track** continues where it stopped (same result as an uninterrupted run). Objects already tracked are skipped (status says so): use Re-track for them.
