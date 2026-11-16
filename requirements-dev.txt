@@ -3,3 +3,4 @@ numpy>=1.21
 opencv-python-headless>=4.8   # used by geometry tests to rasterise shapes
 pytest>=7
 openexr>=3.3; python_version >= "3.9"   # EXR matte export tests (skip without it)
+cryptography>=42; python_version >= "3.9"   # cross-check of st_roto.signing (Ed25519) only; the product does not use it

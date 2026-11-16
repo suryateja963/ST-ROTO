@@ -62,3 +62,6 @@ research/probes/2026-11-16_route_a/reference.npz
 
 # Benchmark / calibration data (D-031: licensed datasets, never committed)
 data/
+
+# private signing keys (T-084): never committed
+*.strotokey

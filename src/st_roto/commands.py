@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 
 from . import leases as _leases
+from . import signing as _signing
 from . import model as m
 from .store import ProjectStore, utc_now
 
@@ -323,22 +324,28 @@ OPS = {
     "set_key": _set_key, "delete_key": _delete_key,
     "set_report": _set_report, "set_key_feather": _set_key_feather,
     "set_lease": _leases.apply_set_lease, "set_role": _leases.apply_set_role,
+    "set_user_key": _signing.apply_set_user_key,
 }
 
 
 # ------------------------------------------------------------------------------------------------ bus
 class CommandBus:
-    def __init__(self, store: ProjectStore, author: str = "local"):
+    def __init__(self, store: ProjectStore, author: str = "local", signer=None):
+        """signer: st_roto.signing.Signer for this author (T-084): every operation the bus makes is signed."""
+        if signer is not None and signer.author != author:
+            raise ValueError("the signer belongs to %r, not %r" % (signer.author, author))
         self.store = store
         self.author = author
+        self.signer = signer
         self._undo = []          # list of (seq, op, inverse, actor)
         self._redo = []
 
-    def execute(self, op: dict, actor: str = m.ACTOR_ARTIST, origin: tuple = None) -> int:
-        """origin=(op_uuid, site_id) when replaying an operation made elsewhere (st_roto.sync)."""
+    def execute(self, op: dict, actor: str = m.ACTOR_ARTIST, origin: tuple = None, signature: str = None) -> int:
+        """origin=(op_uuid, site_id) and the author's `signature` when replaying an operation made elsewhere
+        (st_roto.sync verifies it before replaying)."""
         if actor not in m.ACTORS:
             raise ValueError("unknown actor %r" % actor)
-        seq, inverse = self._apply_and_log(op, actor, undoes=None, check=True, origin=origin)
+        seq, inverse = self._apply_and_log(op, actor, undoes=None, check=True, origin=origin, signature=signature)
         self._undo.append((seq, op, inverse, actor))
         self._redo.clear()
         return seq
@@ -370,7 +377,7 @@ class CommandBus:
     def can_redo(self) -> bool:
         return bool(self._redo)
 
-    def _apply_and_log(self, op, actor, undoes, check, origin=None):
+    def _apply_and_log(self, op, actor, undoes, check, origin=None, signature=None):
         fn = OPS.get(op.get("op"))
         if fn is None:
             raise ValueError("unknown operation %r" % op.get("op"))
@@ -380,15 +387,19 @@ class CommandBus:
             # op was checked where it was made; undo may not write into an object someone else now leases.
             if origin is None and check:
                 _leases.check_made(conn, op, self.author)
+                _signing.check_made(conn, op, self.author)
             elif origin is None:
                 _leases.check_edit(conn, op, self.author)
             # Undo restores an exact previous state, so it applies as the original actor's inverse without
             # re-running protection (protection was enforced when the original op was accepted).
             inverse = fn(conn, op, actor if check else m.ACTOR_ARTIST)
             op_uuid, site = origin if origin else (m.new_id(), self._site())
+            payload = json.dumps(op)
+            if signature is None and self.signer is not None:   # made here (or resolved here): our signature
+                signature = self.signer.sign_op(op_uuid, site, actor, json.loads(payload))
             conn.execute("INSERT INTO operations (ts_utc, author, actor, kind, payload, inverse, undoes, op_uuid, "
-                         "site_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                         (utc_now(), self.author, actor, op["op"], json.dumps(op), json.dumps(inverse), undoes,
-                          op_uuid, site))
+                         "site_id, signature) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                         (utc_now(), self.author, actor, op["op"], payload, json.dumps(inverse), undoes,
+                          op_uuid, site, signature))
             seq = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         return seq, inverse

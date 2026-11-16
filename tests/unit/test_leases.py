@@ -35,7 +35,7 @@ def proj(tmp_path):
 
 
 def test_schema_has_lease_tables(proj):
-    assert SCHEMA_VERSION == 8 and proj.schema_version() == 8
+    assert proj.schema_version() == SCHEMA_VERSION >= 8
     for t in ("leases", "presence", "members"):
         proj.conn.execute("SELECT * FROM %s" % t)
 

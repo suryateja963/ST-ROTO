@@ -13,9 +13,16 @@ import json
 import os
 import sqlite3
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 _MIGRATIONS = {
+    9: [
+        # Signed operations (T-084, D-037): each operation's author signature; users' public keys (revoked keys
+        # are kept so past work stays verifiable).
+        """ALTER TABLE operations ADD COLUMN signature TEXT""",
+        """CREATE TABLE user_keys (user TEXT NOT NULL, public_key TEXT NOT NULL,
+            revoked INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user, public_key))""",
+    ],
     8: [
         # Collaboration (T-083, D-024/D-035/D-036): object leases, per-user presence heartbeats, project roles.
         """CREATE TABLE leases (

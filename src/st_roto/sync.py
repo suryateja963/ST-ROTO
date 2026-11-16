@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 
-from . import model as m
+from . import model as m, signing
 from .commands import CommandBus
 from .store import utc_now
 
@@ -59,12 +59,15 @@ def touched(op: dict) -> set:
         return {("lease", op["object_id"])}
     if kind == "set_role":
         return {("role", op["user"])}
+    if kind == "set_user_key":
+        return {("user_key", op["user"], op["public_key"])}
     return set()                                            # create_* (new ids) and set_report
 
 
 def _ops(store, where, args):
     return [dict(r) for r in store.conn.execute(
-        "SELECT seq, op_uuid, site_id, author, actor, payload FROM operations WHERE %s ORDER BY seq" % where, args)]
+        "SELECT seq, op_uuid, site_id, author, actor, payload, signature FROM operations WHERE %s ORDER BY seq"
+        % where, args)]
 
 
 def export_changes(store, since_seq: int = 0) -> dict:
@@ -73,7 +76,7 @@ def export_changes(store, since_seq: int = 0) -> dict:
     return {"format": "st_roto.changes", "version": 1, "site_id": site, "base_seq": _fork_seq(store),
             "last_seq": max([o["seq"] for o in ops] or [since_seq]),
             "ops": [{"seq": o["seq"], "op_uuid": o["op_uuid"], "author": o["author"], "actor": o["actor"],
-                     "payload": json.loads(o["payload"])} for o in ops]}
+                     "payload": json.loads(o["payload"]), "signature": o["signature"]} for o in ops]}
 
 
 def write_changes(path: str, store, since_seq: int = 0) -> dict:
@@ -100,12 +103,19 @@ def import_changes(store, changes: dict) -> dict:
     local_keys = set()
     for o in _ops(store, "seq > ? AND (site_id = ? OR site_id IS NULL)", (my_mark, store.site_id())):
         local_keys |= touched(json.loads(o["payload"]))
-    report = {"applied": 0, "skipped": 0, "candidates": 0, "errors": []}
+    report = {"applied": 0, "skipped": 0, "candidates": 0, "errors": [], "refused": []}
     for o in changes["ops"]:
         if store.conn.execute("SELECT 1 FROM operations WHERE op_uuid = ?", (o["op_uuid"],)).fetchone() or \
                 store.conn.execute("SELECT 1 FROM branch_candidates WHERE op_uuid = ?", (o["op_uuid"],)).fetchone():
             report["skipped"] += 1
             continue
+        # D-037: in collaboration mode (any registered key) every peer op must be signed by its author's key
+        if signing.collaboration_mode(store.conn) or o.get("signature") or o["payload"].get("op") == "set_user_key":
+            why = signing.verify_op(store.conn, o["op_uuid"], peer, o["author"], o["actor"], o["payload"],
+                                    o.get("signature"))
+            if why:
+                report["refused"].append((o["op_uuid"], why))
+                continue
         keys = touched(o["payload"])
         clash = keys & local_keys
         if clash:
@@ -116,7 +126,8 @@ def import_changes(store, changes: dict) -> dict:
             report["candidates"] += 1
             continue
         try:
-            CommandBus(store, author=o["author"]).execute(o["payload"], actor=o["actor"], origin=(o["op_uuid"], peer))
+            CommandBus(store, author=o["author"]).execute(o["payload"], actor=o["actor"], origin=(o["op_uuid"], peer),
+                                                          signature=o.get("signature"))
             report["applied"] += 1
         except Exception as e:                              # protection or missing parent: keep going, report
             report["errors"].append((o["op_uuid"], "%s: %s" % (type(e).__name__, e)))

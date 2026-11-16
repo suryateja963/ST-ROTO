@@ -41,4 +41,4 @@ This is the foundation of an **operation-based replication** design: peers excha
 
 - **OQ-16** confirm the reading "supervisor overrides only when the holder is offline/idle".
 - **OQ-17** idle threshold (proposal 15 minutes without heartbeat).
-- Decided (D-037): every operation is signed by its author — cheap, and it is the audit history §19 asks for.
+- Decided (D-037): every operation is signed by its author — cheap, and it is the audit history §19 asks for. Implemented in the core (T-084, `st_roto.signing`, schema v9; Ed25519 validated against RFC 8032 and the `cryptography` package). Still to decide: where each user's private key file lives (it must not be inside the shared project).
