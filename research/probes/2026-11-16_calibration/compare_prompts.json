@@ -1,0 +1,41 @@
+{
+ "1 click": {
+  "sequences": 51,
+  "frames": 5527,
+  "visible_frames": 3974,
+  "wrong_object_first_frame": 19,
+  "first_frame_iou_mean": 0.6206,
+  "first_frame_iou_median": 0.8051,
+  "mean_iou_visible": 0.536,
+  "frames_iou_ge_0.9": 0.2514,
+  "frames_iou_lt_0.5": 0.4258,
+  "mean_iou_visible_correct_start": 0.696,
+  "folder": "sav",
+  "prompt": "point",
+  "devices": [
+   "cuda"
+  ],
+  "vs_box_click": {
+   "better_by_0.05": 1,
+   "worse_by_0.05": 22,
+   "mean_diff": -0.1668
+  }
+ },
+ "box + click": {
+  "sequences": 51,
+  "frames": 5527,
+  "visible_frames": 3974,
+  "wrong_object_first_frame": 2,
+  "first_frame_iou_mean": 0.8436,
+  "first_frame_iou_median": 0.8913,
+  "mean_iou_visible": 0.6793,
+  "frames_iou_ge_0.9": 0.3226,
+  "frames_iou_lt_0.5": 0.2114,
+  "mean_iou_visible_correct_start": 0.6782,
+  "folder": "sav_box",
+  "prompt": "box",
+  "devices": [
+   "cuda"
+  ]
+ }
+}

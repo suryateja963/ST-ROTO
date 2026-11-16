@@ -75,6 +75,17 @@ def test_key_file_roundtrip_and_no_overwrite(tmp_path):
         signing.save_key(p, signing.generate_key())
 
 
+def test_key_folder_is_user_level_and_load_or_create(tmp_path):
+    assert signing.key_dir() == os.path.join(os.path.expanduser("~"), ".st_roto", "keys")      # D-038
+    assert signing.key_path("ana").startswith(signing.key_dir())
+    assert os.path.basename(signing.key_path("a/b:c")) == "a_b_c.strotokey"                  # no path tricks
+    folder = str(tmp_path / "keys")                                     # never touch the real profile in tests
+    seed, created = signing.load_or_create_key("ana", folder)
+    assert created and os.path.exists(signing.key_path("ana", folder))
+    again, created2 = signing.load_or_create_key("ana", folder)
+    assert again == seed and not created2
+
+
 def mkproject(path, author="ada", seed=None):
     st = ProjectStore(path)
     bus = CommandBus(st, author=author, signer=Signer(author, seed) if seed else None)

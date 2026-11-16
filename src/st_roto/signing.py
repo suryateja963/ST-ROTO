@@ -157,6 +157,27 @@ def load_key(path: str) -> bytes:
     return seed
 
 
+def key_dir() -> str:
+    """Where private keys live (D-038, owner-approved): %USERPROFILE%\\.st_roto\\keys (~/.st_roto/keys elsewhere).
+    Outside every project, so a key is never shared, packaged or synced with project data. Created on first use."""
+    return os.path.join(os.path.expanduser("~"), ".st_roto", "keys")
+
+
+def key_path(user: str, folder: str = None) -> str:
+    safe = "".join(c if c.isalnum() or c in "-_." else "_" for c in user).strip(".") or "_"
+    return os.path.join(folder or key_dir(), safe + ".strotokey")
+
+
+def load_or_create_key(user: str, folder: str = None):
+    """(seed, created): the user's private key from the key folder, generated and saved there if missing."""
+    p = key_path(user, folder)
+    if os.path.exists(p):
+        return load_key(p), False
+    seed = generate_key()
+    save_key(p, seed)
+    return seed, True
+
+
 def to_hex(b: bytes) -> str:
     return binascii.hexlify(b).decode("ascii")
 

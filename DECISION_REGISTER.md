@@ -39,5 +39,6 @@
 | D-035 | 2026-11-17 | D-024 reading confirmed: a supervisor may override a lock **only** when the lock holder is offline or idle; never while the holder is active. Every override is an audited operation | Project owner | OQ-16 |
 | D-036 | 2026-11-17 | Idle/offline threshold for a supervisor lock override: **15 minutes** without a presence heartbeat from the lock holder | Project owner | OQ-17 |
 | D-037 | 2026-11-17 | Collaboration audit: **every** replicated operation is signed by its author (per-user key pair), not only ownership/lock/permission changes | Project owner | OQ-24 |
+| D-038 | 2026-11-17 | Private signing keys live in `%USERPROFILE%\.st_roto\keys` (one `<user>.strotokey` per user), outside every project; the folder is created on first key creation (a user-level change approved by the owner) | Project owner | T-084 follow-up |
 
 Architecture decisions: see `docs/adr/` (ADR-0001..0010 Accepted per D-026).
