@@ -52,3 +52,16 @@ def test_area_jump_flags_confidently_wrong_frame():
     flags = review_frames(reps, [20, 23, 24, 25, 26], areas)
     assert [(f, lvl) for f, lvl, _ in flags] == [(23, "check")]
     assert area_jumps({1: 100.0, 2: 80.0, 3: 100.0}) == {}        # 20 % wobble: not flagged
+
+
+def test_long_absence_flags_only_exit_and_return():
+    """SA-V (T-068): long absent runs are mostly real exits -> only the edges get CHECK; short runs stay LOST."""
+    from st_roto import quality
+    reps = [{"frame": f, "object_score": (-5.0 if 10 <= f <= 39 or f in (50, 51) else 5.0), "iou_pred": 0.95}
+            for f in range(60)]
+    flags = {f: (lvl, why) for f, lvl, why in quality.review_frames(reps, [], lost_max_gap=16)}
+    assert flags[10][0] == quality.CHECK and "disappears" in flags[10][1]
+    assert flags[39][0] == quality.CHECK and "reappears" in flags[39][1]
+    assert not any(f in flags for f in range(11, 39))                 # the 28 frames in between: not flagged
+    assert flags[50][0] == quality.LOST and flags[51][0] == quality.LOST
+    assert quality.absent_runs(reps) == [(10, 39, 30), (50, 51, 2)]

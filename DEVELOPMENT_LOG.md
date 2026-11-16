@@ -207,7 +207,7 @@ Owner approved the architecture (D-026..D-028). Interactive-GUI probe: SAM 2.1 t
 
 **Follow-up (same day): flag severity.** The GUI forward track flagged frames 25-30 although their masks were accurate (IoU 0.993-0.996 vs GT): after the occlusion the object score fell to 0.15-0.94 (a real near-miss; the reverse run lost the object in the same region). Predicted IoU correlated only 0.50 with real IoU on this shot. Flags now have two levels: LOST (object missing between visible frames: fix) and CHECK (uncertain / low predicted quality: glance). Reverse: 'REVIEW lost 16-20, 22; check 15, 21'; forward: 'REVIEW check 25-30'. Unit 49/49, reverse Nuke test and GUI pass. Evidence: research/probes/2026-11-16_corrections/forward_reports.json.
 
-## 2026-11-16 — Bounded tracker memory (T-065)
+## 2026-11-16 â€” Bounded tracker memory (T-065)
 
 `st_roto_ai/spill.py` SpillDict: per-frame tracker state with at most N frames in RAM (default 24), least-recently-used frames written to disk and reloaded on demand, so results equal upstream's keep-everything behaviour. Test: tracker with a 2-frame RAM budget gives bit-identical masks to an unlimited one, with real disk reloads. Pipelines remove the temporary state when done. Unit 51/51, Nuke 7/7. R-42 mitigated (disk use ~2 MB per tracked frame during a run).
 
@@ -310,3 +310,7 @@ ViTMatte-S downloaded through the licence-checked catalogue, exported to ONNX (e
 ## 2026-11-16 - Full headless Nuke suite after ViTMatte; SA-V download not automated
 
 All 19 headless Nuke tests pass (incl. test_vitmatte_mattes). The owner asked Claude to download SA-V itself. Inspection of the downloads page script showed the "Download all links" step sits behind a form (first/last name, email, affiliation, country, intended use) that signs the SA-V licence in the submitter's name. Claude did not submit personal data or bypass the form (it is gated by a browser-storage flag); nothing was sent to Meta. T-068 still waits for the owner to submit the form and save the links file in data/benchmarks/.
+
+## 2026-11-16 - T-068 real-footage calibration (SA-V subset)
+
+Owner submitted Meta's form; Claude streamed the 30-video subset (74 min; the val tar holds all frames before all masks, so most of 15 GB was read; 2 GB kept). Own mistakes: the links-file parser assumed the file name is in the URL (it is a separate column) - first run failed immediately, fixed + test; a calibration run was started without per-frame area (needed for T-078) and restarted a minute in. Findings (CUDA, `RESULTS_sav.md`): single-click prompts picked the wrong object in 19/51 first frames (box: 2/51) -> calibration on the box run; 57 % of review flags were LOST flags on frames where the object really left -> new LOST_MAX_GAP rule (D-033): flags halved, precision 0.31 -> 0.54, recall 0.56 -> 0.49, robust on held-out halves; score and area thresholds kept. Box prompt in the UI proposed (OQ-25). Unit tests 123 pass.

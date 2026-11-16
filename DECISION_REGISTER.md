@@ -34,5 +34,6 @@
 | D-030 | 2026-11-16 | Nuke → numpy pixels stay on the float-TIFF file path (no Python buffer API; exact; 0.022-0.041 s/frame); in-memory transfer deferred to the NDK route | Claude (delegated technical choice) | `research/probes/2026-11-16_pixels/RESULTS.md` |
 | D-031 | 2026-11-16 | Benchmark/calibration data: a small SA-V subset (CC BY 4.0, masks) approved under D-020; stored in `D:\ST-ROTO\dataenchmarks` (git-ignored), attribution in NOTICE for any published figures | Project owner | OQ-23 |
 | D-032 | 2026-11-16 | Learned matting: ViTMatte-S (hustvl/vitmatte-small-composition-1k, Apache-2.0 weights) approved as an OPTIONAL download, off by default, with its training-data caveat (Composition-1k / Adobe DIM terms) shown to the user | Project owner | OQ-22 option (a) |
+| D-033 | 2026-11-16 | Review rule change from real-footage calibration (T-068, SA-V): absent runs longer than 16 frames flag only their exit and return frames (CHECK) instead of every frame as LOST; score thresholds (1.0, 0.7) and area-jump 0.35 unchanged | Claude (evidence-based default; owner may override) | `research/probes/2026-11-16_calibration/RESULTS_sav.md` |
 
 Architecture decisions: see `docs/adr/` (ADR-0001..0010 Accepted per D-026).

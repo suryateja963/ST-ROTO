@@ -34,3 +34,12 @@ def test_streams_only_the_subset_and_converts(tmp_path):
     assert not (out / "raw" / "frames" / "sav_003").exists()           # not chosen: never written
     assert not os.path.exists(out / "raw" / "frames" / "sav_001" / "00001.jpg")   # only annotated (6 fps) frames
     assert json.load(open(out / "MANIFEST.json"))["files"]
+
+
+def test_find_url_meta_layout(tmp_path):
+    """Real layout: 'file_name cdn_link'; the CDN URL does not contain the file name."""
+    links = tmp_path / "links.txt"
+    links.write_text("file_name cdn_link\nsav_test.tar https://cdn.example/AAA.tar?x=1\n"
+                     "sav_val.tar https://cdn.example/BBB.tar?x=2\n")
+    assert fs.find_url(str(links)) == "https://cdn.example/BBB.tar?x=2"
+    assert fs.find_url(str(links), "sav_test.tar") == "https://cdn.example/AAA.tar?x=1"

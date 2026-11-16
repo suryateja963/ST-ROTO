@@ -22,10 +22,12 @@ MASK_RE = re.compile(r"Annotations_6fps/([^/]+)/(\d+)/(\d+)\.png$")
 
 
 def find_url(links_path, name="sav_val.tar"):
+    """Meta's file is 'file_name cdn_link' per line (the CDN URL does not contain the file name, measured)."""
     for line in open(links_path, encoding="utf-8", errors="replace"):
-        for tok in re.split(r"\s+", line.strip()):
-            if name in tok and tok.startswith(("http://", "https://", "file://")):
-                return tok
+        toks = re.split(r"\s+", line.strip())
+        urls = [t for t in toks if t.startswith(("http://", "https://", "file://"))]
+        if urls and (toks[0] == name or name in urls[0]):
+            return urls[0]
     raise SystemExit("no %s link in %s (download the links file again: they expire)" % (name, links_path))
 
 
@@ -45,7 +47,9 @@ def stream_subset(url, n, out_raw, log=print):
 
     with urllib.request.urlopen(req) as resp:
         tf = tarfile.open(fileobj=resp, mode="r|*")
-        for m in tf:
+        for i, m in enumerate(tf):
+            if i and i % 20000 == 0:     # the val tar holds ALL frames before ALL masks (measured): long read
+                log("%d entries, %.0f s, at %s" % (i, time.time() - t0, m.name))
             fm, mm = FRAME_RE.search(m.name), MASK_RE.search(m.name)
             if fm:
                 vid, idx = fm.group(1), int(fm.group(2))

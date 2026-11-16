@@ -1,13 +1,14 @@
 # Task Board
 
-Updated 2026-11-16 (second session).
+Updated 2026-11-16 (third session).
 
 ## Done
 
 | ID | Task | Evidence |
 |---|---|---|
+| T-068 | Review-flag calibration on REAL footage (SA-V subset, D-031: 30 videos, 51 sequences, 5,527 frames, CUDA). One click picks the wrong object in 19/51 first frames (box prompt: 2/51). The LOST rule put 57 % of flags on frames where the object really was gone -> new rule (`quality.LOST_MAX_GAP`): long absences flag only exit/return frames: flags halved (1858 -> 933), precision for serious errors 0.31 -> 0.54, recall 0.56 -> 0.49; robust on both video halves and gap 2-8. Score thresholds (1.0, 0.7) and area-jump 0.35 kept (evidence) | `research/probes/2026-11-16_calibration/RESULTS_sav.md` |
 | T-072 | Learned matting ViTMatte-S (D-032): optional download with licence check, ONNX export exact vs PyTorch, registry-verified, node 'edges' choice with caveat; vs guided filter: hair 0.69 vs 0.95, shape-off 0.23 vs 0.89, motion blur 0.68 vs 0.52 (SAD) | `research/probes/2026-11-16_matting/RESULTS_vitmatte.md` |
-| T-078 | Temporal-consistency review rule: shape area jumping > 35 % against both nearest present frames → CHECK (uncalibrated threshold). Synthetic reverse: newly flags frame 23 (confident, true IoU 0.42) and 24 (CPU truth IoU 0.986: possibly a false alarm; GPU run untested); good forward track: no new flags | `src/st_roto/quality.py` `area_jumps`, `tests/unit/test_quality.py` |
+| T-078 | Temporal-consistency review rule: shape area jumping > 35 % against both nearest present frames → CHECK (SA-V: ~80 % of its flags are real moderate errors (IoU<0.9), weak for serious failures; 0.35 kept). Synthetic reverse: newly flags frame 23 (confident, true IoU 0.42) and 24 (CPU truth IoU 0.986: possibly a false alarm; GPU run untested); good forward track: no new flags | `src/st_roto/quality.py` `area_jumps`, `tests/unit/test_quality.py` |
 | T-076 | Per-point feather (schema v7 `key_feather`): imported from / synced to Roto (undoable, AI refused, locks respected, kept by delete/undo snapshots), RotoPaint copy pixel-identical, JSON, sync conflict key | `tests/unit/test_point_feather.py`, `tests/nuke` `test_point_feather_roundtrip` |
 | T-068a | Calibration tooling + provisional run on synthetic data: current thresholds catch 6/7 bad frames with 14 flags; predicted IoU uninformative (corr 0.015); a confidently wrong frame needs a temporal rule. Defaults kept | `research/probes/2026-11-16_calibration/RESULTS.md` |
 | T-020 | Collaboration architecture (Proposed) + working replication prototype: op ids + origin site (schema v6), file transport, per-(shape, frame) auto-merge, same-key edits kept as branch candidates (D-023), resolve with tombstones, idempotent, protection still applies | `docs/COLLABORATION_ARCHITECTURE.md`, `src/st_roto/sync.py`, `tests/unit/test_sync.py` |
@@ -70,7 +71,6 @@ Updated 2026-11-16 (second session).
 
 | ID | Task | Blocked by |
 |---|---|---|
-| T-068 | Calibrate review thresholds on REAL footage: tool ready (`tools/benchmark/calibrate_review.py --dir`); needs owner approval of a dataset licence (D-020, recommendation SA-V subset). Also evaluate a temporal-consistency rule (confidently wrong split frame found) | approved (D-031); waiting for the SA-V links file (owner's consent click on Meta's page; links expire). Then: `tools/benchmark/fetch_sav_subset.py --links <file>` and `Nuke17.1.exe --nc -t tools/benchmark/calibrate_review.py --dir data/benchmarks/sa-v` |
 | T-077 | Silhouette / Mocha direct shape formats — need those applications (or published specs) to validate; both already export Nuke Roto, which ST-ROTO ingests | Silhouette / Mocha applications or published specs to validate against |
 | T-011b | In-process inference prototypes, routes B and D (NDK C++) | D-019: Build Tools only with a plug-in-capable licence (D-009/D-011) |
 

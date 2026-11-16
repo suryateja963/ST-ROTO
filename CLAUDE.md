@@ -8,8 +8,8 @@ Owner's full specification: `docs/MASTER_PROMPT.md` (authoritative). Public repo
 - **Last session ended 2026-11-16 (second session)**; all work committed and pushed. Phase 1 done, Phase 2 approved (D-026), Phase 3/4 in progress.
 - Working in Nuke 17.1 NC (product code, tested): ST_Roto node → prompts for several objects → Track (all objects one pass, SAM 2.1 ONNX/CUDA in-process, checkpointed: **Resume track**) → native animated Roto shapes (split objects → part shapes, adaptive point counts); artist edits imported (never overwritten), shape + per-point feather synced both ways; Re-track object/all; review flags; AI input colour (auto: Nuke default or OCIO working space); model registry verifies every model file (licence/approval/SHA-256); mattes → EXR; JSON/SVG; Copy to RotoPaint; backups, crash recovery, packages with script + relink + fingerprints; motion blur knobs; replication prototype (`st_roto.sync`, not wired to UI).
 - Tests: `pytest` ~120 · headless Nuke 21 (`tools/run_nuke_tests.py`) · GUI tests pass · CI green (Node-24 actions).
-- **Task board state:** everything done except T-068 (real-footage calibration: needs owner approval of a dataset licence, D-020), T-072 (learned matting: OQ-22), T-011b (NDK: D-019 / licence), T-077 (Silhouette/Mocha formats: need the apps), T-078 (temporal review rule: needs real data).
-- **Open owner questions:** OQ-22 (matting model; recommendation ViTMatte-S optional), OQ-16/17 (supervisor lock override, idle threshold), dataset approval under D-020 (recommendation: SA-V subset, CC BY 4.0), new collaboration question (signed audit for every op?). See `OPEN_QUESTIONS.md`, `DECISION_REGISTER.md` (D-001..D-030).
+- **Task board state:** everything done except T-011b (NDK: D-019 / licence) and T-077 (Silhouette/Mocha formats: need the apps). T-068 calibrated on SA-V (D-033 LOST-gap rule; `research/probes/2026-11-16_calibration/RESULTS_sav.md`).
+- **Open owner questions:** OQ-25 (box prompt in the node; recommended), OQ-16/17 (supervisor lock override, idle threshold), OQ-24 (signed audit for every op?). See `OPEN_QUESTIONS.md`, `DECISION_REGISTER.md` (D-001..D-030).
 
 ## Non-negotiable rules (from the owner)
 
@@ -66,4 +66,5 @@ Owner's full specification: `docs/MASTER_PROMPT.md` (authoritative). Public repo
 - This Bash tool collapses `\` to `\` even inside quoted heredocs: put Python edit scripts in files with the Write tool (`tools/dev/replace_functions.py` replaces whole functions, CRLF-safe).
 - Nuke NC CatFileCreator writes `.catnc` (not `.cat`); create via `nuke.execute(node, nuke.FrameRanges([1]))`. TorchScript must come from torch 2.7.x (`.tools/torch27-venv`), Nuke's libtorch.
 - Nuke's standalone `python.exe` cannot load the CUDA DLLs: ONNX Runtime silently falls back to CPU (measured). For GPU runs of tools use `Nuke17.1.exe --nc -t tool.py`.
+- SA-V calibration: one click is ambiguous for object parts - use `calibrate_review.py --prompt box`; frames are 6-fps samples, so shot-frame gaps divide by 4.
 - SA-V (D-031): links come only after the owner submits Meta's form (first/last name, email, affiliation, country, intended use = a licence signature in their name; Claude must not submit it or bypass it) and expire; `tools/benchmark/fetch_sav_subset.py --links <file>` streams just the subset into `data/benchmarks/sa-v` (git-ignored).

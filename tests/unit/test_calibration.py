@@ -26,3 +26,14 @@ def test_grid_finds_the_separating_threshold_and_restores_globals():
     assert ev["best"]["margin"] == 1.0 and ev["bad"] == 3
     assert (quality.OBJECT_SCORE_MARGIN, quality.IOU_PRED_MIN) == (1.0, 0.7)    # module thresholds untouched
     assert flags_for(rs, 1.0, 0.0)[11] is True
+
+
+def test_area_jump_evaluation_counts_added_catches():
+    from st_roto.calibration import evaluate_area_jumps
+    recs = []
+    for f in range(6):                                   # confident score, area spike at frame 3 = the bad frame
+        recs.append({"seq": "a", "frame": f, "object_score": 8.0, "iou_pred": 0.98, "truth_visible": True,
+                     "iou_true": 0.4 if f == 3 else 0.97, "area_pred": 3000 if f == 3 else 1000})
+    row = evaluate_area_jumps(recs, thresholds=(0.35,))[0]
+    assert row["flagged"] == 1 and row["tp"] == 1 and row["added_tp"] == 1
+    assert row["recall_scores"] == 0.0 and row["recall_combined"] == 1.0

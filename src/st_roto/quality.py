@@ -8,7 +8,11 @@ from __future__ import annotations
 
 OBJECT_SCORE_MARGIN = 1.0      # |score| below this: the present/absent decision is fragile
 IOU_PRED_MIN = 0.7             # the model's own quality estimate of its mask
-AREA_JUMP = 0.35               # T-078: relative area change vs BOTH nearest present neighbours (uncalibrated)
+AREA_JUMP = 0.35               # T-078: relative area change vs BOTH nearest present neighbours (SA-V: kept, see below)
+LOST_MAX_GAP = 16              # absent runs up to this many frames (~0.7 s at 24 fps) are LOST (likely AI dropouts);
+# longer runs are usually real exits/occlusions: only their first and last frame get CHECK. Measured on SA-V (T-068,
+# research/probes/2026-11-16_calibration/RESULTS_sav.md): runs <= 4 samples at 6 fps were ~50 % real dropouts,
+# runs >= 9 samples only 12 %; flagging every absent frame put 57 % of all flags on frames where the object was gone.
 
 
 LOST, CHECK = "lost", "check"
@@ -35,19 +39,46 @@ def area_jumps(areas: dict, threshold: float = None) -> dict:
     return out
 
 
-def review_frames(reports: list, keyed_frames, areas: dict = None) -> list:
+def absent_runs(reports: list) -> list:
+    """[(first_frame, last_frame, n_reports)] of consecutive absent reports (score <= 0) between present ones."""
+    rs = sorted(reports, key=lambda r: r["frame"])
+    pres = [i for i, r in enumerate(rs) if r["object_score"] is not None and r["object_score"] > 0]
+    runs, i = [], (pres[0] if pres else 0)
+    while pres and i < pres[-1]:
+        s = rs[i]["object_score"]
+        if s is None or s > 0:
+            i += 1; continue
+        j = i
+        while rs[j]["object_score"] is not None and rs[j]["object_score"] <= 0:
+            j += 1
+        runs.append((rs[i]["frame"], rs[j - 1]["frame"], j - i))
+        i = j
+    return runs
+
+
+def review_frames(reports: list, keyed_frames, areas: dict = None, lost_max_gap: int = None) -> list:
     """reports: [{"frame", "object_score", "iou_pred"}], keyed_frames: frames that currently have a key,
     areas: optional {frame: shape area} (AI frames). Returns [(frame, level, reason), ...] sorted by frame;
-    level is LOST or CHECK."""
+    level is LOST or CHECK. Absent runs longer than `lost_max_gap` reports (default LOST_MAX_GAP) flag only their
+    first and last frame (CHECK): real footage objects leave and return."""
+    gap = LOST_MAX_GAP if lost_max_gap is None else lost_max_gap
     jumps = area_jumps(areas) if areas else {}
     keyed = set(keyed_frames)
-    present = sorted(r["frame"] for r in reports if (r["object_score"] or 0) > 0)
+    lost, edges = set(), {}
+    for a, b, n in absent_runs(reports):
+        if n <= gap:
+            lost.update(r["frame"] for r in reports if a <= r["frame"] <= b)
+        else:
+            edges[a] = "object disappears here for %d frames (left the shot or hidden? check)" % n
+            edges[b] = "object reappears after this frame (check the return)"
     out = []
     for r in sorted(reports, key=lambda r: r["frame"]):
         f, s, q = r["frame"], r["object_score"], r["iou_pred"]
         reasons, level = [], CHECK
-        if s is not None and s <= 0 and present and present[0] < f < present[-1]:
+        if f in lost:
             reasons.append("object lost between frames where it is visible"); level = LOST
+        if f in edges:
+            reasons.append(edges[f])
         if s is not None and abs(s) < OBJECT_SCORE_MARGIN:
             reasons.append("uncertain whether the object is visible (score %.2f)" % s)
         if q is not None and f in keyed and q < IOU_PRED_MIN:

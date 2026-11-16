@@ -35,6 +35,17 @@ def interior_point(mask):
     return float(x) + 0.5, float(y) + 0.5
 
 
+def prompt_for(mask, kind="point"):
+    """'point': one click at the most interior pixel (ambiguous for object PARTS: measured on SA-V, 19 of 51 first
+    frames < 0.5 IoU). 'box': the truth mask's bounding box (SAM corner labels 2/3) + that click - an artist drawing
+    a box around the object."""
+    p = interior_point(mask)
+    if kind == "point":
+        return [p], [1]
+    ys, xs = np.nonzero(mask)
+    return [(float(xs.min()), float(ys.min())), (float(xs.max()) + 1.0, float(ys.max()) + 1.0), p], [2, 3, 1]
+
+
 def synthetic_sequences():
     if not os.path.exists(os.path.join(SYN, "meta.json")):
         return []
@@ -84,15 +95,16 @@ def folder_sequences(d):
 DEVICES = set()
 
 
-def run(seqs, device):
+def run(seqs, device, prompt="point"):
     from st_roto_nuke.track import track_objects
     records = []
     for name, order, frames, gt in seqs:
         t0 = time.time()
         first = order[0]
         get_rgb = lambda f: srgb_to_linear(cv2.cvtColor(cv2.imread(frames[f]), cv2.COLOR_BGR2RGB) / 255.0)  # noqa: E731
-        full = track_objects(get_rgb, order, [{"name": name, "frame": first, "points": [interior_point(gt[first])],
-                                               "labels": [1]}], device=device, anchors=16, parts=True)
+        pts, lbl = prompt_for(gt[first], prompt)
+        full = track_objects(get_rgb, order, [{"name": name, "frame": first, "points": pts,
+                                               "labels": lbl}], device=device, anchors=16, parts=True)
         res = full["objects"][0]
         DEVICES.add(full["device"] + (" (FALLBACK: %s)" % full["device_reason"] if full["device_fallback"] else ""))
         h, w = gt[first].shape
@@ -106,7 +118,7 @@ def run(seqs, device):
             vis = bool(gt[f].sum() > 50)
             iou = float((m & gt[f]).sum() / max(1, (m | gt[f]).sum())) if vis else (1.0 if not m.any() else 0.0)
             records.append({"seq": name, "frame": f, "object_score": s, "iou_pred": q, "iou_true": round(iou, 4),
-                            "truth_visible": vis})
+                            "truth_visible": vis, "area_pred": int(m.sum())})   # area: T-078 evaluation
         print("%-16s %3d frames  %.0f s  mean IoU %.3f" % (name, len(order), time.time() - t0,
               np.mean([r["iou_true"] for r in records if r["seq"] == name and r["truth_visible"]])), flush=True)
     return records
@@ -115,16 +127,17 @@ def run(seqs, device):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir"); ap.add_argument("--device", default="auto")
+    ap.add_argument("--prompt", choices=("point", "box"), default="point")
     ap.add_argument("--out", default=os.path.join(ROOT, "research", "probes", "2026-11-16_calibration"))
     a = ap.parse_args()
     seqs = folder_sequences(a.dir) if a.dir else synthetic_sequences()
     if not seqs:
         sys.exit("no sequences")
-    records = run(seqs, a.device)
+    records = run(seqs, a.device, a.prompt)
     ev = evaluate(records)
     os.makedirs(a.out, exist_ok=True)
     print("device(s): %s" % ", ".join(sorted(DEVICES)))
-    json.dump({"source": a.dir or "synthetic (PROVISIONAL)", "devices": sorted(DEVICES), "evaluation": ev, "records": records},
+    json.dump({"source": a.dir or "synthetic (PROVISIONAL)", "prompt": a.prompt, "devices": sorted(DEVICES), "evaluation": ev, "records": records},
               open(os.path.join(a.out, "calibration.json"), "w"), indent=1)
     cur = [g for g in ev["grid"] if g["margin"] == 1.0 and g["iou_min"] == 0.7][0]
     print("frames %d, bad %d; current (1.0, 0.7): %s; best: %s; corr(iou_pred, iou) %s"
