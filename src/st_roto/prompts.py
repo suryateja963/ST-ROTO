@@ -4,12 +4,20 @@ A prompt is {"frame": int, "x": float, "y": float, "label": 1 | 0, "object": str
 (y down, st_roto.model). Several objects can be prompted on one node (T-067); each object's points must be on ONE
 frame (the frame its tracking starts from). Points without "object" (files written before T-067) belong to the
 `default` object the caller passes (the node's current object name).
+
+Box prompts (OQ-25, T-079): an object may have ONE box, stored as two points with SAM's corner labels
+BOX_TL (2, top-left) and BOX_BR (3, bottom-right) on the object's prompt frame. On real footage (SA-V, T-068) a
+single click picked the wrong object in 19 of 51 first frames, a box + click in 2 of 51. The tracker receives the
+box corners first, then the clicks (SAM 2 reference order).
 """
 from __future__ import annotations
 
 import json
 
 INCLUDE, EXCLUDE = 1, 0
+BOX_TL, BOX_BR = 2, 3
+LABELS = (INCLUDE, EXCLUDE, BOX_TL, BOX_BR)
+MIN_BOX = 2.0          # pixels: a smaller box is a mistake (handles on top of each other)
 _REQUIRED = {"frame", "x", "y", "label"}
 
 
@@ -19,7 +27,7 @@ def load(text: str) -> list:
     pts = json.loads(text)
     for p in pts:
         keys = set(p)
-        if not (_REQUIRED <= keys <= _REQUIRED | {"object"}) or p["label"] not in (INCLUDE, EXCLUDE):
+        if not (_REQUIRED <= keys <= _REQUIRED | {"object"}) or p["label"] not in LABELS:
             raise ValueError("invalid prompt point %r" % (p,))
     return pts
 
@@ -46,6 +54,29 @@ def add(text: str, frame: int, x: float, y: float, label: int, obj: str = None) 
     return dump(pts)
 
 
+def set_box(text: str, frame: int, x0: float, y0: float, x1: float, y1: float, obj: str = None) -> str:
+    """Set (replace) the box of object `obj` on `frame`; corners in canonical coordinates, any order."""
+    if abs(x1 - x0) < MIN_BOX or abs(y1 - y0) < MIN_BOX:
+        raise ValueError("the box is too small (%.0f x %.0f px): drag its corners around the object"
+                         % (abs(x1 - x0), abs(y1 - y0)))
+    pts = [p for p in load(text) if not (_owner(p, obj) == obj and p["label"] in (BOX_TL, BOX_BR))]
+    mine = [p for p in pts if _owner(p, obj) == obj]
+    if mine and any(p["frame"] != int(frame) for p in mine):
+        raise ValueError("all prompts of %s must be on one frame (existing: frame %d); clear its points first"
+                         % ("this object" if obj is None else repr(obj), mine[0]["frame"]))
+    for lbl, x, y in ((BOX_TL, min(x0, x1), min(y0, y1)), (BOX_BR, max(x0, x1), max(y0, y1))):
+        p = {"frame": int(frame), "x": float(x), "y": float(y), "label": lbl}
+        if obj is not None:
+            p["object"] = obj
+        pts.append(p)
+    return dump(pts)
+
+
+def clear_box(text: str, obj: str, default: str = None) -> str:
+    """Remove the box of one object, keep its clicks."""
+    return dump([p for p in load(text) if not (_owner(p, default) == obj and p["label"] in (BOX_TL, BOX_BR))])
+
+
 def clear(text: str, obj: str, default: str = None) -> str:
     """Remove the points of one object (untagged points count as `default`)."""
     return dump([p for p in load(text) if _owner(p, default) != obj])
@@ -70,7 +101,8 @@ def summary(text: str, default: str = None) -> str:
     parts = []
     for g in gs:
         inc = sum(1 for v in g["labels"] if v == INCLUDE)
-        s = "frame %d: %d include, %d exclude" % (g["frame"], inc, len(g["labels"]) - inc)
+        exc = sum(1 for v in g["labels"] if v == EXCLUDE)
+        s = "frame %d: %s%d include, %d exclude" % (g["frame"], "box + " if BOX_TL in g["labels"] else "", inc, exc)
         parts.append(s if len(gs) == 1 and g["name"] in (None, default) else "%s %s" % (g["name"], s))
     return "; ".join(parts)
 
@@ -85,12 +117,16 @@ def for_tracker(text: str, default: str = None):
 
 
 def objects_for_tracker(text: str, default: str = None) -> list:
-    """Like `groups`, but every object needs at least one include point (artist-readable error otherwise)."""
+    """Like `groups`, but every object needs an include point or a box (artist-readable error otherwise); box
+    corners come first (SAM 2 reference order: box, then clicks)."""
     gs = groups(text, default)
     if not gs:
-        raise ValueError("add at least one include point")
+        raise ValueError("add an include point or a box")
     for g in gs:
-        if INCLUDE not in g["labels"]:
-            raise ValueError("add at least one include point%s" % ("" if g["name"] in (None, default)
-                                                                    else " for %r" % g["name"]))
+        if INCLUDE not in g["labels"] and BOX_TL not in g["labels"]:
+            raise ValueError("add an include point or a box%s" % ("" if g["name"] in (None, default)
+                                                                  else " for %r" % g["name"]))
+        order = sorted(range(len(g["labels"])), key=lambda i: g["labels"][i] not in (BOX_TL, BOX_BR))
+        g["points"] = [g["points"][i] for i in order]
+        g["labels"] = [g["labels"][i] for i in order]
     return gs

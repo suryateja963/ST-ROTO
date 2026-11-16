@@ -72,3 +72,24 @@ def test_rename_ops_carry_parts(tmp_path):
     assert names == {"A": "hero", "B": "hero_part2", "C": "my hand", "D": "objective"}
     assert s.row("objects", "O")["name"] == "hero"
     s.close()
+
+
+def test_box_prompt_set_replace_order_and_summary():
+    """OQ-25/T-079: one box per object (corner labels 2/3), replaced on re-set, sent to the tracker FIRST."""
+    import pytest
+    t = prompts.add("", 5, 50, 60, prompts.INCLUDE, obj="car")
+    t = prompts.set_box(t, 5, 120, 90, 10, 20, obj="car")            # corners in any order -> normalised
+    t = prompts.set_box(t, 5, 12, 22, 118, 88, obj="car")            # replaces the first box
+    g = prompts.objects_for_tracker(t, "car")[0]
+    assert g["labels"] == [prompts.BOX_TL, prompts.BOX_BR, prompts.INCLUDE]
+    assert g["points"] == [(12.0, 22.0), (118.0, 88.0), (50.0, 60.0)]
+    assert prompts.summary(t, "car") == "frame 5: box + 1 include, 0 exclude"
+    only_box = prompts.set_box("", 3, 0, 0, 40, 30, obj="dog")      # a box alone is a valid prompt
+    assert prompts.objects_for_tracker(only_box, "dog")[0]["labels"] == [2, 3]
+    assert prompts.load(prompts.clear_box(t, "car", "car")) == [prompts.load(t)[0]]   # clicks kept
+    with pytest.raises(ValueError, match="one frame"):
+        prompts.set_box(t, 6, 0, 0, 40, 30, obj="car")
+    with pytest.raises(ValueError, match="too small"):
+        prompts.set_box("", 1, 10, 10, 11, 40, obj="car")
+    with pytest.raises(ValueError, match="include point or a box"):
+        prompts.objects_for_tracker(prompts.add("", 1, 1, 1, prompts.EXCLUDE, obj="x"), "x")

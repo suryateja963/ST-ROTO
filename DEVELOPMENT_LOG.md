@@ -314,3 +314,7 @@ All 19 headless Nuke tests pass (incl. test_vitmatte_mattes). The owner asked Cl
 ## 2026-11-16 - T-068 real-footage calibration (SA-V subset)
 
 Owner submitted Meta's form; Claude streamed the 30-video subset (74 min; the val tar holds all frames before all masks, so most of 15 GB was read; 2 GB kept). Own mistakes: the links-file parser assumed the file name is in the URL (it is a separate column) - first run failed immediately, fixed + test; a calibration run was started without per-frame area (needed for T-078) and restarted a minute in. Findings (CUDA, `RESULTS_sav.md`): single-click prompts picked the wrong object in 19/51 first frames (box: 2/51) -> calibration on the box run; 57 % of review flags were LOST flags on frames where the object really left -> new LOST_MAX_GAP rule (D-033): flags halved, precision 0.31 -> 0.54, recall 0.56 -> 0.49, robust on held-out halves; score and area thresholds kept. Box prompt in the UI proposed (OQ-25). Unit tests 123 pass.
+
+## 2026-11-16 - T-079 box prompt (D-034)
+
+Owner approved OQ-25. The node gets Nuke's native BBox knob (the Crop rectangle; works in Non-commercial, no C++ overlay) with Set box / Clear box; prompts store one box per object as SAM corner points (labels 2/3), passed before clicks (SAM 2 reference order). Measured: the knob value is [x, y, r, t] in Nuke y-up coordinates; a box-only prompt previews and tracks the synthetic target at IoU 0.993-0.996 on CUDA. Old nodes without the knob get a clear message.

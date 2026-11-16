@@ -6,6 +6,8 @@ Structure: Group "ST_Roto" with  Input -> Roto(STROTO_shapes, alpha) -> Output, 
 Artist workflow (knob tab ST-ROTO):
   1. set "object name", drag the "point" handle in the viewer onto the object, press "+ Include" (or "- Exclude")
      - repeat as needed; change "object name" and add points to prompt further objects (T-067);
+     or drag the "box" rectangle around the object and press "Set box" (most reliable for object parts, T-079),
+     then refine with include/exclude points;
   2. "Preview" shows the AI shape of the current object on its prompt frame (temporary, not saved);
   3. "Load model" (optional, once per Nuke session) takes the one-time GPU set-up pause now;
   4. "Track" tracks every prompted object forward from its prompt frame, in one pass on a worker thread (each frame
@@ -58,6 +60,17 @@ def create(source=None, project_path: str = ""):
     cp.setTooltip("Removes the points of the object named above.")
     _button(group, "stroto_clear_all", "Clear all", "n.on_clear_points(nuke.thisNode(), every_object=True)",
             new_line=False)
+    bx = nuke.BBox_Knob("stroto_box", "box")
+    bx.setTooltip("Drag this rectangle's corners in the viewer around the object, then press Set box. A box is the "
+                  "most reliable prompt for parts of something bigger (a sleeve, a bag, one of several people); add "
+                  "include/exclude points to refine it.")
+    group.addKnob(bx)
+    if source is not None:                                    # start as a visible rectangle in the middle of the plate
+        w, h = float(source.width()), float(source.height())
+        bx.setValue([w * 0.35, h * 0.35, w * 0.65, h * 0.65])
+    _button(group, "stroto_set_box", "Set box", "n.on_set_box(nuke.thisNode())")
+    cb = _button(group, "stroto_clear_box", "Clear box", "n.on_clear_box(nuke.thisNode())", new_line=False)
+    cb.setTooltip("Removes the box of the object named above (its points stay).")
     pts = nuke.String_Knob("stroto_points", "points (json)"); group.addKnob(pts)
     group.addKnob(nuke.Text_Knob("stroto_points_info", "", "no points"))
     group.addKnob(nuke.Int_Knob("stroto_click_frame", "click frame (if no points)"))
@@ -323,6 +336,30 @@ def on_add_point(group, label: int):
         _status(group, "error: %s" % e); return
     group["stroto_points"].setValue(text)
     group["stroto_points_info"].setValue(prompts.summary(text, _object_name(group)))
+
+
+def on_set_box(group):
+    """Store the viewer rectangle as the current object's box on the current frame (replaces its old box)."""
+    if "stroto_box" not in group.knobs():
+        _status(group, "error: this node was made before box prompts; create a new ST_Roto node"); return
+    x, y, r, t = [float(v) for v in group["stroto_box"].value()]
+    h = _height(group)
+    try:                                                      # Nuke y-up -> canonical y-down
+        text = prompts.set_box(group["stroto_points"].value(), int(nuke.frame()), x, h - t, r, h - y,
+                               obj=_object_name(group))
+    except ValueError as e:
+        _status(group, "error: %s" % e); return
+    group["stroto_points"].setValue(text)
+    group["stroto_points_info"].setValue(prompts.summary(text, _object_name(group)))
+
+
+def on_clear_box(group):
+    name = _object_name(group)
+    text = prompts.clear_box(group["stroto_points"].value(), name, name)
+    if not prompts.load(text):
+        text = ""
+    group["stroto_points"].setValue(text)
+    group["stroto_points_info"].setValue(prompts.summary(text, name))
 
 
 def on_clear_points(group, every_object: bool = False):

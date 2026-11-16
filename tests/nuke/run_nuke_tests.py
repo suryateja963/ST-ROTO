@@ -1029,13 +1029,62 @@ def test_vitmatte_mattes(res):
     return bool(ok)
 
 
+def test_box_prompt(res):
+    """OQ-25/T-079: the in-viewer BBox knob -> 'Set box' -> a box-only prompt (no clicks) -> Preview and Track.
+    Checks the knob's value format, the Nuke y-up -> canonical conversion, and tracking quality vs ground truth."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto import prompts
+    from st_roto_nuke import session
+    from st_roto.geometry import Anchor
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vw, vh, n = meta["w"], meta["h"], 8
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "box.stroto")
+    g = stnode.create(rd, proj)
+    res["box_default"] = [float(v) for v in g["stroto_box"].value()]
+    gt0 = cv2.imread(VIDEO + "/gt_0000.png", cv2.IMREAD_GRAYSCALE) > 127
+    ys, xs = np.nonzero(gt0)
+    x0, y0, x1, y1 = xs.min() - 4.0, ys.min() - 4.0, xs.max() + 5.0, ys.max() + 5.0   # canonical, y down
+    g["stroto_object"].setValue("target")
+    nuke.frame(0)
+    g["stroto_box"].setValue([x0, vh - y1, x1, vh - y0])                 # Nuke y-up: (x, y, r, t)
+    stnode.on_set_box(g)
+    res["points_info"] = g["stroto_points_info"].value()
+    o = prompts.objects_for_tracker(g["stroto_points"].value(), "target")[0]
+    res["stored"] = {"points": o["points"], "labels": o["labels"]}
+    ok = (o["labels"] == [2, 3] and np.allclose(o["points"], [(x0, y0), (x1, y1)])
+          and res["points_info"].startswith("frame 0: box") and len(res["box_default"]) == 4
+          and res["box_default"][2] > res["box_default"][0])
+    jp = stnode.on_preview(g, background=False)
+    res["preview_status"] = g["stroto_status"].value()
+    ok &= jp is not None and jp.status == "done" and "object found" in res["preview_status"]
+    job = stnode.on_track(g, background=False)
+    res["track_status"] = g["stroto_status"].value()
+    if job is None or job.status != "done":
+        res["error"] = job.error if job else "no job"; return False
+    store, bus = session.project(proj)
+    obj = store.objects(store.conn.execute("SELECT id FROM shots").fetchone()["id"])[0]
+    sid = store.shapes(obj["id"])[0]["id"]
+    q = {}
+    for k in store.keys(sid):
+        a = [Anchor(p=np.array(p[:2]), h_in=np.array(p[2:4]), h_out=np.array(p[4:]), corner=False) for p in k["points"]]
+        gt = cv2.imread(VIDEO + "/gt_%04d.png" % k["frame"], cv2.IMREAD_GRAYSCALE) > 127
+        q[k["frame"]] = round(iou(rasterize_spline(a, vh, vw), gt), 4)
+    res["iou"] = q
+    ok &= sorted(q) == list(range(n)) and min(q.values()) > 0.97
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
          test_export_import_shapes, test_crash_recovery_and_package, test_motion_blur_links,
          test_colour_auto_follows_script, test_split_object_parts, test_cancel_and_resume_track,
          test_package_script_relink, test_feather_and_rotopaint, test_point_feather_roundtrip,
-         test_vitmatte_mattes)
+         test_vitmatte_mattes, test_box_prompt)
 
 
 def main():
