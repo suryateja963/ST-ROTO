@@ -53,10 +53,10 @@ Requirement: free, open source, permits commercial use, modification, redistribu
 ## Still open
 
 - **OQ-11** First verifiable milestone (Claude to propose, now that the route is known).
-- **OQ-16** Confirm reading of D-024: supervisor lock override allowed only when the lock holder is offline/idle.
-- **OQ-17** Idle/offline threshold before a supervisor may override a lock.
-- **OQ-23** *(Answered → D-031: approved.)* (2026-11-16) Benchmark/calibration data under D-020: approve the licence of an SA-V subset (CC BY 4.0, masks, ~20-50 validation videos into `D:\ST-ROTO\dataenchmarks`)? Needed for T-068 (`docs/RESEARCH_2026-11-16_BENCHMARK_DATASETS.md`).
-- **OQ-24** (2026-11-16) Collaboration: should every replicated operation be signed by its author (full signed audit), or only ownership/lock/permission changes? Recommendation: every operation (`docs/COLLABORATION_ARCHITECTURE.md` §5).
+- **OQ-16** *(Answered 2026-11-17 → D-035: confirmed.)* Confirm reading of D-024: supervisor lock override allowed only when the lock holder is offline/idle.
+- **OQ-17** *(Answered 2026-11-17 → D-036: 15 minutes.)* Idle/offline threshold before a supervisor may override a lock.
+- **OQ-23** *(Answered → D-031: approved.)* (2026-11-16) Benchmark/calibration data under D-020: approve the licence of an SA-V subset (CC BY 4.0, masks, ~20-50 validation videos into `D:\ST-ROTO\data\benchmarks`)? Needed for T-068 (`docs/RESEARCH_2026-11-16_BENCHMARK_DATASETS.md`).
+- **OQ-24** *(Answered 2026-11-17 → D-037: every operation signed.)* (2026-11-16) Collaboration: should every replicated operation be signed by its author (full signed audit), or only ownership/lock/permission changes? Recommendation: every operation (`docs/COLLABORATION_ARCHITECTURE.md` §5).
 - **OQ-22** *(Answered → D-032: option (a) approved.)* (2026-11-16) Learned matting model for hair / fine edges. Every permissive-weight candidate (ViTMatte, BiRefNet-matting) is trained on research datasets with non-commercial or unpublished terms; ZIM and MatAnyone are non-commercial outright (`docs/RESEARCH_2026-11-16_MATTING.md`). Options: (a) ViTMatte-S as optional download, off by default, caveat shown; (b) BiRefNet_HR-matting likewise; (c) no learned matting in 1.0. **Recommendation:** (a). Model-free soft edges + motion blur proceed meanwhile (no download).
 
 ## Architecture (Phase 2), raised 2026-11-15

@@ -1078,13 +1078,84 @@ def test_box_prompt(res):
     return bool(ok)
 
 
+def test_reprompt_here(res):
+    """T-081: a track that follows the WRONG object (box on the distractor disc) is fixed by 'Re-prompt here' with a
+    box around the target on frame 6: frames 6-11 then follow the target; the fix is stored in the shape generator
+    and kept by a later plain Re-track; the re-prompt is one undo step."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto import views
+    from st_roto_nuke import session
+    from st_roto.geometry import Anchor
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vw, vh, n, fx = meta["w"], meta["h"], 12, 6
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "reprompt.stroto")
+    g = stnode.create(rd, proj)
+    yy, xx = np.mgrid[0:vh, 0:vw] + 0.5
+    tgt_gt = lambda f: cv2.imread(VIDEO + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE) > 127
+
+    def disc_gt(f):
+        s = f / 47.0
+        return (np.hypot(xx - (1050 - 600 * s), yy - (560 - 120 * np.sin(np.pi * s))) <= 85) & ~tgt_gt(f)
+
+    def set_box(mask):
+        ys, xs = np.nonzero(mask)
+        g["stroto_box"].setValue([xs.min() - 4.0, vh - (ys.max() + 5.0), xs.max() + 5.0, vh - (ys.min() - 4.0)])
+
+    g["stroto_object"].setValue("target")
+    nuke.frame(0)
+    set_box(disc_gt(0))                                       # the artist boxes the wrong thing
+    stnode.on_set_box(g)
+    job = stnode.on_track(g, background=False)
+    if job is None or job.status != "done":
+        res["error"] = job.error if job else "no job"; return False
+    store, bus = session.project(proj)
+    oid = store.objects(store.conn.execute("SELECT id FROM shots").fetchone()["id"])[0]["id"]
+    sid = views.main_shape(store, oid)["id"]
+
+    def target_iou():
+        out = {}
+        for k in store.keys(sid):
+            a = [Anchor(p=np.array(p[:2]), h_in=np.array(p[2:4]), h_out=np.array(p[4:]), corner=False) for p in k["points"]]
+            out[k["frame"]] = round(iou(rasterize_spline(a, vh, vw), tgt_gt(k["frame"])), 4)
+        return out
+
+    res["before"] = target_iou()
+    nuke.frame(fx)
+    set_box(tgt_gt(fx))
+    j2 = stnode.on_reprompt_here(g, background=False)
+    res["reprompt_status"] = g["stroto_status"].value()
+    if j2 is None or j2.status != "done":
+        res["error"] = (j2.error if j2 else "no job") + " | " + res["reprompt_status"]; return False
+    res["after"] = target_iou()
+    gen = json.loads(store.row("shapes", sid)["generator"])
+    res["fixes"] = gen.get("fixes")
+    ok = (max(res["before"][f] for f in range(fx, n)) < 0.5
+          and min(res["after"][f] for f in range(fx, n)) > 0.95
+          and res["reprompt_status"].startswith("re-prompted frame %d" % fx)
+          and [x["frame"] for x in res["fixes"] or []] == [fx] and res["fixes"][0]["labels"] == [2, 3])
+    stnode.resync(g, import_first=False)
+    j3 = stnode.on_retrack(g, background=False)               # plain re-track keeps the stored fix
+    res["retrack_status"] = g["stroto_status"].value()
+    res["after_plain_retrack"] = target_iou()
+    ok &= j3 is not None and j3.status == "done" and min(res["after_plain_retrack"][f] for f in range(fx, n)) > 0.95
+    ok &= [x["frame"] for x in json.loads(store.row("shapes", sid)["generator"]).get("fixes", [])] == [fx]
+    bus.undo(); bus.undo()                                    # plain re-track, then the re-prompt: one step each
+    res["after_undo"] = target_iou()
+    ok &= res["after_undo"] == res["before"] and "fixes" not in json.loads(store.row("shapes", sid)["generator"])
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
          test_export_import_shapes, test_crash_recovery_and_package, test_motion_blur_links,
          test_colour_auto_follows_script, test_split_object_parts, test_cancel_and_resume_track,
          test_package_script_relink, test_feather_and_rotopaint, test_point_feather_roundtrip,
-         test_vitmatte_mattes, test_box_prompt)
+         test_vitmatte_mattes, test_box_prompt, test_reprompt_here)
 
 
 def main():

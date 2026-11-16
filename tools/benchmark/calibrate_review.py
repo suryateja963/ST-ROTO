@@ -42,8 +42,22 @@ def prompt_for(mask, kind="point"):
     p = interior_point(mask)
     if kind == "point":
         return [p], [1]
+    if kind == "points3":                                    # 3 spread clicks: each the most interior point left
+        d = cv2.distanceTransform(mask.astype(np.uint8), cv2.DIST_L2, 5)
+        yy, xx = np.mgrid[0:mask.shape[0], 0:mask.shape[1]]
+        pts, r = [], max(4.0, float(d.max()))
+        for _ in range(3):
+            y, x = np.unravel_index(int(np.argmax(d)), d.shape)
+            if d[y, x] <= 0:
+                break
+            pts.append((float(x) + 0.5, float(y) + 0.5))
+            d = np.where((xx - x) ** 2 + (yy - y) ** 2 <= (1.5 * r) ** 2, 0, d)
+        return pts, [1] * len(pts)
     ys, xs = np.nonzero(mask)
-    return [(float(xs.min()), float(ys.min())), (float(xs.max()) + 1.0, float(ys.max()) + 1.0), p], [2, 3, 1]
+    box = [(float(xs.min()), float(ys.min())), (float(xs.max()) + 1.0, float(ys.max()) + 1.0)]
+    if kind == "box_only":
+        return box, [2, 3]
+    return box + [p], [2, 3, 1]
 
 
 def synthetic_sequences():
@@ -127,7 +141,7 @@ def run(seqs, device, prompt="point"):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir"); ap.add_argument("--device", default="auto")
-    ap.add_argument("--prompt", choices=("point", "box"), default="point")
+    ap.add_argument("--prompt", choices=("point", "points3", "box", "box_only"), default="point")   # box = box + click
     ap.add_argument("--out", default=os.path.join(ROOT, "research", "probes", "2026-11-16_calibration"))
     a = ap.parse_args()
     seqs = folder_sequences(a.dir) if a.dir else synthetic_sequences()

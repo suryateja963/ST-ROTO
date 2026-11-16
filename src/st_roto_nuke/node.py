@@ -99,6 +99,13 @@ def create(source=None, project_path: str = ""):
     ra = _button(group, "stroto_retrack_all", "Re-track all", "n.on_retrack(nuke.thisNode(), every_object=True)",
                  new_line=False)
     ra.setTooltip("Re-tracks every unlocked object of this shot in one pass (each frame is analysed once).")
+    rp = _button(group, "stroto_reprompt", "Re-prompt here", "n.on_reprompt_here(nuke.thisNode())")
+    rp.setTooltip("For a frame the review flags (or your eye) say is wrong: drag the box around the object on THIS "
+                  "frame, press Re-prompt here. The object named above is re-tracked in both directions with this "
+                  "box as an extra guide; the fix is kept for later re-tracks. Your own keys are never changed.")
+    wp = nuke.Boolean_Knob("stroto_reprompt_point", "with point"); wp.clearFlag(nuke.STARTLINE)
+    wp.setTooltip("Also use the 'point' handle as an include click inside the box.")
+    group.addKnob(wp)
     imp = _button(group, "stroto_import", "Save Roto edits to project", "n.on_import_edits(nuke.thisNode())",
                   new_line=False)
     imp.setTooltip("Records shapes you edited or drew in this node's Roto into the ST-ROTO project (undoable).")
@@ -499,9 +506,27 @@ def on_track(group, background: bool = True, resume: bool = False):
     return _run(group, "track", work, apply, background, stop_hint=hint)
 
 
-def on_retrack(group, background: bool = True, every_object: bool = False):
+def on_reprompt_here(group, background: bool = True):
+    """T-081: the box (+ optionally the point handle) on the CURRENT frame becomes a fix prompt of the current object,
+    which is then re-tracked in both directions (one undo step; the fix is stored with the shape)."""
+    if "stroto_box" not in group.knobs():
+        _status(group, "error: this node was made before box prompts; create a new ST_Roto node"); return None
+    x, y, r, t = [float(v) for v in group["stroto_box"].value()]
+    h = _height(group)
+    x0, y0, x1, y1 = x, h - t, r, h - y
+    if abs(x1 - x0) < prompts.MIN_BOX or abs(y1 - y0) < prompts.MIN_BOX:
+        _status(group, "error: the box is too small: drag its corners around the object"); return None
+    pts, labels = [(min(x0, x1), min(y0, y1)), (max(x0, x1), max(y0, y1))], [prompts.BOX_TL, prompts.BOX_BR]
+    if "stroto_reprompt_point" in group.knobs() and group["stroto_reprompt_point"].value():
+        cx, cy = group["stroto_click"].value()
+        pts.append((float(cx), h - float(cy))); labels.append(prompts.INCLUDE)
+    return on_retrack(group, background, fix={"frame": int(nuke.frame()), "points": pts, "labels": labels})
+
+
+def on_retrack(group, background: bool = True, every_object: bool = False, fix=None):
     """Re-track the object named in 'object name' (or every unlocked object of the shot, in one pass) using its
-    artist keys and prompts as guides (forward + reverse). All results are ONE undo step."""
+    artist keys and prompts as guides (forward + reverse). All results are ONE undo step. fix: a new fix prompt for
+    the current object (on_reprompt_here)."""
     from .track import apply_retracks, retrack_objects, retrack_plan
     try:
         src = _inner(group, "src", None)
@@ -518,6 +543,15 @@ def on_retrack(group, background: bool = True, every_object: bool = False):
         frames = list(range(int(src.firstFrame()), int(src.lastFrame()) + 1))
         width = int(src.width())
         targets, skipped = _retrack_targets(store, shot["id"], _object_name(group), frames, every_object, retrack_plan)
+        fixes = None
+        if fix is not None:
+            if not frames[0] <= fix["frame"] <= frames[-1]:
+                raise ValueError("frame %d is outside the source range" % fix["frame"])
+            sid = targets[0][2]
+            if fix["frame"] in retrack_plan(store, sid, frames)["artist"]:
+                raise ValueError("frame %d has your own key for %r: it already guides the re-track (edit that key "
+                                 "instead)" % (fix["frame"], targets[0][0]))
+            fixes = {sid: fix}
         ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name())}
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None
@@ -533,7 +567,7 @@ def on_retrack(group, background: bool = True, every_object: bool = False):
         ro = store_ro(project)          # worker thread: its own connection (SQLite objects are thread-bound)
         try:
             return retrack_objects(get_rgb, ro, sids, frames, width, height, model=model, device=device, job=job,
-                                   colour_transform=ctransform)
+                                   colour_transform=ctransform, fixes=fixes)
         finally:
             ro.close()
 
@@ -546,6 +580,8 @@ def on_retrack(group, background: bool = True, every_object: bool = False):
             parts.append("%s: %d AI keys changed, %d artist keys kept" % (name, counts[sid], kept)
                          + _review_text(store, oid))
         msg = "re-tracked %s; device %s" % (" | ".join(parts), job.result["device"])
+        if fix is not None:
+            msg = "re-prompted frame %d: %s" % (fix["frame"], msg)
         if skipped:
             msg += "; skipped %s" % ", ".join("%s (%s)" % s for s in skipped)
         if rep["conflicts"]:

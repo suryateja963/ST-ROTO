@@ -1,11 +1,13 @@
 # Task Board
 
-Updated 2026-11-16 (third session).
+Updated 2026-11-17.
 
 ## Done
 
 | ID | Task | Evidence |
 |---|---|---|
+| T-081 | "Re-prompt here" (node button + *with point*): the box (and optional click) on the current frame becomes an extra conditioning prompt, the object is re-tracked both ways, the fix is stored on the shape (kept by later re-tracks), one undo step; refused on frames with an artist key. Nuke test: a track on the wrong object (IoU < 0.5) fixed from the re-prompt frame on to IoU 0.988-0.995; plain re-track keeps it; two undos restore the original. Full Nuke suite 20/21 with the GPU shared with a probe; the failing GPU-memory test passed when rerun alone (peak 4,021 MiB, limit 6,500) | `src/st_roto_nuke/track.py` `retrack_plan`/`retrack_objects(fixes=)`, `src/st_roto_nuke/node.py` `on_reprompt_here`, `tests/nuke/run_nuke_tests.py::test_reprompt_here` |
+| T-080 | Closer shapes: point count measured on SA-V (51 sequences, 2,005 frames, CUDA, tiny + large). The spline is not the limit: outline = AI mask, auto spline within 0.003; fixed 48/64 points gain <= 0.0026 for 2-8x more points -> default stays auto. The large model gains +0.045 mean IoU (mostly fewer lost frames), ~1.4x slower; documented in the user guide | `research/probes/2026-11-16_shape_fit/RESULTS.md` |
 | T-079 | Box prompt in the ST_Roto node (OQ-25 approved): native in-viewer BBox knob + Set box / Clear box; one box per object (SAM corner labels 2/3, sent before clicks), box alone is a valid prompt; Nuke test: box-only prompt tracks 8 frames at IoU 0.993-0.996 (CUDA) | `src/st_roto/prompts.py`, `src/st_roto_nuke/node.py`, `tests/nuke/run_nuke_tests.py::test_box_prompt`, `tests/unit/test_prompts_views.py` |
 | T-068 | Review-flag calibration on REAL footage (SA-V subset, D-031: 30 videos, 51 sequences, 5,527 frames, CUDA). One click picks the wrong object in 19/51 first frames (box prompt: 2/51). The LOST rule put 57 % of flags on frames where the object really was gone -> new rule (`quality.LOST_MAX_GAP`): long absences flag only exit/return frames: flags halved (1858 -> 933), precision for serious errors 0.31 -> 0.54, recall 0.56 -> 0.49; robust on both video halves and gap 2-8. Score thresholds (1.0, 0.7) and area-jump 0.35 kept (evidence) | `research/probes/2026-11-16_calibration/RESULTS_sav.md` |
 | T-072 | Learned matting ViTMatte-S (D-032): optional download with licence check, ONNX export exact vs PyTorch, registry-verified, node 'edges' choice with caveat; vs guided filter: hair 0.69 vs 0.95, shape-off 0.23 vs 0.89, motion blur 0.68 vs 0.52 (SAD) | `research/probes/2026-11-16_matting/RESULTS_vitmatte.md` |
@@ -75,7 +77,15 @@ Updated 2026-11-16 (third session).
 | T-077 | Silhouette / Mocha direct shape formats — need those applications (or published specs) to validate; both already export Nuke Roto, which ST-ROTO ingests | Silhouette / Mocha applications or published specs to validate against |
 | T-011b | In-process inference prototypes, routes B and D (NDK C++) | D-019: Build Tools only with a plug-in-capable licence (D-009/D-011) |
 
+## In progress
+
+| ID | Task | State |
+|---|---|---|
+| T-082 | Prompt comparison on the whole SA-V subset: point, 3 points, box, box + click (numbers for the user guide) | point and box + click done (T-068); box only and 3 points to run |
+
 ## Ready (desk research, can proceed now)
 
 | ID | Task |
 |---|---|
+| T-083 | Lock leases in the core (D-024/D-035/D-036): lock = lease (holder, acquired, last heartbeat); supervisor override refused while the holder is active, allowed after 15 min without heartbeat; every override an audited op; unit tests |
+| T-084 | Signed operations (D-037): per-user key pair, every replicated op signed by its author and verified on receipt (tamper evidence); extends the `st_roto.sync` prototype; unit tests |

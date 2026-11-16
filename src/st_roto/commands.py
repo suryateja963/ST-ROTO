@@ -282,7 +282,7 @@ def _delete_key(conn, op, actor):
             "origin_override": prev["origin"], "generator": prev["generator"]}
 
 
-_SHAPE_FIELDS = ("name", "locked", "closed", "feather_x", "feather_y", "feather_falloff")
+_SHAPE_FIELDS = ("name", "locked", "closed", "feather_x", "feather_y", "feather_falloff", "generator")   # generator: T-081 fixes
 
 
 def _update_shape(conn, op, actor):

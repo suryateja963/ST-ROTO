@@ -161,10 +161,13 @@ def track_object(get_rgb, frames, click_frame, click_xy, model="sam2.1-hiera-tin
 
 
 # ------------------------------------------------------------------------------------------------ re-track
-def retrack_plan(store, shape_id, frames):
+def retrack_plan(store, shape_id, frames, fix=None):
     """What a re-track of one object (given by its MAIN shape) starts from. Raises ValueError (artist-readable) if
     there is nothing. The guide mask on an artist frame is the main shape's artist key united with the object's
-    part shapes at that frame (non-collapsed)."""
+    part shapes at that frame (non-collapsed).
+    Fix prompts (T-081, "Re-prompt here"): {"frame", "points", "labels"} clicks/box on a frame the AI got wrong;
+    kept in the shape generator ("fixes", one per frame, a new one replaces the old) and used as conditioning frames
+    by every later re-track. Priority on one frame: artist key > fix prompt > original prompt."""
     shape = store.row("shapes", shape_id)
     if shape is None:
         raise KeyError("no shape %s" % shape_id)
@@ -173,7 +176,12 @@ def retrack_plan(store, shape_id, frames):
               if k["origin"] in (m.ARTIST_CREATED, m.ARTIST_MODIFIED_AI, m.IMPORTED_NATIVE)}
     gen = json.loads(shape["generator"]) if shape["generator"] else {}
     prompt = gen.get("prompts")
-    cond = sorted(set([f for f in artist if f in pos] + ([prompt["frame"]] if prompt and prompt["frame"] in pos else [])))
+    fixes = {int(x["frame"]): x for x in gen.get("fixes", [])}
+    if fix is not None:
+        fixes[int(fix["frame"])] = {"frame": int(fix["frame"]), "points": [list(q) for q in fix["points"]],
+                                    "labels": [int(v) for v in fix["labels"]]}
+    cond = sorted(set([f for f in artist if f in pos] + [f for f in fixes if f in pos]
+                      + ([prompt["frame"]] if prompt and prompt["frame"] in pos else [])))
     if not cond:
         raise ValueError("nothing to track %s from: no artist keys or prompt in this frame range" % shape["name"])
     part_keys = {}
@@ -182,16 +190,17 @@ def retrack_plan(store, shape_id, frames):
             if k["frame"] in artist and not pieces.is_collapsed(k["points"]):
                 part_keys.setdefault(k["frame"], []).append(k["points"])
     return {"shape_id": shape_id, "object_id": shape["object_id"], "anchors": int(shape["point_count"]),
-            "artist": artist, "part_keys": part_keys, "prompt": prompt, "cond": cond, "first": cond[0], "gen": gen}
+            "artist": artist, "part_keys": part_keys, "prompt": prompt, "fixes": fixes, "cond": cond, "first": cond[0],
+            "gen": gen}
 
 
 def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam2.1-hiera-tiny", device="auto",
-                    job=None, colour_transform=colour.TRANSFORM_ID, parts=True):
+                    job=None, colour_transform=colour.TRANSFORM_ID, parts=True, fixes=None):
     """Re-track several objects (given by their MAIN shape ids) in ONE pass (T-067). Each uses every ARTIST key of
     its main shape (united with its parts on that frame) as a mask prompt, plus its original click prompts, and is
     tracked forward from its first conditioning frame and in reverse to the first frame of `frames` (master prompt
     section 11). Each frame is rendered/encoded once per sweep for all objects; per-object results equal
-    re-tracking each object alone.
+    re-tracking each object alone. fixes: {main shape id: new fix prompt} (see retrack_plan).
 
     Returns {"shapes": {main shape id: {"keys": {frame: points | None}, "parts": [{frame: points}], "reports",
     "generator"}}, "device", ...}; artist keys are not included (they are never overwritten)."""
@@ -199,7 +208,7 @@ def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam
     from st_roto.geometry import Anchor, rasterize_spline
     frames = sorted(frames)
     pos = {f: i for i, f in enumerate(frames)}
-    plans = [retrack_plan(store, sid, frames) for sid in shape_ids]
+    plans = [retrack_plan(store, sid, frames, (fixes or {}).get(sid)) for sid in shape_ids]
     if not plans:
         raise ValueError("no objects to re-track")
     multi = Sam2MultiVideo(os.path.join(models_root(), model, "video"), device=device)
@@ -241,6 +250,9 @@ def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam
                     for q in p["part_keys"].get(f, []):
                         mask |= raster(q)
                     p["trk"].add_mask(pos[f], enc(f), mask)
+                elif f in p["fixes"]:
+                    fx = p["fixes"][f]
+                    p["trk"].add_points(pos[f], enc(f), [tuple(q) for q in fx["points"]], fx["labels"])
                 else:
                     pr = p["prompt"]
                     p["trk"].add_points(pos[f], enc(f), [tuple(q) for q in pr["points"]], pr["labels"])
@@ -267,7 +279,10 @@ def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam
         res = p["seq"].result(sorted(p["decided"]))
         keys = {f: res["main"].get(f) for f in sorted(p["decided"])}
         gen_out = dict(p["gen"], retrack={"model": model, "colour": colour.transform_id(colour_transform),
-                                          "conditioning_frames": p["cond"], "artist_frames": sorted(p["artist"])})
+                                          "conditioning_frames": p["cond"], "artist_frames": sorted(p["artist"]),
+                                          "fix_frames": sorted(f for f in p["fixes"] if f not in p["artist"])})
+        if p["fixes"]:
+            gen_out["fixes"] = [p["fixes"][f] for f in sorted(p["fixes"])]
         shapes[p["shape_id"]] = {"keys": keys, "parts": res["parts"], "holes": res["holes"], "reports": p["reports"],
                                  "generator": json.dumps(gen_out, sort_keys=True)}
     rep = multi.report
@@ -307,6 +322,14 @@ def retrack_ops(store, shape_id, result):
         elif old is not None:
             ops.append({"op": "delete_key", "shape_id": shape_id, "frame": f})
     main = store.row("shapes", shape_id)
+    old_gen = json.loads(main["generator"]) if main["generator"] else {}
+    new_fixes = json.loads(result["generator"]).get("fixes") if result.get("generator") else None
+    if new_fixes != old_gen.get("fixes"):                   # T-081: the shape keeps its fix prompts (undoable)
+        g = dict(old_gen)
+        g.pop("fixes", None)
+        if new_fixes:
+            g["fixes"] = new_fixes
+        ops.append({"op": "update_shape", "id": shape_id, "fields": {"generator": json.dumps(g, sort_keys=True)}})
     old_parts = views.part_shapes(store, shape_id)          # only AI part shapes; other hand-drawn shapes untouched
     part_gen = _part_generator(result["generator"], shape_id)
     part_keys = {s["id"]: {k["frame"]: k for k in store.keys(s["id"])} for s in old_parts}
@@ -347,7 +370,7 @@ def retrack_ops(store, shape_id, result):
                 ops.append({"op": "set_key", "shape_id": s["id"], "frame": f,
                             "points": pieces.collapsed(int(s["point_count"]), at),
                             "generator": _collapsed_generator(part_gen)})
-    n_keys = len(ops)
+    n_keys = sum(1 for x in ops if x["op"] in ("set_key", "delete_key"))
     ops += _report_ops(shape_id, result.get("reports", {}), skip=artist)
     ops += [{"op": "set_report", "shape_id": shape_id, "frame": f, "object_score": None, "iou_pred": None}
             for f in sorted(artist) if store.conn.execute("SELECT 1 FROM key_reports WHERE shape_id=? AND frame=?",

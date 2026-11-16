@@ -8,8 +8,9 @@ Owner's full specification: `docs/MASTER_PROMPT.md` (authoritative). Public repo
 - **Last session ended 2026-11-16 (second session)**; all work committed and pushed. Phase 1 done, Phase 2 approved (D-026), Phase 3/4 in progress.
 - Working in Nuke 17.1 NC (product code, tested): ST_Roto node → prompts (clicks and/or a box) for several objects → Track (all objects one pass, SAM 2.1 ONNX/CUDA in-process, checkpointed: **Resume track**) → native animated Roto shapes (split objects → part shapes, adaptive point counts); artist edits imported (never overwritten), shape + per-point feather synced both ways; Re-track object/all; review flags; AI input colour (auto: Nuke default or OCIO working space); model registry verifies every model file (licence/approval/SHA-256); mattes → EXR; JSON/SVG; Copy to RotoPaint; backups, crash recovery, packages with script + relink + fingerprints; motion blur knobs; replication prototype (`st_roto.sync`, not wired to UI).
 - Tests: `pytest` ~120 · headless Nuke 21 (`tools/run_nuke_tests.py`) · GUI tests pass · CI green (Node-24 actions).
-- **Task board state:** everything done except T-011b (NDK: D-019 / licence) and T-077 (Silhouette/Mocha formats: need the apps). T-068 calibrated on SA-V (D-033 LOST-gap rule; `research/probes/2026-11-16_calibration/RESULTS_sav.md`).
-- **Open owner questions:** OQ-16/17 (supervisor lock override, idle threshold), OQ-24 (signed audit for every op?). See `OPEN_QUESTIONS.md`, `DECISION_REGISTER.md` (D-001..D-030).
+- **2026-11-17:** T-081 Re-prompt here (node button, fixes stored in the shape generator) and T-080 shape-fit study (spline not the limit; large model +0.045 IoU; `research/probes/2026-11-16_shape_fit/RESULTS.md`) done. T-082 prompt comparison running; T-083 lock leases and T-084 signed ops ready (D-035..D-037).
+- **Task board state:** blocked: T-011b (NDK: D-019 / licence) and T-077 (Silhouette/Mocha formats: need the apps). T-068 calibrated on SA-V (D-033 LOST-gap rule; `research/probes/2026-11-16_calibration/RESULTS_sav.md`).
+- **Open owner questions:** none blocking. Answered 2026-11-17: D-035 (supervisor lock override only when holder offline/idle), D-036 (idle = 15 min without heartbeat), D-037 (every replicated op signed). See `OPEN_QUESTIONS.md`, `DECISION_REGISTER.md` (D-001..D-037).
 
 ## Non-negotiable rules (from the owner)
 

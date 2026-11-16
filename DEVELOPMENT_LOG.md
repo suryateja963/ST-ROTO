@@ -318,3 +318,11 @@ Owner submitted Meta's form; Claude streamed the 30-video subset (74 min; the va
 ## 2026-11-16 - T-079 box prompt (D-034)
 
 Owner approved OQ-25. The node gets Nuke's native BBox knob (the Crop rectangle; works in Non-commercial, no C++ overlay) with Set box / Clear box; prompts store one box per object as SAM corner points (labels 2/3), passed before clicks (SAM 2 reference order). Measured: the knob value is [x, y, r, t] in Nuke y-up coordinates; a box-only prompt previews and tracks the synthetic target at IoU 0.993-0.996 on CUDA. Old nodes without the knob get a clear message.
+
+## 2026-11-17 - T-081 Re-prompt here, T-080 shape-fit study, owner answers D-035..D-037
+
+T-081: a box (and optional click) on the current frame becomes an extra conditioning prompt for a both-way re-track; stored in the main shape's generator ("fixes"), kept by later re-tracks, one undo step. Own mistake found by the test: the first version saved the fix only on key generators, so a later plain re-track dropped it; the command bus now accepts shape "generator" updates. Also fixed: the status counted all ops as "AI keys changed" (13 for 12 frames). Nuke test: wrong-object track fixed to IoU 0.988-0.995 from the re-prompt frame on. The full Nuke suite ran 20/21 while a probe shared the GPU; the failing GPU-memory test (peak 7,752 MiB) passed rerun alone (4,021 MiB) - concurrency, not a regression.
+
+T-080: on SA-V (51 sequences, tiny and large, CUDA) the traced outline equals the AI mask and the auto spline is within 0.003 IoU; fixed 48/64 points gain <= 0.0026 -> default point count unchanged. The large model is +0.045 mean IoU (mostly fewer lost frames), ~1.4x slower; documented in the user guide. The first probe version rasterised with a per-row Python loop (~170 s per sequence); replaced by a vectorised fill checked equal on 200 random polygons. Own slip: Nuke -t takes bare numbers as frame ranges (--limit 2 rejected) -> --opt=value.
+
+Owner answered OQ-16/17/24: D-035 (override only when the holder is offline/idle), D-036 (15 min), D-037 (every op signed) -> T-083, T-084 ready. Two register lines contained a literal backspace where "data\benchmarks" was written (an earlier escaping slip); fixed.

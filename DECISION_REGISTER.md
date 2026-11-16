@@ -32,9 +32,12 @@
 | D-028 | 2026-11-15 | Git history is not rewritten; Apache-2.0 attribution for the SAM 2.1 parameter files added in `NOTICE` | Project owner (approved recommendation) | OQ-21 |
 | D-029 | 2026-11-16 | SAM 2.1 memory attention runs in fp16 by default (fp32 selectable); conversion via `tools/models/convert_fp16.py` | Claude (delegated technical choice) | `research/probes/2026-11-16_fp16/RESULTS.md`: identical masks on the synthetic shot (≤ 7 low-res pixels flip), −22% peak GPU (tiny), ~2× faster steps; to re-check on real footage |
 | D-030 | 2026-11-16 | Nuke → numpy pixels stay on the float-TIFF file path (no Python buffer API; exact; 0.022-0.041 s/frame); in-memory transfer deferred to the NDK route | Claude (delegated technical choice) | `research/probes/2026-11-16_pixels/RESULTS.md` |
-| D-031 | 2026-11-16 | Benchmark/calibration data: a small SA-V subset (CC BY 4.0, masks) approved under D-020; stored in `D:\ST-ROTO\dataenchmarks` (git-ignored), attribution in NOTICE for any published figures | Project owner | OQ-23 |
+| D-031 | 2026-11-16 | Benchmark/calibration data: a small SA-V subset (CC BY 4.0, masks) approved under D-020; stored in `D:\ST-ROTO\data\benchmarks` (git-ignored), attribution in NOTICE for any published figures | Project owner | OQ-23 |
 | D-032 | 2026-11-16 | Learned matting: ViTMatte-S (hustvl/vitmatte-small-composition-1k, Apache-2.0 weights) approved as an OPTIONAL download, off by default, with its training-data caveat (Composition-1k / Adobe DIM terms) shown to the user | Project owner | OQ-22 option (a) |
 | D-033 | 2026-11-16 | Review rule change from real-footage calibration (T-068, SA-V): absent runs longer than 16 frames flag only their exit and return frames (CHECK) instead of every frame as LOST; score thresholds (1.0, 0.7) and area-jump 0.35 unchanged | Claude (evidence-based default; owner may override) | `research/probes/2026-11-16_calibration/RESULTS_sav.md` |
 | D-034 | 2026-11-16 | Box prompt added to the ST_Roto node (in-viewer BBox knob, Set box / Clear box), next to include/exclude clicks | Project owner | OQ-25 |
+| D-035 | 2026-11-17 | D-024 reading confirmed: a supervisor may override a lock **only** when the lock holder is offline or idle; never while the holder is active. Every override is an audited operation | Project owner | OQ-16 |
+| D-036 | 2026-11-17 | Idle/offline threshold for a supervisor lock override: **15 minutes** without a presence heartbeat from the lock holder | Project owner | OQ-17 |
+| D-037 | 2026-11-17 | Collaboration audit: **every** replicated operation is signed by its author (per-user key pair), not only ownership/lock/permission changes | Project owner | OQ-24 |
 
 Architecture decisions: see `docs/adr/` (ADR-0001..0010 Accepted per D-026).
