@@ -6,6 +6,7 @@ Updated 2026-11-16.
 
 | ID | Task | Evidence |
 |---|---|---|
+| T-012 | One requirement ID per master-prompt bullet: 740 items generated verbatim with their lead-in and group row (`tools/docs/split_requirements.py`); 16 group rows updated with this session's evidence | `docs/REQUIREMENTS_DETAILED.md`, `REQUIREMENTS_REGISTER.md` |
 | T-073 | Shape feather (schema v5: feather x/y/falloff) synced both ways with Roto (undoable), in JSON, and approximated in EXR mattes (50 % contour within 1 px, area 0.2 %, measured); 'Copy shapes to RotoPaint' (render identical to Roto) | `research/probes/2026-11-16_feather/RESULTS.md` |
 | T-075 | Packages carry the Nuke script; menu 'ST-ROTO > Unpack project package...' with plate relink dialog; source fingerprints (schema v4: SHA-256 of the shot's first/last frame) accept moved footage, refuse different footage; relink is undoable (`update_shot`); NC scripts are encrypted, so relinking happens in the opened script (sidecar) | `src/st_roto_nuke/packages.py`, `tests/nuke` `test_package_script_relink` |
 | T-048 | Resumable tracking: checkpoints every 10 frames and on Cancel (incremental, atomic meta), 'Resume track' continues with identical results (CPU proof incl. simulated crash); +1.2 % time, ~2.4 MB per object-frame while interrupted | `research/probes/2026-11-16_resume/RESULTS.md` |
@@ -67,7 +68,6 @@ Updated 2026-11-16.
 | T-076 | Per-point feather (featherCenter/tangents) storage and export; Silhouette/Mocha direct formats (need those applications to validate) |
 | T-072 | Learned matting model (hair) — waits for OQ-22 |
 | T-046 | In-memory pixel path Nuke ↔ numpy (avoid disk round-trip) |
-| T-012 | Split requirements register to one ID per bullet |
 | T-030b | Remaining licence texts: Cutie weights, Adobe DIM dataset, SEA-RAFT/RTMPose weights, NVIDIA, PyTorch, DirectML, OpenVINO |
 | T-031b | Remaining categories: hair-specific, motion-blur reconstruction, occlusion reasoning, permissive video matting/inpainting; resolve Grounding DINO conflict |
 | T-032 | Tabulate Python, Qt, compiler and CUDA versions for Nuke 13 to 17.1 |
