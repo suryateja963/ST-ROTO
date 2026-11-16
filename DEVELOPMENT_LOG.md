@@ -306,3 +306,7 @@ Schema v5 (shape feather x/y/falloff, as Roto's fx/fy/ff); feather written to Ro
 ## 2026-11-16 — Owner approvals D-031 (SA-V subset) and D-032 (ViTMatte-S); ViTMatte integrated
 
 ViTMatte-S downloaded through the licence-checked catalogue, exported to ONNX (exact vs PyTorch at 5 sizes), registered, integrated as an optional *edges* choice with the training-data caveat in tooltip and status. Measured vs the guided filter: better on hair and slightly-off shapes, worse on motion blur (`research/probes/2026-11-16_matting/RESULTS_vitmatte.md`). A registry unit test assumed every model has video graphs; fixed. SA-V: the val split is one 16 GB tar behind a consent click on Meta's site that issues expiring links — the owner must click it; a streaming subset tool is prepared.
+
+## 2026-11-16 - Full headless Nuke suite after ViTMatte; SA-V download not automated
+
+All 19 headless Nuke tests pass (incl. test_vitmatte_mattes). The owner asked Claude to download SA-V itself. Inspection of the downloads page script showed the "Download all links" step sits behind a form (first/last name, email, affiliation, country, intended use) that signs the SA-V licence in the submitter's name. Claude did not submit personal data or bypass the form (it is gated by a browser-storage flag); nothing was sent to Meta. T-068 still waits for the owner to submit the form and save the links file in data/benchmarks/.
