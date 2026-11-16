@@ -36,7 +36,8 @@ def export_shot(store, shot_id: str) -> dict:
                                        "falloff": s.get("feather_falloff", 1.0)},
                            "generator": json.loads(s["generator"]) if s["generator"] else None,
                            "keys": [{"frame": k["frame"], "origin": k["origin"], "points": k["points"]}
-                                    for k in store.keys(s["id"])]})
+                                    for k in store.keys(s["id"])],
+                           "point_feather": [{"frame": f, "data": d} for f, d in sorted(store.feathers(s["id"]).items())]})
         objs.append({"id": o["id"], "name": o["name"], "parent_id": o["parent_id"], "origin": o["origin"],
                      "locked": bool(o["locked"]), "color": o["color"], "shapes": shapes})
     return {"format": FORMAT, "version": VERSION, "coordinates": COORDINATES,
@@ -82,6 +83,8 @@ def import_shot(bus, data: dict, shot_id: str) -> dict:
                     "feather_x": float(fe.get("x", 0.0)), "feather_y": float(fe.get("y", 0.0)),
                     "feather_falloff": float(fe.get("falloff", 1.0))}})
                 ops += [{"op": "set_key", "shape_id": sid, "frame": k["frame"], "points": k["points"]} for k in s["keys"]]
+                ops += [{"op": "set_key_feather", "shape_id": sid, "frame": pf["frame"], "data": pf["data"]}
+                        for pf in s.get("point_feather", [])]
                 if s.get("locked"):
                     ops.append({"op": "update_shape", "id": sid, "fields": {"locked": 1}})
             done.add(o["id"]); pending.remove(o); progressed = True

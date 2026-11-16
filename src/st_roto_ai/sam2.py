@@ -182,7 +182,8 @@ class Sam2Video:
 
     def _encode_memory(self, enc, out, from_points):
         h = out["high_res"]
-        mk = (h > 0).astype(np.float32) if from_points else 1.0 / (1.0 + np.exp(-h))
+        with np.errstate(over="ignore"):         # exp(-h) -> inf for very negative logits: sigmoid = 0, as intended
+            mk = (h > 0).astype(np.float32) if from_points else 1.0 / (1.0 + np.exp(-h))
         mk = mk * self.cfg["sigmoid_scale_for_mem_enc"] + self.cfg["sigmoid_bias_for_mem_enc"]
         mem, mem_pos = self.menc.run(None, {"feat": enc["feat"], "mask_for_mem": mk.astype(np.float32)})
         appearing = (out["obj_score"] > 0).astype(np.float32)

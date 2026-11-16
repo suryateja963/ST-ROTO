@@ -59,14 +59,15 @@ def _subtree(conn, object_id):
             continue
         objs.append(dict(r))
         frontier.extend(x["id"] for x in conn.execute("SELECT id FROM objects WHERE parent_id = ? ORDER BY id", (oid,)))
-    shapes, keys, reports = [], [], []
+    shapes, keys, reports, feathers = [], [], [], []
     for o in objs:
         for s in conn.execute("SELECT * FROM shapes WHERE object_id = ? ORDER BY id", (o["id"],)):
             shapes.append(dict(s))
             for k in conn.execute("SELECT * FROM shape_keys WHERE shape_id = ? ORDER BY frame", (s["id"],)):
                 d = dict(k); d["points"] = json.loads(d["points"]); keys.append(d)
             reports += [dict(r) for r in conn.execute("SELECT * FROM key_reports WHERE shape_id = ? ORDER BY frame", (s["id"],))]
-    return {"objects": objs, "shapes": shapes, "keys": keys, "reports": reports}
+            feathers += [dict(r) for r in conn.execute("SELECT * FROM key_feather WHERE shape_id = ? ORDER BY frame", (s["id"],))]
+    return {"objects": objs, "shapes": shapes, "keys": keys, "reports": reports, "feathers": feathers}
 
 
 def _insert(conn, table, row):
@@ -128,6 +129,8 @@ def _restore_subtree(conn, op, actor):
         _insert(conn, "shape_keys", k)
     for r in snap.get("reports", []):
         _insert(conn, "key_reports", r)
+    for r in snap.get("feathers", []):
+        _insert(conn, "key_feather", r)
     return {"op": "delete_subtree", "object_id": snap["objects"][0]["id"]}
 
 
@@ -189,8 +192,9 @@ def _delete_shape(conn, op, actor):
                                 or any(k["origin"] != m.AI_GENERATED for k in keys)):
         raise ProtectedError("AI may not delete shape %s" % s["id"])
     reports = [dict(r) for r in conn.execute("SELECT * FROM key_reports WHERE shape_id = ? ORDER BY frame", (s["id"],))]
+    feathers = [dict(r) for r in conn.execute("SELECT * FROM key_feather WHERE shape_id = ? ORDER BY frame", (s["id"],))]
     conn.execute("DELETE FROM shapes WHERE id = ?", (s["id"],))
-    return {"op": "restore_shape", "shape": s, "keys": keys, "reports": reports}
+    return {"op": "restore_shape", "shape": s, "keys": keys, "reports": reports, "feathers": feathers}
 
 
 def _restore_shape(conn, op, actor):
@@ -199,7 +203,30 @@ def _restore_shape(conn, op, actor):
         _insert(conn, "shape_keys", k)
     for r in op.get("reports", []):
         _insert(conn, "key_reports", r)
+    for r in op.get("feathers", []):
+        _insert(conn, "key_feather", r)
     return {"op": "delete_shape", "id": op["shape"]["id"]}
+
+
+def _set_key_feather(conn, op, actor):
+    """Per-point feather of one frame (T-076): data = [[fx, fy, lx, ly, rx, ry] per point] or None to remove.
+    An artist decision: the AI never edits feather; locked shapes/objects refuse it."""
+    shape = _shape_row(conn, op["shape_id"])
+    frame = int(op["frame"])
+    if actor == m.ACTOR_AI:
+        raise ProtectedError("AI may not edit feather (shape %s)" % shape["id"])
+    if shape["locked"] or _object_locked_chain(conn, shape["object_id"]):
+        raise ProtectedError("shape %s is locked" % shape["id"])
+    prev = conn.execute("SELECT data FROM key_feather WHERE shape_id = ? AND frame = ?", (shape["id"], frame)).fetchone()
+    data = op.get("data")
+    if data is None:
+        conn.execute("DELETE FROM key_feather WHERE shape_id = ? AND frame = ?", (shape["id"], frame))
+    else:
+        data = m.validate_points(data, int(shape["point_count"]))
+        conn.execute("INSERT OR REPLACE INTO key_feather (shape_id, frame, data) VALUES (?, ?, ?)",
+                     (shape["id"], frame, json.dumps(data)))
+    return {"op": "set_key_feather", "shape_id": shape["id"], "frame": frame,
+            "data": json.loads(prev["data"]) if prev else None}
 
 
 def _set_report(conn, op, actor):
@@ -293,7 +320,7 @@ OPS = {
     "create_shape": _create_shape, "delete_shape": _delete_shape, "restore_shape": _restore_shape,
     "update_shape": _update_shape,
     "set_key": _set_key, "delete_key": _delete_key,
-    "set_report": _set_report,
+    "set_report": _set_report, "set_key_feather": _set_key_feather,
 }
 
 
@@ -305,13 +332,19 @@ class CommandBus:
         self._undo = []          # list of (seq, op, inverse, actor)
         self._redo = []
 
-    def execute(self, op: dict, actor: str = m.ACTOR_ARTIST) -> int:
+    def execute(self, op: dict, actor: str = m.ACTOR_ARTIST, origin: tuple = None) -> int:
+        """origin=(op_uuid, site_id) when replaying an operation made elsewhere (st_roto.sync)."""
         if actor not in m.ACTORS:
             raise ValueError("unknown actor %r" % actor)
-        seq, inverse = self._apply_and_log(op, actor, undoes=None, check=True)
+        seq, inverse = self._apply_and_log(op, actor, undoes=None, check=True, origin=origin)
         self._undo.append((seq, op, inverse, actor))
         self._redo.clear()
         return seq
+
+    def _site(self):
+        if not hasattr(self, "_site_cache"):
+            self._site_cache = self.store.site_id()
+        return self._site_cache
 
     def undo(self) -> int | None:
         if not self._undo:
@@ -335,7 +368,7 @@ class CommandBus:
     def can_redo(self) -> bool:
         return bool(self._redo)
 
-    def _apply_and_log(self, op, actor, undoes, check):
+    def _apply_and_log(self, op, actor, undoes, check, origin=None):
         fn = OPS.get(op.get("op"))
         if fn is None:
             raise ValueError("unknown operation %r" % op.get("op"))
@@ -344,8 +377,10 @@ class CommandBus:
             # Undo restores an exact previous state, so it applies as the original actor's inverse without
             # re-running protection (protection was enforced when the original op was accepted).
             inverse = fn(conn, op, actor if check else m.ACTOR_ARTIST)
-            conn.execute("INSERT INTO operations (ts_utc, author, actor, kind, payload, inverse, undoes) "
-                         "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                         (utc_now(), self.author, actor, op["op"], json.dumps(op), json.dumps(inverse), undoes))
+            op_uuid, site = origin if origin else (m.new_id(), self._site())
+            conn.execute("INSERT INTO operations (ts_utc, author, actor, kind, payload, inverse, undoes, op_uuid, "
+                         "site_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                         (utc_now(), self.author, actor, op["op"], json.dumps(op), json.dumps(inverse), undoes,
+                          op_uuid, site))
             seq = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
         return seq, inverse

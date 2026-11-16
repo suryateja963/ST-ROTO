@@ -47,6 +47,11 @@ def test_v1_project_migrates_to_current(tmp_path):
     s.conn.execute("ALTER TABLE shots DROP COLUMN source_fingerprint")   # column added in v4
     for c in ("feather_x", "feather_y", "feather_falloff"):                 # columns added in v5
         s.conn.execute("ALTER TABLE shapes DROP COLUMN %s" % c)
+    s.conn.execute("DROP INDEX idx_operations_uuid")                       # v6 additions
+    for c in ("op_uuid", "site_id"):
+        s.conn.execute("ALTER TABLE operations DROP COLUMN %s" % c)
+    for t in ("sync_peers", "branch_candidates", "key_feather"):        # v6 + v7 tables
+        s.conn.execute("DROP TABLE %s" % t)
     s.conn.execute("PRAGMA user_version = 1"); s.close()        # a genuine v1 file
     s2 = ProjectStore(p)
     assert s2.schema_version() == SCHEMA_VERSION

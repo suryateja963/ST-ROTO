@@ -805,7 +805,8 @@ def on_copy_to_rotopaint(group):
             keys = {k["frame"]: k["points"] for k in store.keys(s["id"])}
             if not keys:
                 continue
-            curves.rootLayer.append(build_shape(curves, s["name"], keys, height, feather_of(store.row("shapes", s["id"]))))
+            curves.rootLayer.append(build_shape(curves, s["name"], keys, height, feather_of(store.row("shapes", s["id"])),
+                                                store.feathers(s["id"])))
             n += 1
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None

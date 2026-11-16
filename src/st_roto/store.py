@@ -13,7 +13,7 @@ import json
 import os
 import sqlite3
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 7
 
 _MIGRATIONS = {
     1: [
@@ -51,6 +51,29 @@ _MIGRATIONS = {
         """CREATE TABLE host_exports (
             host_tag TEXT PRIMARY KEY, shape_id TEXT NOT NULL, host TEXT NOT NULL,
             fingerprint TEXT NOT NULL, exported_utc TEXT NOT NULL)""",
+    ],
+    7: [
+        # Per-point feather (T-076): per keyed frame, per point [feather offset x, y, left tangent x, y, right
+        # tangent x, y] in canonical units (offset in px, y down; tangents as handle offsets), like Roto's
+        # featherCenter / featherLeftTangent / featherRightTangent.
+        """CREATE TABLE key_feather (
+            shape_id TEXT NOT NULL REFERENCES shapes(id) ON DELETE CASCADE,
+            frame INTEGER NOT NULL, data TEXT NOT NULL,
+            PRIMARY KEY (shape_id, frame))""",
+    ],
+    6: [
+        # Replication (T-020 prototype): every operation has a global id and the site where it was made; peers'
+        # sync marks; remote edits that conflict with local ones wait as branch candidates (D-023).
+        """ALTER TABLE operations ADD COLUMN op_uuid TEXT""",
+        """ALTER TABLE operations ADD COLUMN site_id TEXT""",
+        # history from before v6 gets ids too (site unknown = NULL: shared by every copy, never exported)
+        """UPDATE operations SET op_uuid = lower(hex(randomblob(16))) WHERE op_uuid IS NULL""",
+        """CREATE UNIQUE INDEX idx_operations_uuid ON operations(op_uuid)""",
+        """CREATE TABLE sync_peers (site_id TEXT PRIMARY KEY, their_last_seq INTEGER NOT NULL,
+            my_seq_at_sync INTEGER NOT NULL, synced_utc TEXT NOT NULL)""",
+        """CREATE TABLE branch_candidates (id INTEGER PRIMARY KEY AUTOINCREMENT, op_uuid TEXT NOT NULL,
+            from_site TEXT NOT NULL, author TEXT NOT NULL, actor TEXT NOT NULL, payload TEXT NOT NULL,
+            keys TEXT NOT NULL, created_utc TEXT NOT NULL, resolution TEXT, resolved_utc TEXT)""",
     ],
     5: [
         # Shape-level feather (T-073), as Nuke Roto's shape attributes fx / fy (pixels) and ff (falloff exponent).
@@ -93,6 +116,18 @@ class ProjectStore:
                 self.conn.execute("INSERT INTO meta(key, value) VALUES ('format', 'st-roto-project')", ())
 
     # -- schema ---------------------------------------------------------------------------------
+    def site_id(self) -> str:
+        """This copy's replication site id (created on first use; a copied project must get a new one:
+        st_roto.sync.fork_site)."""
+        r = self.conn.execute("SELECT value FROM meta WHERE key = 'site_id'").fetchone()
+        if r:
+            return r[0]
+        import uuid
+        sid = uuid.uuid4().hex
+        with self.transaction():
+            self.conn.execute("INSERT OR REPLACE INTO meta(key, value) VALUES ('site_id', ?)", (sid,))
+        return sid
+
     def schema_version(self) -> int:
         return int(self.conn.execute("PRAGMA user_version").fetchone()[0])
 
@@ -138,6 +173,11 @@ class ProjectStore:
         for r in self.conn.execute("SELECT * FROM shape_keys WHERE shape_id = ? ORDER BY frame", (shape_id,)):
             d = dict(r); d["points"] = json.loads(d["points"]); out.append(d)
         return out
+
+    def feathers(self, shape_id: str) -> dict:
+        """Per-point feather keys {frame: [[fx, fy, lx, ly, rx, ry], ...]} (T-076)."""
+        return {r["frame"]: json.loads(r["data"]) for r in self.conn.execute(
+            "SELECT frame, data FROM key_feather WHERE shape_id = ? ORDER BY frame", (shape_id,))}
 
     def reports(self, shape_id: str):
         return [dict(r) for r in self.conn.execute(

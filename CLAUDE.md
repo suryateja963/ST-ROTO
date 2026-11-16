@@ -5,12 +5,11 @@ Owner's full specification: `docs/MASTER_PROMPT.md` (authoritative). Public repo
 
 ## Where things stand (update this section at the end of every session)
 
-- **Last session ended 2026-11-16** (all work below committed and pushed). Phase 1 done, Phase 2 architecture **approved** (D-026), Phase 3/4 in progress.
-- Working in Nuke 17.1 NC (product code, tested): ST_Roto node → prompts for **several objects** (XY handle, per object name) → Preview → Load model → Track (all prompted objects in one pass, SAM 2.1 video, ONNX Runtime CUDA in-process) → animated native Roto shapes; artist edits imported (never overwritten); Re-track object / **Re-track all** (artist keys as mask prompts, forward + reverse); review flags (LOST / CHECK); **Render mattes (EXR)** (layer per object + combined alpha, model-free soft edges); **JSON/SVG export, JSON import**; Roto **motion blur** knobs; **auto-backups, crash detection + recovery, portable packages**; object panel.
-- Tests: `pytest` 75/75 · headless Nuke 12/12 (`tools/run_nuke_tests.py`) · GUI test passes · CI green (Win/Linux, py3.9/3.11, real py3.7 run).
-- Session 2026-11-16 finished the owner's list: T-067 multi-object, matting step 1 (research + soft edges), T-069/T-070 mattes + EXR + JSON/SVG, T-071 persistence, T-074 motion blur. Evidence in `DEVELOPMENT_LOG.md` and `research/probes/2026-11-16_*`.
-- **Next tasks (proposal, owner to confirm order):** learned matting model for hair (blocked on OQ-22) → T-075 package unpack UI + relink dialog + source fingerprints → T-073 RotoPaint export + feather storage → T-068 review-threshold calibration on real footage (needs OQ-13 footage) → T-056 model registry with checksum verification → T-045 OCIO colour transform.
-- **Open owner questions:** OQ-22 (learned matting model, recommendation ViTMatte-S optional), OQ-16/17 (supervisor lock override), OQ-13 (benchmark footage). See `OPEN_QUESTIONS.md`, `DECISION_REGISTER.md` (D-001..D-029).
+- **Last session ended 2026-11-16 (second session)**; all work committed and pushed. Phase 1 done, Phase 2 approved (D-026), Phase 3/4 in progress.
+- Working in Nuke 17.1 NC (product code, tested): ST_Roto node → prompts for several objects → Track (all objects one pass, SAM 2.1 ONNX/CUDA in-process, checkpointed: **Resume track**) → native animated Roto shapes (split objects → part shapes, adaptive point counts); artist edits imported (never overwritten), shape + per-point feather synced both ways; Re-track object/all; review flags; AI input colour (auto: Nuke default or OCIO working space); model registry verifies every model file (licence/approval/SHA-256); mattes → EXR; JSON/SVG; Copy to RotoPaint; backups, crash recovery, packages with script + relink + fingerprints; motion blur knobs; replication prototype (`st_roto.sync`, not wired to UI).
+- Tests: `pytest` ~120 · headless Nuke 21 (`tools/run_nuke_tests.py`) · GUI tests pass · CI green (Node-24 actions).
+- **Task board state:** everything done except T-068 (real-footage calibration: needs owner approval of a dataset licence, D-020), T-072 (learned matting: OQ-22), T-011b (NDK: D-019 / licence), T-077 (Silhouette/Mocha formats: need the apps), T-078 (temporal review rule: needs real data).
+- **Open owner questions:** OQ-22 (matting model; recommendation ViTMatte-S optional), OQ-16/17 (supervisor lock override, idle threshold), dataset approval under D-020 (recommendation: SA-V subset, CC BY 4.0), new collaboration question (signed audit for every op?). See `OPEN_QUESTIONS.md`, `DECISION_REGISTER.md` (D-001..D-030).
 
 ## Non-negotiable rules (from the owner)
 
@@ -41,7 +40,7 @@ Owner's full specification: `docs/MASTER_PROMPT.md` (authoritative). Public repo
 
 ## Code map
 
-- `src/st_roto/` core, pure Python **3.7-compatible**, must not import nuke/Qt/onnxruntime (enforced by `tests/unit/test_layering.py`): model, store (SQLite, schema v3), commands (op log, undo, batch, REQ-042 protection), geometry (Bézier fitting, sub-pixel contours), jobs, prompts (per object), views, quality, matte (guided-filter soft edges), exr (OpenEXR writer, lazy import), interchange (JSON/SVG), persistence (backups, crash recovery, packages).
+- `src/st_roto/` core (store schema v7), pure Python **3.7-compatible**, must not import nuke/Qt/onnxruntime (enforced by `tests/unit/test_layering.py`): model, store (SQLite, schema v3), commands (op log, undo, batch, REQ-042 protection), geometry (Bézier fitting, sub-pixel contours), jobs, prompts (per object), views, quality, matte (guided-filter soft edges), exr (OpenEXR writer, lazy import), interchange (JSON/SVG), persistence (backups, crash recovery, packages, fingerprints), pieces (split objects), colour (derived matrices + OCIO), calibration, sync (replication prototype).
 - `src/st_roto_ai/` AI layer (no nuke/Qt): runtime (session cache, honest device report, arena shrink), sam2 (image + video tracker port, mask prompts, reverse), resize (exact torch AA resize).
 - `src/st_roto_nuke/` Nuke adapter: node (ST_Roto group), track (multi-object), mattes, roto_export (sync/import), session (marker, recovery, auto-backup), panel, pixels, colour, convention.
 - `nuke_plugin/` init/menu · `tests/unit`, `tests/nuke` · `research/probes/*/RESULTS.md` = evidence for every measured claim.

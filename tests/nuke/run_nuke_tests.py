@@ -948,12 +948,63 @@ def test_feather_and_rotopaint(res):
     return bool(ok)
 
 
+def test_point_feather_roundtrip(res):
+    """T-076: per-point feather (featherCenter keys) of a hand-drawn shape is imported; an edit in Roto is
+    imported (undoable, undo writes it back); the RotoPaint copy renders identically (per-point feather kept)."""
+    import nuke.rotopaint as rp
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    from st_roto_nuke.roto_export import read_point_feather
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=1)
+    proj = os.path.join(tempfile.mkdtemp(), "pf.stroto")
+    g = stnode.create(rd, proj)
+    curves = stnode._INNER[g.fullName()]["roto"]["curves"]
+    sh = rp.Shape(curves)
+    for x, y in ((500.0, 300.0), (700.0, 300.0), (700.0, 450.0), (500.0, 450.0)):
+        cp = rp.ShapeControlPoint(x, y)
+        for f in (0, 1):
+            cp.center.addPositionKey(f, rp.CVec2(x + 10 * f, y))
+        sh.append(cp)
+    sh[1].featherCenter.addPositionKey(0, rp.CVec2(30.0, 30.0))       # point 1 feathered out on frame 0
+    sh[1].featherCenter.addPositionKey(1, rp.CVec2(0.0, 0.0))
+    sh.name = "pf"
+    curves.rootLayer.append(sh)
+    store, bus = session.project(proj)
+    bus.execute({"op": "create_shot", "row": {"id": "shot1", "name": rd.name(), "width": W, "height": H,
+                                              "first_frame": 0, "last_frame": 1}})
+    stnode.resync(g)
+    sid = store.shapes(store.objects("shot1")[0]["id"])[0]["id"]
+    res["imported"] = store.feathers(sid)
+    ok = sorted(res["imported"]) == [0, 1] and res["imported"][0][1][:2] == [30.0, -30.0]   # canonical y down
+    item = [it for it in curves.rootLayer][0]
+    item[1].featherCenter.addPositionKey(0, rp.CVec2(50.0, 0.0))     # artist edit in Roto
+    stnode.resync(g)
+    res["after_edit"] = store.feathers(sid)[0][1][:2]
+    bus.undo()
+    stnode.resync(g, import_first=False)
+    res["roto_after_undo"] = read_point_feather([it for it in curves.rootLayer][0])[0][1][:2]
+    ok &= res["after_edit"] == [50.0, 0.0] and res["roto_after_undo"] == [30.0, -30.0]
+    rpn = stnode.on_copy_to_rotopaint(g)
+    w1 = nuke.nodes.Write(file=OUT + "/pfr.####.tif", file_type="tiff", channels="alpha"); w1.setInput(0, g)
+    w2 = nuke.nodes.Write(file=OUT + "/pfp.####.tif", file_type="tiff", channels="alpha"); w2.setInput(0, rpn)
+    for w in (w1, w2):
+        w["datatype"].setValue("32 bit float"); w["compression"].setValue("none")
+    nuke.execute(w1, 0, 0); nuke.execute(w2, 0, 0)
+    A = cv2.imread(OUT + "/pfr.0000.tif", cv2.IMREAD_UNCHANGED); B = cv2.imread(OUT + "/pfp.0000.tif", cv2.IMREAD_UNCHANGED)
+    A = A if A.ndim == 2 else A[:, :, -1]; B = B if B.ndim == 2 else B[:, :, -1]
+    res["soft_px_frame0"] = int(((A > 0.01) & (A < 0.99)).sum())
+    res["rotopaint_vs_roto_max_abs"] = float(np.abs(A - B).max())
+    ok &= res["soft_px_frame0"] > 500 and res["rotopaint_vs_roto_max_abs"] < 1e-3
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
          test_export_import_shapes, test_crash_recovery_and_package, test_motion_blur_links,
          test_colour_auto_follows_script, test_split_object_parts, test_cancel_and_resume_track,
-         test_package_script_relink, test_feather_and_rotopaint)
+         test_package_script_relink, test_feather_and_rotopaint, test_point_feather_roundtrip)
 
 
 def main():

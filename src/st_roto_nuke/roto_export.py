@@ -12,6 +12,7 @@ import re
 
 from st_roto import views
 from st_roto.store import utc_now
+from .convention import NUKE_TANGENT_SCALE  # noqa: F401  (per-point feather tangents, T-076)
 from .convention import key_to_nuke, nuke_to_key
 
 TAG_RE = re.compile(r"_st([0-9a-f]{8})$")
@@ -51,7 +52,33 @@ def feather_equal(a, b, tol=1e-4) -> bool:
     return all(abs(float(x) - float(y)) <= tol for x, y in zip(a, b))
 
 
-def build_shape(curves_knob, label: str, keys: dict, height: float, feather=None):
+def read_point_feather(shape) -> dict:
+    """Per-point feather keys of a Roto shape {frame: [[fx, fy, lx, ly, rx, ry], ...]} in canonical units: offset
+    y flipped (Nuke y up), tangents halved (Nuke tangent = 2 x handle offset, as for the shape itself). Frames =
+    every key time of any point's featherCenter / feather tangents; {} when the shape has no per-point feather."""
+    cps = list(shape)
+    times = set()
+    for cp in cps:
+        for curve in (cp.featherCenter, cp.featherLeftTangent, cp.featherRightTangent):
+            times.update(int(round(t)) for t in curve.getControlPointKeyTimes())
+    out = {}
+    s = NUKE_TANGENT_SCALE
+    for f in sorted(times):
+        row = []
+        for cp in cps:
+            c, l, r = cp.featherCenter.getPosition(f), cp.featherLeftTangent.getPosition(f), cp.featherRightTangent.getPosition(f)
+            row.append([round(v, 6) + 0.0 for v in (c.x, -c.y, l.x / s, -l.y / s, r.x / s, -r.y / s)])   # +0.0: no -0.0
+        out[f] = row
+    return out
+
+
+def point_feather_equal(a: dict, b: dict, tol: float = 1e-4) -> bool:
+    if set(a) != set(b):
+        return False
+    return all(abs(x - y) <= tol for f in a for p, q in zip(a[f], b[f]) for x, y in zip(p, q))
+
+
+def build_shape(curves_knob, label: str, keys: dict, height: float, feather=None, point_feather=None):
     """Create (not yet attached) a fully keyed nuke.rotopaint.Shape from {frame: points}, with the shape-level
     feather (fx, fy, ff) if given. Keys are added BEFORE points are appended: later keys are silently lost in
     Nuke 17.1 (R-33)."""
@@ -68,6 +95,12 @@ def build_shape(curves_knob, label: str, keys: dict, height: float, feather=None
             cp.center.addPositionKey(f, rp.CVec2(cx, cy))
             cp.leftTangent.addPositionKey(f, rp.CVec2(*lt))
             cp.rightTangent.addPositionKey(f, rp.CVec2(*rt))
+        for f, rows in sorted((point_feather or {}).items()):     # T-076; keys before append (R-33)
+            fx, fy, lx, ly, rx, ry = rows[i]
+            sc = NUKE_TANGENT_SCALE
+            cp.featherCenter.addPositionKey(f, rp.CVec2(fx, -fy))
+            cp.featherLeftTangent.addPositionKey(f, rp.CVec2(lx * sc, -ly * sc))
+            cp.featherRightTangent.addPositionKey(f, rp.CVec2(rx * sc, -ry * sc))
         cps.append(cp)
     shape = rp.Shape(curves_knob)
     for cp in cps:
@@ -112,7 +145,8 @@ def export_shape(store, shape_id: str, curves_knob, height: float, layer=None):
     keys = {k["frame"]: k["points"] for k in store.keys(shape_id)}
     if not keys:
         raise ValueError("shape %s has no keys to export" % shape_id)
-    shape = build_shape(curves_knob, shape_label(row["name"], shape_id), keys, height, feather_of(row))
+    shape = build_shape(curves_knob, shape_label(row["name"], shape_id), keys, height, feather_of(row),
+                        store.feathers(shape_id))
     (layer if layer is not None else curves_knob.rootLayer).append(shape)
     _record(store, shape_id, keys)
     return shape
@@ -150,23 +184,28 @@ def sync_shot(store, shot_id: str, curves_knob, height: float) -> dict:
         db_keys = {k["frame"]: k["points"] for k in store.keys(s["id"])}
         label = shape_label(s["name"], s["id"])
         feather = feather_of(store.row("shapes", s["id"]))
+        pfeather = store.feathers(s["id"])
         if tag in existing:
             host_keys = read_keys(existing[tag], height)
             rec = _recorded(store, tag)
             if rec is not None and not keys_equal(host_keys, rec):
                 report["conflicts"].append(existing[tag].name); continue          # edited in Roto: hands off
             if keys_equal(host_keys, db_keys) and existing[tag].name == label:
+                if not point_feather_equal(read_point_feather(existing[tag]), pfeather):
+                    _remove(layer, existing[tag])                                 # per-point feather changed
+                    layer.append(build_shape(curves_knob, label, db_keys, height, feather, pfeather))
+                    report["updated"].append(label); continue
                 if not feather_equal(read_feather(existing[tag]), feather):      # e.g. undo of a feather edit
                     write_feather(existing[tag], feather); report["updated"].append(label); continue
                 report["unchanged"].append(label); continue
             _remove(layer, existing[tag])
             if db_keys:
-                layer.append(build_shape(curves_knob, label, db_keys, height, feather)); _record(store, s["id"], db_keys)
+                layer.append(build_shape(curves_knob, label, db_keys, height, feather, pfeather)); _record(store, s["id"], db_keys)
                 report["updated"].append(label)
             else:
                 _forget(store, tag); report["removed"].append(label)
         elif db_keys:
-            layer.append(build_shape(curves_knob, label, db_keys, height, feather)); _record(store, s["id"], db_keys)
+            layer.append(build_shape(curves_knob, label, db_keys, height, feather, pfeather)); _record(store, s["id"], db_keys)
             report["written"].append(label)
     for tag, item in existing.items():
         if tag in seen:
@@ -218,6 +257,12 @@ def import_edits(store, bus, shot_id: str, curves_knob, height: float, static_fr
             feather_ops = [] if feather_equal(host_feather, feather_of(shape)) else [
                 {"op": "update_shape", "id": shape["id"], "fields": dict(zip(("feather_x", "feather_y", "feather_falloff"),
                                                                               host_feather))}]
+            host_pf, db_pf = read_point_feather(item), store.feathers(shape["id"])
+            if len(item) == int(shape["point_count"]) and not point_feather_equal(host_pf, db_pf):
+                feather_ops += [{"op": "set_key_feather", "shape_id": shape["id"], "frame": f, "data": host_pf[f]}
+                                for f in sorted(host_pf) if f not in db_pf or not point_feather_equal({f: host_pf[f]}, {f: db_pf[f]})]
+                feather_ops += [{"op": "set_key_feather", "shape_id": shape["id"], "frame": f, "data": None}
+                                for f in sorted(db_pf) if f not in host_pf]
             if keys_equal(host, rec):
                 if feather_ops:                                    # only the feather was changed in Roto
                     try:
@@ -250,10 +295,12 @@ def import_edits(store, bus, shot_id: str, curves_knob, height: float, static_fr
                    {"op": "create_shape", "row": {"id": sid, "object_id": oid, "name": name, "point_count": n,
                                                   "feather_x": fx, "feather_y": fy, "feather_falloff": ff}}]
             ops += [{"op": "set_key", "shape_id": sid, "frame": f, "points": host[f]} for f in sorted(host)]
+            pf = read_point_feather(item)
+            ops += [{"op": "set_key_feather", "shape_id": sid, "frame": f, "data": pf[f]} for f in sorted(pf)]
             bus.execute({"op": "batch", "ops": ops})
             label = shape_label(name, sid)
             _remove(layer, item)                                   # re-create with the tag (rename-safe)
-            layer.append(build_shape(curves_knob, label, host, height, (fx, fy, ff)))
+            layer.append(build_shape(curves_knob, label, host, height, (fx, fy, ff), pf))
             _record(store, sid, host)
             report["new_objects"].append(label)
     return report

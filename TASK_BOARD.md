@@ -1,11 +1,20 @@
 # Task Board
 
-Updated 2026-11-16.
+Updated 2026-11-16 (second session).
 
 ## Done
 
 | ID | Task | Evidence |
 |---|---|---|
+| T-076 | Per-point feather (schema v7 `key_feather`): imported from / synced to Roto (undoable, AI refused, locks respected, kept by delete/undo snapshots), RotoPaint copy pixel-identical, JSON, sync conflict key | `tests/unit/test_point_feather.py`, `tests/nuke` `test_point_feather_roundtrip` |
+| T-068a | Calibration tooling + provisional run on synthetic data: current thresholds catch 6/7 bad frames with 14 flags; predicted IoU uninformative (corr 0.015); a confidently wrong frame needs a temporal rule. Defaults kept | `research/probes/2026-11-16_calibration/RESULTS.md` |
+| T-020 | Collaboration architecture (Proposed) + working replication prototype: op ids + origin site (schema v6), file transport, per-(shape, frame) auto-merge, same-key edits kept as branch candidates (D-023), resolve with tombstones, idempotent, protection still applies | `docs/COLLABORATION_ARCHITECTURE.md`, `src/st_roto/sync.py`, `tests/unit/test_sync.py` |
+| T-035 | Implications of D-022..D-025 for the design (one protocol / two transports, branches per key, leases + presence, roles + revocation) | `docs/COLLABORATION_ARCHITECTURE.md` §2 |
+| T-036 | Benchmark datasets and licences: SA-V CC BY 4.0 (only permissive real-video GT found, masks only); MOSE NC; DAVIS data terms not stated; no permissive video-matting GT. Recommendation for D-020 approval | `docs/RESEARCH_2026-11-16_BENCHMARK_DATASETS.md` |
+| T-034 | Competitor survey: Foundry SmartRoto (Jul 2026, spline AI, US$499 add-on), Nuke 17 CopyCat/BigCat, Silhouette 2026, Mocha Pro 2026.5, Roto Brush, Magic Mask, OpenMatte | `docs/RESEARCH_2026-11-16_COMPETITORS.md` |
+| T-033 | Nuke API audit (measured in NC): no viewer pick events in Python (NDK only), XY/BBox handles + PyCustom_Knob work, Deep nodes and stereo views available | `research/probes/2026-11-16_api_audit/RESULTS.md` |
+| T-032 | Python/Qt/compiler/CUDA per Nuke line 13 to 17.1 (3.7/PySide2 5.12 … 3.11/PySide6 6.5; VS2017/2019/2022; CUDA 10.1 → 12.8) | `COMPATIBILITY_MATRIX.md` |
+| T-030b/T-031b | Licence texts (PyTorch, DirectML, OpenVINO, CUDA EULA key clauses); weights terms (Cutie, SEA-RAFT, RTMPose, Grounding DINO conflict resolved: not production); categories: no permissive hair/motion-blur models, VOID (video inpainting) to verify | `docs/RESEARCH_2026-11-16_LICENCES_AND_CATEGORIES.md` |
 | T-011a | Route A proven in NC: TorchScript (torch 2.7.1) → CatFileCreator → `.catnc` → Inference; CPU bit-identical to PyTorch, GPU 1.2e-7; 720p 0.017 s/frame GPU. Per-frame stateless: fits matting/refinement, not SAM video tracking | `research/probes/2026-11-16_route_a/RESULTS.md` |
 | T-046 | Pixel path researched and measured: Nuke Python has no buffer API (only per-pixel sample: 141 s/frame at 720p); current float TIFF is exact and fastest exact (0.022 s 720p, 0.041 s 1080p); kept (D-030); true in-memory needs the NDK (T-011b) | `research/probes/2026-11-16_pixels/RESULTS.md` |
 | T-012 | One requirement ID per master-prompt bullet: 740 items generated verbatim with their lead-in and group row (`tools/docs/split_requirements.py`); 16 group rows updated with this session's evidence | `docs/REQUIREMENTS_DETAILED.md`, `REQUIREMENTS_REGISTER.md` |
@@ -60,19 +69,12 @@ Updated 2026-11-16.
 | ID | Task | Blocked by |
 |---|---|---|
 | T-011b | In-process inference prototypes, routes B and D (NDK C++) | OQ-01; VS 2022 Build Tools + CMake not installed (OQ-14) |
-| T-020 | Collaboration architecture | Unblocked by D-022..D-025 (OQ-16/17 minor) |
 
 ## Ready (desk research, can proceed now)
 
 | ID | Task |
 |---|---|
-| T-068 | Calibrate review thresholds (OBJECT_SCORE_MARGIN, IOU_PRED_MIN) on real footage with ground truth (benchmark plan) |
-| T-076 | Per-point feather (featherCenter/tangents) storage and export; Silhouette/Mocha direct formats (need those applications to validate) |
+| T-068 | Calibrate review thresholds on REAL footage: tool ready (`tools/benchmark/calibrate_review.py --dir`); needs owner approval of a dataset licence (D-020, recommendation SA-V subset). Also evaluate a temporal-consistency rule (confidently wrong split frame found) |
+| T-077 | Silhouette / Mocha direct shape formats — need those applications (or published specs) to validate; both already export Nuke Roto, which ST-ROTO ingests |
+| T-078 | Temporal-consistency review rule (sudden area/shape change) for confidently wrong frames — evaluate with real footage (T-068) |
 | T-072 | Learned matting model (hair) — waits for OQ-22 |
-| T-030b | Remaining licence texts: Cutie weights, Adobe DIM dataset, SEA-RAFT/RTMPose weights, NVIDIA, PyTorch, DirectML, OpenVINO |
-| T-031b | Remaining categories: hair-specific, motion-blur reconstruction, occlusion reasoning, permissive video matting/inpainting; resolve Grounding DINO conflict |
-| T-032 | Tabulate Python, Qt, compiler and CUDA versions for Nuke 13 to 17.1 |
-| T-033 | Audit Nuke Python and NDK APIs for viewer interaction, custom knobs, Deep, stereo |
-| T-034 | Competitor survey (§21) |
-| T-035 | Research implications of the five collaboration decisions |
-| T-036 | Identify open benchmark datasets with ground-truth mattes and their licences |
