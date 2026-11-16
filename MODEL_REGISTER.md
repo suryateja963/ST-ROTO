@@ -69,3 +69,5 @@ Hair-specific segmentation, motion-blur reconstruction, occlusion reasoning (bey
 - M-03 Cutie: weights licence **not stated** on the repository (re-checked); not usable until known.
 - M-26 Netflix VOID (video object removal, CogVideoX-based): reported Apache-2.0 by secondary sources — verify primary repository and base-model licence.
 - Hair-specific, motion-blur reconstruction, occlusion reasoning: no permissive candidates (see `docs/RESEARCH_2026-11-16_LICENCES_AND_CATEGORIES.md`).
+
+- **M-05 ViTMatte-S: owner-approved as OPTIONAL learned matting (D-032)** — downloaded (rev 6a58ad76), exported to ONNX (exact vs PyTorch), offered with the Composition-1k caveat; measured vs guided filter in `research/probes/2026-11-16_matting/RESULTS_vitmatte.md`.

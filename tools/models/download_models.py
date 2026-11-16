@@ -17,6 +17,8 @@ CATALOGUE = {
     "sam2.1-hiera-tiny":  {"repo": "facebook/sam2.1-hiera-tiny",  "licence": "apache-2.0", "approval": "D-015"},
     "sam2.1-hiera-small": {"repo": "facebook/sam2.1-hiera-small", "licence": "apache-2.0", "approval": "D-015"},
     "sam2.1-hiera-large": {"repo": "facebook/sam2.1-hiera-large", "licence": "apache-2.0", "approval": "owner request 2026-11-15"},
+    # D-032: optional learned matting; weights Apache-2.0, trained on Composition-1k (Adobe DIM terms: caveat shown)
+    "vitmatte-small-composition-1k": {"repo": "hustvl/vitmatte-small-composition-1k", "licence": "apache-2.0", "approval": "D-032"},
 }
 
 

@@ -1,0 +1,38 @@
+{
+ "soft_edge": {
+  "hard_shape": 0.47,
+  "guided_filter": 0.207,
+  "vitmatte_s": 0.215,
+  "seconds": {
+   "guided": 0.084,
+   "vitmatte_cpu": 0.211
+  }
+ },
+ "offset_edge": {
+  "hard_shape": 1.27,
+  "guided_filter": 0.893,
+  "vitmatte_s": 0.227,
+  "seconds": {
+   "guided": 0.1,
+   "vitmatte_cpu": 0.202
+  }
+ },
+ "motion_blur": {
+  "hard_shape": 1.493,
+  "guided_filter": 0.518,
+  "vitmatte_s": 0.675,
+  "seconds": {
+   "guided": 0.093,
+   "vitmatte_cpu": 0.199
+  }
+ },
+ "hair": {
+  "hard_shape": 1.106,
+  "guided_filter": 0.952,
+  "vitmatte_s": 0.692,
+  "seconds": {
+   "guided": 0.095,
+   "vitmatte_cpu": 0.202
+  }
+ }
+}

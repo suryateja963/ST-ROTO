@@ -1,0 +1,15 @@
+{
+ "files": {
+  "validate.json": {
+   "bytes": 264,
+   "sha256": "790f656267e4809da8a05a2061189971539532ba9ce2a3c8c8c92e0427b2112b"
+  },
+  "vitmatte.onnx": {
+   "bytes": 103910772,
+   "sha256": "502647c6a4cb4e7b3e5310e6422cb853676e5faa6ff8fc8c5a802b81a130a7c3"
+  }
+ },
+ "name": "vitmatte-small-composition-1k",
+ "source_revision": "6a58ad7646403c1df626fbd746900aec7361ea1d",
+ "tool": "tools/models/export_sam2_onnx.py + export_sam2_video_onnx.py + convert_fp16.py"
+}

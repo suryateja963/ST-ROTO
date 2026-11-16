@@ -302,3 +302,7 @@ Schema v5 (shape feather x/y/falloff, as Roto's fx/fy/ff); feather written to Ro
 ## 2026-11-16 (second session) — Temporal review rule (T-078)
 
 `quality.area_jumps`: a frame whose object area (main + parts, from the stored splines) differs by more than 35 % from both nearest present frames is flagged CHECK. Motivated by the calibration finding (reverse split frame: score 8.0, predicted IoU 0.98, true IoU 0.42 — no score rule can catch it). Nuke: reverse test now flags 23 (true error) and 24 (CPU-run truth 0.986 → possibly a false alarm; GPU-run truth not recorded); the good forward track gets no new flags. Threshold uncalibrated until real data (OQ-23). Unit + Nuke review tests pass.
+
+## 2026-11-16 — Owner approvals D-031 (SA-V subset) and D-032 (ViTMatte-S); ViTMatte integrated
+
+ViTMatte-S downloaded through the licence-checked catalogue, exported to ONNX (exact vs PyTorch at 5 sizes), registered, integrated as an optional *edges* choice with the training-data caveat in tooltip and status. Measured vs the guided filter: better on hair and slightly-off shapes, worse on motion blur (`research/probes/2026-11-16_matting/RESULTS_vitmatte.md`). A registry unit test assumed every model has video graphs; fixed. SA-V: the val split is one 16 GB tar behind a consent click on Meta's site that issues expiring links — the owner must click it; a streaming subset tool is prepared.

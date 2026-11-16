@@ -999,12 +999,43 @@ def test_point_feather_roundtrip(res):
     return bool(ok)
 
 
+def test_vitmatte_mattes(res):
+    """D-032: 'edges' = ViTMatte-S on the node -> EXR mattes via the optional model inside Nuke (verified by the
+    registry), training-data caveat in the status, alpha soft only around the edge, interior/exterior exact."""
+    if not os.path.exists(ROOT + "/models/onnx/vitmatte-small-composition-1k/vitmatte.onnx"):
+        res["skipped"] = "ViTMatte-S not installed (optional)"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto import exr
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vh, n = meta["h"], 2
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    g = stnode.create(rd, os.path.join(tempfile.mkdtemp(), "vm.stroto"))
+    g["stroto_click"].setValue([meta["click_xy"][0], vh - meta["click_xy"][1]]); stnode.on_add_point(g, 1)
+    stnode.on_track(g, background=False)
+    g["stroto_edges"].setValue("ViTMatte-S (optional AI)")
+    t0 = __import__("time").time()
+    jm = stnode.on_render_mattes(g, background=False)
+    res["seconds"] = round(__import__("time").time() - t0, 2)
+    res["status"] = g["stroto_status"].value()
+    ok = jm is not None and jm.status == "done" and "Composition-1k" in res["status"] and "ViTMatte-S edges" in res["status"]
+    a = exr.read_channels(jm.result["files"][0])["A"]
+    gt = cv2.imread(VIDEO + "/gt_0000.png", cv2.IMREAD_GRAYSCALE) > 127
+    soft = (a > 0.02) & (a < 0.98)
+    res["soft_px"] = int(soft.sum())
+    res["meta_method"] = json.loads(__import__("OpenEXR").File(jm.result["files"][0]).header()["st_roto"])["method"]
+    res["iou_vs_gt_at_0.5"] = round(iou(a > 0.5, gt), 4)
+    ok &= res["meta_method"] == "vitmatte" and 0 < res["soft_px"] < 0.05 * a.size and res["iou_vs_gt_at_0.5"] > 0.97
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
          test_export_import_shapes, test_crash_recovery_and_package, test_motion_blur_links,
          test_colour_auto_follows_script, test_split_object_parts, test_cancel_and_resume_track,
-         test_package_script_relink, test_feather_and_rotopaint, test_point_feather_roundtrip)
+         test_package_script_relink, test_feather_and_rotopaint, test_point_feather_roundtrip,
+         test_vitmatte_mattes)
 
 
 def main():

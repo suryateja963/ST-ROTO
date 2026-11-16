@@ -90,7 +90,14 @@ def create(source=None, project_path: str = ""):
                   new_line=False)
     imp.setTooltip("Records shapes you edited or drew in this node's Roto into the ST-ROTO project (undoable).")
     group.addKnob(nuke.Text_Knob("stroto_div3", "mattes"))
+    meth = nuke.Enumeration_Knob("stroto_edges", "edges", ["guided filter", "ViTMatte-S (optional AI)", "hard"])
+    meth.setTooltip("guided filter: model-free soft edges. ViTMatte-S: learned matting, better on hair and slightly "
+                    "inaccurate shapes, weaker on motion blur (measured); optional download. NOTE: its weights are "
+                    "Apache-2.0 but were trained on Composition-1k (Adobe Deep Image Matting data, terms on request "
+                    "from Adobe) - check that this suits your use. hard: mattes identical to the shapes.")
+    group.addKnob(meth)
     soft = nuke.Boolean_Knob("stroto_soft", "soft edges"); soft.setValue(True); group.addKnob(soft)
+    soft.setVisible(False)                                   # kept for scripts made before the 'edges' choice
     soft.setTooltip("Refine a narrow band around each shape's edge against the plate (guided filter, no AI model). "
                     "Off: hard mattes identical to the shapes.")
     band = nuke.Int_Knob("stroto_band", "edge band"); band.setValue(3); band.clearFlag(nuke.STARTLINE); group.addKnob(band)
@@ -530,6 +537,11 @@ def on_render_mattes(group, background: bool = True):
         frames = list(range(int(src.firstFrame()), int(src.lastFrame()) + 1))
         out_dir = group["stroto_matte_dir"].value().strip() or default_output_dir(project, src.name())
         soft = bool(group["stroto_soft"].value())
+        method = {"guided filter": "guided", "ViTMatte-S (optional AI)": "vitmatte", "hard": "hard"}.get(
+            group["stroto_edges"].value() if "stroto_edges" in group.knobs() else "", "guided" if soft else "hard")
+        if not soft:
+            method = "hard"                                  # old scripts / tests that switch soft edges off
+        dev = group["stroto_device"].value()
         band, radius = max(1, int(group["stroto_band"].value())), max(1, int(group["stroto_radius"].value()))
         ctransform = _colour(group)
         ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name())}
@@ -540,7 +552,8 @@ def on_render_mattes(group, background: bool = True):
     def work(job):
         ro = store_ro(project)          # worker thread: its own connection
         try:
-            return render_mattes(get_rgb, ro, shot["id"], frames, out_dir, soft=soft, band=band, radius=radius,
+            return render_mattes(get_rgb, ro, shot["id"], frames, out_dir, soft=soft, method=method,
+                                 models_root=models_root(), device=dev, band=band, radius=radius,
                                  job=job, colour_transform=ctransform)
         finally:
             ro.close()
@@ -548,8 +561,11 @@ def on_render_mattes(group, background: bool = True):
     def apply(job):
         r = job.result
         msg = "mattes: %d frames -> %s (layers: %s; %s edges, %.1f s)" % (
-            len(r["files"]), r["pattern"], ", ".join(sorted(r["layers"].values())), "soft" if soft else "hard",
-            r["seconds"])
+            len(r["files"]), r["pattern"], ", ".join(sorted(r["layers"].values())),
+            {"guided": "guided-filter", "vitmatte": "ViTMatte-S", "hard": "hard"}[method], r["seconds"])
+        if method == "vitmatte":
+            from st_roto_ai.vitmatte import CAVEAT
+            msg += ". " + CAVEAT
         if r["frames_interpolated"]:
             msg += "; frames between keys (linear, may differ from Roto): %s" % "; ".join(
                 "%s %s" % (k, _ranges(v)) for k, v in sorted(r["frames_interpolated"].items()))

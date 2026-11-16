@@ -94,5 +94,7 @@ def test_real_models_are_registered():
         pytest.skip("no exported models here")
     for m in rows:
         assert m["usable"], m
-        p = os.path.join(root, "onnx", m["name"], "video", "config.json")
+        exp = json.load(open(os.path.join(root, "manifests", m["name"] + ".exports.json")))
+        smallest = min(exp["files"], key=lambda f: exp["files"][f]["bytes"])         # cheap to hash
+        p = os.path.join(root, "onnx", m["name"], *smallest.split("/"))
         assert reg.verify_file(p)["model"] == m["name"]
