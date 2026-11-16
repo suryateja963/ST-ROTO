@@ -23,7 +23,7 @@ def test_review_rules():
 
 def test_reports_undo_and_subtree(tmp_path):
     s = ProjectStore(str(tmp_path / "q.stroto")); bus = CommandBus(s)
-    assert s.schema_version() == 3
+    assert s.schema_version() >= 3                                  # key_reports exist from v3 on
     bus.execute({"op": "create_shot", "row": {"id": "S", "name": "sh"}})
     bus.execute({"op": "create_object", "row": {"id": "O", "shot_id": "S", "name": "o"}}, actor=m.ACTOR_AI)
     bus.execute({"op": "create_shape", "row": {"id": "P", "object_id": "O", "name": "o", "point_count": 2}}, actor=m.ACTOR_AI)

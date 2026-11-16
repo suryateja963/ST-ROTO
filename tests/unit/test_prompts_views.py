@@ -44,11 +44,13 @@ def test_v1_project_migrates_to_current(tmp_path):
     s = ProjectStore(p)
     for t in ("host_exports", "key_reports"):                  # every table added after v1
         s.conn.execute("DROP TABLE %s" % t)
+    s.conn.execute("ALTER TABLE shots DROP COLUMN source_fingerprint")   # column added in v4
     s.conn.execute("PRAGMA user_version = 1"); s.close()        # a genuine v1 file
     s2 = ProjectStore(p)
     assert s2.schema_version() == SCHEMA_VERSION
     for t in ("host_exports", "key_reports"):
         assert s2.conn.execute("SELECT name FROM sqlite_master WHERE name=?", (t,)).fetchone() is not None
+    assert "source_fingerprint" in [r[1] for r in s2.conn.execute("PRAGMA table_info(shots)")]
     s2.close()
 
 

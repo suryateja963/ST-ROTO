@@ -276,3 +276,11 @@ Knob names measured on Nuke 17.1 (`motionblur_mode`, `global_motionblur`, `globa
 ## 2026-11-16 — Resumable tracking (T-048)
 
 Checkpointed Track with 'Resume track' (details and numbers: `research/probes/2026-11-16_resume/RESULTS.md`). Identical results after cancel and after a simulated crash (CPU proof); +1.2 % tracking time; ~2.4 MB per object-frame on disk while interrupted (R-44). Unit 99/99, Nuke 15/15.
+
+## 2026-11-16 — Package unpack in Nuke, relink, source fingerprints (T-075)
+
+**Work.** Schema v4 (`shots.source_fingerprint`); undoable `update_shot` op (AI refused); `persistence.fingerprint_sequence` (SHA-256 + size of the shot's own first and last frame, frame count), `compare_fingerprint` (match / different / missing / unknown), `relink_shot` (refuses different footage), `relink_path` / `relink_text`; packages include the saved Nuke script and the original project path; `st_roto_nuke.packages` (unpack + ask for missing plates until the fingerprint matches; menu *ST-ROTO › Unpack project package…*; `apply_relink_to_open_script`).
+
+**Found by the Nuke test (three real problems, all fixed).** (1) My first fingerprint hashed the first/last file of the whole folder (48 frames) although the shot uses 0–2 → "different" for identical footage; now the shot's frame range. (2) Nuke stores the Read path as `d:/…/frame_%04d.png` when given `D:/…/frame_####.png`: prefix matching is now case-insensitive for Windows paths and frame patterns accept both spellings. (3) **Nuke Non-commercial saves scripts encrypted** (`.nknc`, "Nuke NC mode encrypted text"), so text relinking of scripts cannot work there; unpack writes a sidecar map and the paths are applied in the opened script (only ST_Roto groups and their Read inputs are touched: 10-node limit). Plain-text scripts (commercial editions) are rewritten directly (unit-tested). Also: a unit test hard-coded schema 3; a heredoc turned `\` into `\` in a test (raw string now).
+
+**Tests.** Unit 104/104 (fingerprints: moved vs different footage, frame ranges; undo of relink; package with plain-text script; unpack asks again after wrong footage). Nuke 16/16: new `test_package_script_relink` (saved NC script + Track → package → unpack with plates moved → script opened, relinked from the sidecar: Read on the moved plates, ST_Roto on the unpacked project, fingerprint match, shapes present).

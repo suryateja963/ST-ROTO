@@ -132,6 +132,24 @@ def _restore_subtree(conn, op, actor):
 
 
 _OBJECT_FIELDS = ("name", "locked", "color", "parent_id")
+_SHOT_FIELDS = ("name", "source_path", "source_fingerprint", "width", "height", "first_frame", "last_frame")
+
+
+def _update_shot(conn, op, actor):
+    """Shot metadata (e.g. relinking its source, T-075); AI may not change shots."""
+    r = conn.execute("SELECT * FROM shots WHERE id = ?", (op["id"],)).fetchone()
+    if r is None:
+        raise KeyError("no shot %s" % op["id"])
+    fields = dict(op["fields"])
+    for f in fields:
+        if f not in _SHOT_FIELDS:
+            raise ValueError("field %r not editable" % f)
+    if actor == m.ACTOR_AI:
+        raise ProtectedError("AI may not edit shot %s" % op["id"])
+    old = {f: r[f] for f in fields}
+    conn.execute("UPDATE shots SET %s WHERE id = ?" % ", ".join("%s = ?" % f for f in fields),
+                 list(fields.values()) + [op["id"]])
+    return {"op": "update_shot", "id": op["id"], "fields": old}
 
 
 def _update_object(conn, op, actor):
@@ -269,7 +287,7 @@ def _batch(conn, op, actor):
 
 OPS = {
     "batch": _batch,
-    "create_shot": _create_shot, "delete_shot": _delete_shot,
+    "create_shot": _create_shot, "delete_shot": _delete_shot, "update_shot": _update_shot,
     "create_object": _create_object, "delete_subtree": _delete_subtree, "restore_subtree": _restore_subtree,
     "update_object": _update_object,
     "create_shape": _create_shape, "delete_shape": _delete_shape, "restore_shape": _restore_shape,

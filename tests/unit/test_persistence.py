@@ -163,3 +163,103 @@ def test_unpack_refuses_tampered_or_unsafe_packages(tmp_path):
     with pytest.raises(ValueError, match="checksum"):
         ps.unpack(bad2, str(tmp_path / "u2"))
     assert not os.path.exists(str(tmp_path / "evil.txt"))
+
+
+def _plates(d, tag=b"a", frames=(1, 2, 3)):
+    d.mkdir(parents=True, exist_ok=True)
+    for f in frames:
+        (d / ("plate.%04d.exr" % f)).write_bytes(tag + b"%d" % f)
+    return str(d / "plate.####.exr").replace("\\", "/")
+
+
+def test_fingerprint_tells_moved_from_different_footage(tmp_path):
+    a = _plates(tmp_path / "a")
+    fp = ps.fingerprint_sequence(a)
+    moved = _plates(tmp_path / "moved")                                  # same bytes elsewhere
+    other = _plates(tmp_path / "other", tag=b"b")                       # same names, different content
+    assert ps.compare_fingerprint(fp, moved)["state"] == "match"
+    assert ps.compare_fingerprint(fp, other)["state"] == "different"
+    assert ps.compare_fingerprint(fp, str(tmp_path / "none" / "x.####.exr"))["state"] == "missing"
+    assert ps.compare_fingerprint(None, moved)["state"] == "unknown"
+    assert ps.fingerprint_sequence(str(tmp_path / "nothing.####.exr")) is None
+
+
+def test_relink_shot_checks_fingerprint_and_is_undoable(tmp_path):
+    a = _plates(tmp_path / "a")
+    s, bus = _make(str(tmp_path / "p.stroto"), a)
+    bus.execute({"op": "update_shot", "id": "S", "fields": {"source_fingerprint": ps.fingerprint_sequence(a)}})
+    with pytest.raises(ValueError, match="not the recorded footage"):
+        ps.relink_shot(bus, "S", _plates(tmp_path / "other", tag=b"b"))
+    moved = _plates(tmp_path / "moved")
+    assert ps.relink_shot(bus, "S", moved)["state"] == "match"
+    assert s.row("shots", "S")["source_path"] == moved
+    bus.undo()
+    assert s.row("shots", "S")["source_path"] == a
+    from st_roto.commands import ProtectedError
+    from st_roto import model as m
+    with pytest.raises(ProtectedError):
+        bus.execute({"op": "update_shot", "id": "S", "fields": {"source_path": "x"}}, actor=m.ACTOR_AI)
+    s.close()
+
+
+def test_package_with_script_rewrites_paths(tmp_path):
+    plates = _plates(tmp_path / "plates")
+    proj = str(tmp_path / "work" / "show.stroto"); os.makedirs(os.path.dirname(proj))
+    s, bus = _make(proj, plates)
+    bus.execute({"op": "update_shot", "id": "S", "fields": {"source_fingerprint": ps.fingerprint_sequence(plates)}})
+    s.close()
+    nk = tmp_path / "work" / "show.nk"
+    nk.write_text('Read {\n file "%s"\n}\nGroup {\n stroto_project "%s"\n}\n' % (plates, proj.replace("\\", "/")))
+    z = str(tmp_path / "pkg.zip")
+    man = ps.pack(proj, z, scripts=[str(nk)])
+    assert man["scripts"] == ["scripts/show.nk"] and "scripts/show.nk" in man["files"]
+    newplates = tmp_path / "studio" / "plates"
+    _plates(newplates)                                                   # the plates were moved, same content
+    out = ps.unpack(z, str(tmp_path / "studio" / "job"),
+                    relink={str(tmp_path / "plates").replace("\\", "/"): str(newplates).replace("\\", "/")})
+    text = open(out["scripts"][0]).read()
+    assert str(newplates).replace("\\", "/") + "/plate.####.exr" in text
+    assert out["project"].replace("\\", "/") in text and str(tmp_path / "work").replace("\\", "/") not in text
+    assert out["fingerprints"] == {"S": "match"} and out["missing_sources"] == []
+
+
+def test_relink_path_windows_case_and_frame_ranges(tmp_path):
+    """Nuke stores 'd:/...' and '%04d' even when given 'D:\\...' and '####' (measured in T-075)."""
+    m = {"D:\\ST-ROTO\\frames": "E:/plates"}
+    assert ps.relink_path("d:/ST-ROTO/frames/frame_%04d.png", m) == "E:/plates/frame_%04d.png"
+    assert ps.relink_path("d:/ST-ROTO/framesX/a.png", m) == "d:/ST-ROTO/framesX/a.png"     # prefix must end a folder
+    assert ps.relink_path("/mnt/Show/a.exr", {"/mnt/show": "/x"}) == "/mnt/Show/a.exr"     # POSIX: case matters
+    assert ps.frame_file("a.####.exr", 7) == "a.0007.exr" and ps.frame_file("a.####.exr", -2) == "a.-002.exr"
+    assert ps.frame_file("a.%04d.exr", 12) == "a.0012.exr"
+    d = tmp_path / "f"; d.mkdir()
+    for f in range(0, 10):
+        (d / ("a.%04d.exr" % f)).write_bytes(b"%d" % f)
+    pat = str(d / "a.%04d.exr")
+    fp = json.loads(ps.fingerprint_sequence(pat, 0, 2))                # the shot uses 0-2 of a 10-frame folder
+    assert fp["last"]["name"] == "a.0002.exr" and fp["files"] == 3
+    moved = tmp_path / "m"; moved.mkdir()
+    for f in range(0, 3):
+        (moved / ("a.%04d.exr" % f)).write_bytes(b"%d" % f)
+    assert ps.compare_fingerprint(json.dumps(fp), str(moved / "a.####.exr"))["state"] == "match"
+
+
+def test_unpack_and_relink_asks_until_the_right_footage(tmp_path):
+    from st_roto_nuke.packages import sequence_pattern_from_file, unpack_and_relink
+    assert sequence_pattern_from_file(r"D:\p\sh010.0012.exr") == "D:/p/sh010.####.exr"
+    assert sequence_pattern_from_file("D:/p/a.012.dpx") == "D:/p/a.###.dpx"
+    plates = _plates(tmp_path / "plates")
+    proj = str(tmp_path / "w" / "show.stroto"); os.makedirs(os.path.dirname(proj))
+    s, bus = _make(proj, plates)
+    bus.execute({"op": "update_shot", "id": "S", "fields": {"source_fingerprint": ps.fingerprint_sequence(plates)}})
+    s.close()
+    nk = tmp_path / "w" / "show.nk"; nk.write_text('Read {\n file "%s"\n}\n' % plates)
+    z = str(tmp_path / "p.zip"); ps.pack(proj, z, scripts=[str(nk)])
+    wrong = _plates(tmp_path / "wrong", tag=b"x")
+    right = _plates(tmp_path / "right")
+    answers = [str(tmp_path / "wrong" / "plate.0002.exr"), str(tmp_path / "right" / "plate.0001.exr")]
+    import shutil
+    shutil.rmtree(str(tmp_path / "plates"))                               # the plates are gone from the old place
+    rep = unpack_and_relink(z, str(tmp_path / "job"), lambda shot, miss: answers.pop(0))
+    assert [r[0] for r in rep["refused"]] == ["sh"] and rep["relinked"] == [("sh", right, "match")]
+    assert right in open(rep["scripts"][0]).read()
+    t = ProjectStore(rep["project"]); assert t.row("shots", "S")["source_path"] == right; t.close()

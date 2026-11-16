@@ -62,3 +62,6 @@ Owner's full specification: `docs/MASTER_PROMPT.md` (authoritative). Public repo
 - The Bash tool breaks on heredocs with nested quotes in some commands: write multi-line edit scripts to the scratchpad with the Write tool, then run them.
 - `tests/nuke/run_nuke_tests.py` has CRLF line endings: string-replace scripts with LF text silently miss; use the Edit tool.
 - OCIO `applyRGB` is in place; never pass the caller's array (`st_roto.colour.OcioTransform` copies).
+- Nuke Non-commercial saves scripts ENCRYPTED (`.nknc`): never edit them as text; relink knobs after opening (`st_roto_nuke.packages.apply_relink_to_open_script`).
+- Nuke reports Read paths as `d:/…/name_%04d.ext` (lowercase drive, %04d) even if set as `D:/…/name_####.ext`: compare paths case-insensitively and accept both frame spellings.
+- This Bash tool collapses `\` to `\` even inside quoted heredocs: put Python edit scripts in files with the Write tool (`tools/dev/replace_functions.py` replaces whole functions, CRLF-safe).

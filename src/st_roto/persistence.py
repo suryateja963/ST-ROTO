@@ -21,6 +21,7 @@ import glob
 import hashlib
 import json
 import os
+import re
 import shutil
 import socket
 import sqlite3
@@ -30,6 +31,8 @@ import zipfile
 BACKUP_EXT = ".stroto"
 PACKAGE_FORMAT = "st_roto.package"
 PACKAGE_VERSION = 1
+ENCRYPTED_SCRIPT = "Nuke NC mode encrypted"
+RELINK_SIDECAR = ".st_roto_relink.json"
 
 
 def _stamp():
@@ -263,8 +266,9 @@ def _frame_glob(pattern: str) -> str:
 
 
 def pack(project_path: str, zip_path: str, include_dirs=("_mattes", "_export"), include_sources: bool = False,
-         tool_version: str = "") -> dict:
-    """Portable package of an (open or closed) project. Returns the manifest."""
+         tool_version: str = "", scripts=()) -> dict:
+    """Portable package of an (open or closed) project. `scripts`: Nuke scripts to include (scripts/<name>); on
+    unpack their paths to the project, its folders and the plates are rewritten. Returns the manifest."""
     base = os.path.splitext(os.path.abspath(project_path))[0]
     name = os.path.basename(base)
     tmpdb = zip_path + ".db.part"
@@ -272,15 +276,17 @@ def pack(project_path: str, zip_path: str, include_dirs=("_mattes", "_export"), 
     files = {}
     try:
         conn = sqlite3.connect(tmpdb)
-        shots = [dict(zip(("id", "name", "source_path", "width", "height", "first_frame", "last_frame"), r))
-                 for r in conn.execute("SELECT id, name, source_path, width, height, first_frame, last_frame FROM shots")]
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(shots)")]
+        want = [c for c in ("id", "name", "source_path", "source_fingerprint", "width", "height", "first_frame",
+                            "last_frame") if c in cols]
+        shots = [dict(zip(want, r)) for r in conn.execute("SELECT %s FROM shots" % ", ".join(want))]
         schema = conn.execute("PRAGMA user_version").fetchone()[0]
         if include_sources:
             for s in shots:
                 if not s["source_path"]:
                     continue
                 d = os.path.dirname(s["source_path"])
-                for f in sorted(glob.glob(_frame_glob(s["source_path"]))):
+                for f in sequence_files(s["source_path"]):
                     files["sources/%s/%s" % (s["id"], os.path.basename(f))] = f
                 rel = "sources/%s/%s" % (s["id"], os.path.basename(s["source_path"]))
                 conn.execute("UPDATE shots SET source_path = ? WHERE id = ?", ("@package/" + rel, s["id"]))
@@ -295,9 +301,15 @@ def pack(project_path: str, zip_path: str, include_dirs=("_mattes", "_export"), 
                 for fn in fns:
                     full = os.path.join(dp, fn)
                     files["%s/%s" % (suffix.strip("_"), os.path.relpath(full, root).replace("\\", "/"))] = full
+        script_names = []
+        for sp in scripts or ():
+            arc = "scripts/" + os.path.basename(sp)
+            files[arc] = sp
+            script_names.append(arc)
         manifest = {"format": PACKAGE_FORMAT, "version": PACKAGE_VERSION, "project_name": name,
+                    "original_project": os.path.abspath(project_path).replace("\\", "/"),
                     "created_utc": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
-                    "schema": schema, "tool_version": tool_version, "shots": shots,
+                    "schema": schema, "tool_version": tool_version, "shots": shots, "scripts": script_names,
                     "files": {arc: {"sha256": _sha256(src), "bytes": os.path.getsize(src)} for arc, src in files.items()},
                     "not_included": ["model weights (referenced by model id; install separately)"]}
         tmpzip = zip_path + ".part"
@@ -314,8 +326,10 @@ def pack(project_path: str, zip_path: str, include_dirs=("_mattes", "_export"), 
 
 def unpack(zip_path: str, dest_dir: str, relink: dict = None) -> dict:
     """Extract a package into `dest_dir` (must be empty or new), verify every checksum, refuse paths escaping
-    `dest_dir`, then relink shot source paths: packaged sources -> their extracted location; others via `relink`
-    {old prefix: new prefix}. Returns {"project", "manifest", "missing_sources"}."""
+    `dest_dir`, then relink: shot source paths (packaged sources -> their extracted location; others via `relink`
+    {old prefix: new prefix}) and, in packaged Nuke scripts, the project path, its folders and the plate paths.
+    Relinked sources are checked against the recorded fingerprints.
+    Returns {"project", "manifest", "missing_sources", "fingerprints": {shot id: state}, "scripts"}."""
     dest = os.path.abspath(dest_dir)
     if os.path.exists(dest) and os.listdir(dest):
         raise ValueError("destination is not empty: %s" % dest)
@@ -343,28 +357,157 @@ def unpack(zip_path: str, dest_dir: str, relink: dict = None) -> dict:
         d = os.path.join(dest, suffix)
         if os.path.isdir(d):
             os.replace(d, os.path.join(dest, manifest["project_name"] + "_" + suffix))
-    missing = []
+    text_map = dict(relink or {})
+    if manifest.get("original_project"):
+        text_map[os.path.splitext(manifest["original_project"])[0]] = os.path.splitext(project)[0].replace("\\", "/")
+    missing, prints = [], {}
     conn = sqlite3.connect(project)
     try:
-        for sid, sp in conn.execute("SELECT id, source_path FROM shots").fetchall():
+        has_fp = "source_fingerprint" in [r[1] for r in conn.execute("PRAGMA table_info(shots)")]
+        rows = conn.execute("SELECT id, source_path, %s FROM shots" % ("source_fingerprint" if has_fp else "NULL")).fetchall()
+        orig = {s["id"]: s for s in manifest.get("shots", [])}
+        for sid, sp, fp in rows:
             if not sp:
                 continue
             new = sp
             if sp.startswith("@package/"):
                 new = os.path.join(dest, sp[len("@package/"):]).replace("\\", "/")
+                od = orig.get(sid, {}).get("original_dir")
+                if od:
+                    text_map[od] = os.path.dirname(new)
             else:
-                for old, rep in sorted((relink or {}).items(), key=lambda kv: -len(kv[0])):
-                    if sp.replace("\\", "/").startswith(old.replace("\\", "/")):
-                        new = rep.replace("\\", "/") + sp.replace("\\", "/")[len(old.replace("\\", "/")):]
-                        break
+                new = relink_path(sp, relink or {})
             if new != sp:
                 conn.execute("UPDATE shots SET source_path = ? WHERE id = ?", (new, sid))
-            if not glob.glob(_frame_glob(new)):
+            cmp_ = compare_fingerprint(fp, new)
+            prints[sid] = cmp_["state"]
+            if cmp_["state"] == "missing":
                 missing.append({"shot_id": sid, "source_path": new})
         conn.commit()
     finally:
         conn.close()
+    scripts, encrypted = [], []
+    for arc in manifest.get("scripts", []):
+        p = os.path.join(dest, arc)
+        if is_encrypted_script(p):
+            # Non-commercial scripts are encrypted: the paths are applied after opening the script in Nuke
+            # (st_roto_nuke.packages.apply_relink_to_open_script reads this sidecar)
+            with open(p + RELINK_SIDECAR, "w", encoding="utf-8") as fh:
+                json.dump(text_map, fh, indent=1, sort_keys=True)
+            encrypted.append(p)
+        else:
+            with open(p, encoding="utf-8", errors="surrogateescape") as fh:
+                text = fh.read()
+            with open(p, "w", encoding="utf-8", errors="surrogateescape") as fh:
+                fh.write(relink_text(text, text_map))
+        scripts.append(p)
     c = check(project)
     if not c["ok"]:
         raise ValueError("unpacked project fails the integrity check: %s" % c["detail"])
-    return {"project": project, "manifest": manifest, "missing_sources": missing}
+    return {"project": project, "manifest": manifest, "missing_sources": missing, "fingerprints": prints,
+            "scripts": scripts, "encrypted_scripts": encrypted, "path_map": text_map}
+def sequence_files(pattern: str) -> list:
+    """Existing files of a Nuke-style sequence path (####, %04d) or a single file, sorted."""
+    if not pattern:
+        return []
+    return sorted(glob.glob(_frame_glob(pattern)))
+
+
+def fingerprint_sequence(pattern: str, first: int = None, last: int = None) -> str:
+    """JSON fingerprint of a source sequence: SHA-256 + size of its first and last frame and how many frames of the
+    range exist (T-075). With a frame range the shot's own first/last frames are used (a folder often holds more
+    frames than the shot); without one, the first/last matching files. Returns None when nothing exists."""
+    if first is not None and last is not None and re.search(r"#+|%0?\d*d", pattern or ""):
+        ends = [frame_file(pattern, first), frame_file(pattern, last)]
+        if not all(os.path.exists(e) for e in ends):
+            return None
+        count = sum(1 for f in range(first, last + 1) if os.path.exists(frame_file(pattern, f)))
+    else:
+        files = sequence_files(pattern)
+        if not files:
+            return None
+        ends, count = [files[0], files[-1]], len(files)
+    return json.dumps({"files": count, "first_frame": first, "last_frame": last,
+                       "first": {"name": os.path.basename(ends[0]), "bytes": os.path.getsize(ends[0]), "sha256": _sha256(ends[0])},
+                       "last": {"name": os.path.basename(ends[1]), "bytes": os.path.getsize(ends[1]), "sha256": _sha256(ends[1])}},
+                      sort_keys=True)
+
+
+def compare_fingerprint(recorded: str, pattern: str) -> dict:
+    """{"state": "match" | "different" | "missing" | "unknown", "detail"} for a source path against a recorded
+    fingerprint ('unknown': nothing was recorded, e.g. projects from before schema v4). The recorded frame range
+    is used for the comparison."""
+    rec = json.loads(recorded) if recorded else {}
+    now = fingerprint_sequence(pattern, rec.get("first_frame"), rec.get("last_frame"))
+    if now is None:
+        return {"state": "missing", "detail": "no files at %s" % pattern}
+    if not recorded:
+        return {"state": "unknown", "detail": "no fingerprint recorded"}
+    b = json.loads(now)
+    if rec["first"]["sha256"] == b["first"]["sha256"] and rec["last"]["sha256"] == b["last"]["sha256"]:
+        note = "" if rec["files"] == b["files"] else " (frame count %d -> %d)" % (rec["files"], b["files"])
+        return {"state": "match", "detail": "same first and last frame" + note}
+    return {"state": "different", "detail": "first/last frame content differs from the recorded footage"}
+
+
+def relink_text(text: str, mapping: dict) -> str:
+    """Replace path prefixes in a plain-text file (a commercial-edition .nk script), longest first, case-insensitive
+    for Windows paths, / and \\ spellings."""
+    for old, new in sorted(mapping.items(), key=lambda kv: -len(kv[0])):
+        for o in {old.replace("\\", "/").rstrip("/"), old.replace("/", "\\").rstrip("\\")}:
+            n = new.replace("\\", "/").rstrip("/") if "/" in o else new.replace("/", "\\").rstrip("\\")
+            flags = re.IGNORECASE if re.match(r"^[A-Za-z]:[/\\]", o) else 0
+            text = re.sub(re.escape(o), lambda _m, n=n: n, text, flags=flags)
+    return text
+
+
+
+def relink_shot(bus, shot_id: str, new_path: str) -> dict:
+    """Point a shot at a new source path (one undoable step) after checking it against the recorded fingerprint.
+    Returns the comparison; refuses 'different' footage unless the caller relinks via update_shot directly."""
+    shot = bus.store.row("shots", shot_id)
+    if shot is None:
+        raise KeyError("no shot %s" % shot_id)
+    c = compare_fingerprint(shot.get("source_fingerprint"), new_path)
+    if c["state"] == "different":
+        raise ValueError("refused: %s is not the recorded footage (%s)" % (new_path, c["detail"]))
+    if c["state"] == "missing":
+        raise ValueError("refused: %s" % c["detail"])
+    fields = {"source_path": new_path}
+    if c["state"] == "unknown":
+        fields["source_fingerprint"] = fingerprint_sequence(new_path)
+    bus.execute({"op": "update_shot", "id": shot_id, "fields": fields})
+    return c
+
+
+def frame_file(pattern: str, frame: int) -> str:
+    """Path of one frame of a Nuke-style sequence path: '#' runs or %0Nd, negative frames as sign + (N-1) digits
+    (Nuke: 'name.-002.tif' for #### and frame -2, measured)."""
+    m = re.search(r"(#+)|%0?(\d*)d", pattern)
+    if not m:
+        return pattern
+    n = len(m.group(1)) if m.group(1) else int(m.group(2) or 1)
+    num = ("-" + str(-frame).zfill(max(1, n - 1))) if frame < 0 else str(frame).zfill(n)
+    return pattern[:m.start()] + num + pattern[m.end():]
+
+
+def relink_path(path: str, mapping: dict) -> str:
+    """Apply the longest matching prefix of `mapping` to one path. Windows paths compare case-insensitively and
+    with / or \\ (Nuke stores 'd:/...' even when the folder was given as 'D:\\...', measured)."""
+    if not path:
+        return path
+    p = path.replace("\\", "/")
+    for old, new in sorted(mapping.items(), key=lambda kv: -len(kv[0])):
+        o = old.replace("\\", "/").rstrip("/")
+        windows = re.match(r"^[A-Za-z]:/", o) is not None
+        head = p[:len(o)]
+        if (head.lower() == o.lower() if windows else head == o) and (len(p) == len(o) or p[len(o)] in "/."):
+            return new.replace("\\", "/").rstrip("/") + p[len(o):]
+    return path
+
+
+def is_encrypted_script(path: str) -> bool:
+    """Nuke Non-commercial saves scripts encrypted (measured: '.nknc' starting 'Nuke NC mode encrypted text'):
+    paths in them cannot be rewritten as text; relink after opening the script in Nuke instead."""
+    with open(path, "rb") as fh:
+        return fh.read(len(ENCRYPTED_SCRIPT)).decode("latin-1") == ENCRYPTED_SCRIPT

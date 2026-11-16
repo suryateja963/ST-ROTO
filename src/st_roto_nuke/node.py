@@ -633,8 +633,9 @@ def on_backup(group):
     return path
 
 
-def on_package(group, zip_path: str = None, include_sources: bool = False):
-    """Portable package of the project (T-071). Sources are not included by default (size); relink on unpack."""
+def on_package(group, zip_path: str = None, include_sources: bool = False, include_script: bool = True):
+    """Portable package of the project (T-071) including the saved Nuke script (T-075). Sources are not included
+    by default (size); unpacking relinks them."""
     from st_roto import persistence
     import datetime
     try:
@@ -644,10 +645,17 @@ def on_package(group, zip_path: str = None, include_sources: bool = False):
         _open_project(group, project)
         zip_path = zip_path or "%s_package_%s.zip" % (os.path.splitext(os.path.abspath(project))[0],
                                                       datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
-        man = persistence.pack(project, zip_path, include_sources=include_sources, tool_version="v0")
+        script = nuke.root().name()
+        scripts = [script] if include_script and script not in ("", "Root") and os.path.exists(script) else []
+        man = persistence.pack(project, zip_path, include_sources=include_sources, tool_version="v0", scripts=scripts)
     except Exception as e:
         _status(group, "error: packaging failed: %s" % e); return None
-    _status(group, "package: %s (%d files)" % (zip_path, len(man["files"])))
+    note = ""
+    if include_script and not scripts:
+        note = "; script NOT included (save it first)"
+    elif scripts and nuke.root().modified():
+        note = "; the script as last SAVED is included (unsaved changes are not)"
+    _status(group, "package: %s (%d files)%s" % (zip_path, len(man["files"]), note))
     return zip_path
 
 
@@ -741,17 +749,21 @@ def shot_id_for(group):
 
 
 def _ensure_shot(store, bus, ctx):
-    """One shot per source node name in v0."""
+    """One shot per source node name in v0. Records the Read path and a fingerprint of its frames (T-075)."""
     name = ctx["src"].name()
     r = store.conn.execute("SELECT id FROM shots WHERE name = ?", (name,)).fetchone()
     if r:
         return r["id"]
-    from st_roto import model as m
+    from st_roto import model as m, persistence
     sid = m.new_id()
-    src_file = ctx["src"]["file"].value() if "file" in ctx["src"].knobs() else None     # for relinking (T-071)
+    src_file = ctx["src"]["file"].value() if "file" in ctx["src"].knobs() else None
+    try:
+        fp = persistence.fingerprint_sequence(src_file, ctx["first"], ctx["last"]) if src_file else None
+    except OSError:
+        fp = None
     bus.execute({"op": "create_shot", "row": {"id": sid, "name": name, "width": ctx["width"], "height": ctx["height"],
                                               "first_frame": ctx["first"], "last_frame": ctx["last"],
-                                              "source_path": src_file or None}})
+                                              "source_path": src_file or None, "source_fingerprint": fp}})
     return sid
 
 

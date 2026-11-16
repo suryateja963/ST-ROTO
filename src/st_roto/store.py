@@ -13,7 +13,7 @@ import json
 import os
 import sqlite3
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 _MIGRATIONS = {
     1: [
@@ -51,6 +51,10 @@ _MIGRATIONS = {
         """CREATE TABLE host_exports (
             host_tag TEXT PRIMARY KEY, shape_id TEXT NOT NULL, host TEXT NOT NULL,
             fingerprint TEXT NOT NULL, exported_utc TEXT NOT NULL)""",
+    ],
+    4: [
+        # Fingerprint of the shot's source frames (T-075): proves a relinked path is the same footage.
+        """ALTER TABLE shots ADD COLUMN source_fingerprint TEXT""",
     ],
     3: [
         # Per-frame AI diagnostics of the latest tracking run (also for frames where the AI found NO object).

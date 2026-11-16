@@ -824,11 +824,64 @@ def test_cancel_and_resume_track(res):
     return bool(ok)
 
 
+def test_package_script_relink(res):
+    """T-075: saved script + Track -> 'Package project' (includes the script) -> unpack elsewhere with the plates
+    moved -> the unpacked script opens with its Read on the moved plates and ST_Roto on the unpacked project; the
+    shot's fingerprint matches the moved plates; the shapes are in the unpacked project."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import shutil
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    from st_roto_nuke.packages import unpack_and_relink
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vh, n = meta["h"], 3
+    tmp = tempfile.mkdtemp().replace("\\", "/")
+    work = tmp + "/work"; os.makedirs(work)
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = work + "/show.stroto"
+    g = stnode.create(rd, proj)
+    g["stroto_click"].setValue([meta["click_xy"][0], vh - meta["click_xy"][1]]); stnode.on_add_point(g, 1)
+    job = stnode.on_track(g, background=False)
+    nuke.scriptSaveAs(work + "/show.nk", overwrite=1)
+    store, _ = session.project(proj)
+    shot = dict(store.conn.execute("SELECT * FROM shots").fetchone())
+    res["fingerprint_recorded"] = bool(shot["source_fingerprint"])
+    zp = stnode.on_package(g, tmp + "/pkg.zip")
+    res["package_status"] = g["stroto_status"].value()
+    moved = tmp + "/moved_plates"; os.makedirs(moved)
+    for f in range(n):
+        shutil.copyfile(VIDEO + "/frame_%04d.png" % f, moved + "/frame_%04d.png" % f)
+    rep = unpack_and_relink(zp, tmp + "/job", lambda shot, miss: None, relink={VIDEO: moved})
+    res["unpack"] = {"scripts": rep["scripts"], "fingerprints": rep["fingerprints"]}
+    session.close_all()
+    nuke.scriptClear()
+    nuke.scriptOpen(rep["scripts"][0])
+    from st_roto_nuke.packages import apply_relink_to_open_script
+    res["encrypted_scripts"] = len(rep["encrypted_scripts"])
+    res["relinked_in_script"] = apply_relink_to_open_script(script_path=rep["scripts"][0])["changed"]   # sidecar
+    reads = [nd for nd in nuke.allNodes("Read")]
+    groups = [nd for nd in nuke.allNodes("Group") if "stroto_project" in nd.knobs()]
+    res["opened"] = {"read_file": reads[0]["file"].value() if reads else None,
+                     "stroto_project": groups[0]["stroto_project"].value() if groups else None}
+    t = ProjectStore(rep["project"])
+    res["unpacked_keys"] = t.conn.execute("SELECT COUNT(*) FROM shape_keys").fetchone()[0]
+    t.close()
+    return bool(job is not None and job.status == "done" and res["fingerprint_recorded"]
+                and "show.nk" in str(rep["scripts"]) and "SAVED" not in res["package_status"]
+                and list(rep["fingerprints"].values()) == ["match"]
+                and res["opened"]["read_file"] in (moved + "/frame_####.png", moved + "/frame_%04d.png")   # Nuke: %04d
+                and os.path.normcase(os.path.abspath(res["opened"]["stroto_project"])) == os.path.normcase(os.path.abspath(rep["project"]))
+                and res["unpacked_keys"] >= n)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
          test_export_import_shapes, test_crash_recovery_and_package, test_motion_blur_links,
-         test_colour_auto_follows_script, test_split_object_parts, test_cancel_and_resume_track)
+         test_colour_auto_follows_script, test_split_object_parts, test_cancel_and_resume_track,
+         test_package_script_relink)
 
 
 def main():
