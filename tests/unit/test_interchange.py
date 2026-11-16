@@ -30,6 +30,7 @@ def _populate(s, bus):
     bus.execute({"op": "set_key", "shape_id": "PS", "frame": 3, "points": [[v + 1 for v in p] for p in P3]}, actor=m.ACTOR_AI)
     bus.execute({"op": "set_key", "shape_id": "PS", "frame": 3, "points": [[v + 2 for v in p] for p in P3]})  # artist edit
     bus.execute({"op": "set_key", "shape_id": "CS", "frame": 0, "points": P3})
+    bus.execute({"op": "update_shape", "id": "CS", "fields": {"feather_x": 6.0, "feather_y": 4.0, "feather_falloff": 2.0}})
     bus.execute({"op": "update_object", "id": "C", "fields": {"locked": 1}})
 
 
@@ -54,6 +55,8 @@ def test_json_roundtrip_keeps_everything(tmp_path):
     assert {k["origin"] for k in keys.values()} == {m.IMPORTED_NATIVE}
     gen = json.loads(body["generator"])
     assert gen["model"] == "x" and gen["imported_from"]["origin"] == "ai_generated"
+    fingers = t.shapes(objs["hand"]["id"])[0]
+    assert (fingers["feather_x"], fingers["feather_y"], fingers["feather_falloff"]) == (6.0, 4.0, 2.0)
     # exporting the imported project again gives the same names, structure and geometry
     def geometry(d):
         by_id = {o["id"]: o["name"] for o in d["objects"]}

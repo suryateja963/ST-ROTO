@@ -13,7 +13,7 @@ import json
 import os
 import sqlite3
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 _MIGRATIONS = {
     1: [
@@ -51,6 +51,12 @@ _MIGRATIONS = {
         """CREATE TABLE host_exports (
             host_tag TEXT PRIMARY KEY, shape_id TEXT NOT NULL, host TEXT NOT NULL,
             fingerprint TEXT NOT NULL, exported_utc TEXT NOT NULL)""",
+    ],
+    5: [
+        # Shape-level feather (T-073), as Nuke Roto's shape attributes fx / fy (pixels) and ff (falloff exponent).
+        """ALTER TABLE shapes ADD COLUMN feather_x REAL NOT NULL DEFAULT 0""",
+        """ALTER TABLE shapes ADD COLUMN feather_y REAL NOT NULL DEFAULT 0""",
+        """ALTER TABLE shapes ADD COLUMN feather_falloff REAL NOT NULL DEFAULT 1""",
     ],
     4: [
         # Fingerprint of the shot's source frames (T-075): proves a relinked path is the same footage.

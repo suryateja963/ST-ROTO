@@ -32,6 +32,8 @@ def export_shot(store, shot_id: str) -> dict:
         for s in store.shapes(o["id"]):
             shapes.append({"id": s["id"], "name": s["name"], "closed": bool(s["closed"]), "locked": bool(s["locked"]),
                            "origin": s["origin"], "point_count": s["point_count"],
+                           "feather": {"x": s.get("feather_x", 0.0), "y": s.get("feather_y", 0.0),
+                                       "falloff": s.get("feather_falloff", 1.0)},
                            "generator": json.loads(s["generator"]) if s["generator"] else None,
                            "keys": [{"frame": k["frame"], "origin": k["origin"], "points": k["points"]}
                                     for k in store.keys(s["id"])]})
@@ -73,9 +75,12 @@ def import_shot(bus, data: dict, shot_id: str) -> dict:
                 sid = ids[s["id"]] = m.new_id()
                 gen = dict(s.get("generator") or {}, imported_from={"format": FORMAT, "shape_id": s["id"],
                                                                     "origin": s.get("origin")})
+                fe = s.get("feather") or {}
                 ops.append({"op": "create_shape", "row": {
                     "id": sid, "object_id": row["id"], "name": s["name"], "point_count": s["point_count"],
-                    "closed": int(bool(s.get("closed", True))), "generator": json.dumps(gen, sort_keys=True)}})
+                    "closed": int(bool(s.get("closed", True))), "generator": json.dumps(gen, sort_keys=True),
+                    "feather_x": float(fe.get("x", 0.0)), "feather_y": float(fe.get("y", 0.0)),
+                    "feather_falloff": float(fe.get("falloff", 1.0))}})
                 ops += [{"op": "set_key", "shape_id": sid, "frame": k["frame"], "points": k["points"]} for k in s["keys"]]
                 if s.get("locked"):
                     ops.append({"op": "update_shape", "id": sid, "fields": {"locked": 1}})

@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import numpy as np
 
+FEATHER_WIDTH = 0.92      # Nuke's ramp ends at ~0.92 x the feather value (research/probes/2026-11-16_feather)
+
 
 def box_sum(x: np.ndarray, r: int) -> np.ndarray:
     """Sum over a (2r+1)x(2r+1) window (clipped at the borders), via an integral image. x: (H, W[, C])."""
@@ -113,3 +115,67 @@ def refine_alpha(rgb: np.ndarray, mask: np.ndarray, band: int = 3, radius: int =
     z = zone[y0:y1, x0:x1]
     alpha[y0:y1, x0:x1][z] = np.clip(q[z], 0.0, 1.0)
     return alpha
+
+
+
+def feathered_alpha(points, feather_x, feather_y, falloff, height, width, width_factor=FEATHER_WIDTH,
+                    per_segment=16):
+    """APPROXIMATION of Nuke Roto's shape feather for ST-ROTO's own EXR mattes (T-073): 1 inside the spline,
+    outside (1 - d / (width_factor * feather))^falloff with d the distance to the spline (per axis in units of
+    feather_x / feather_y when they differ), 0 beyond. Measured against Nuke's render (tests/nuke
+    test_feather_and_rotopaint, research/probes/2026-11-16_feather): the 50 % contour matches within ~1 px in
+    every direction and the area within 0.3 %, but the ramp's tails differ (mean |error| ~0.11 inside the feather
+    band): Nuke's ramp depends on the control points. Nuke stays authoritative: for exact feathered mattes render
+    the ST_Roto output in Nuke. (A 'feather curve from offset control points' model was tried and was not better.)"""
+    from .geometry import Anchor, rasterize_spline, sample_spline
+    a = [Anchor(p=np.array(p[:2]), h_in=np.array(p[2:4]), h_out=np.array(p[4:6]), corner=False) for p in points]
+    inside = rasterize_spline(a, height, width)              # the same exact raster as the hard mattes
+    alpha = inside.astype(np.float32)
+    fx, fy = max(0.0, float(feather_x)), max(0.0, float(feather_y))
+    if fx <= 0 and fy <= 0:
+        return alpha
+    fx, fy = (fx or fy) * width_factor, (fy or fx) * width_factor
+    poly = sample_spline(a, per_segment)                      # coarser polyline: distances only
+    x0 = int(max(0, np.floor(poly[:, 0].min() - fx - 1))); x1 = int(min(width, np.ceil(poly[:, 0].max() + fx + 1)))
+    y0 = int(max(0, np.floor(poly[:, 1].min() - fy - 1))); y1 = int(min(height, np.ceil(poly[:, 1].max() + fy + 1)))
+    if x1 <= x0 or y1 <= y0:
+        return alpha
+    ys, xs = np.mgrid[y0:y1, x0:x1]
+    out = ~inside[y0:y1, x0:x1]
+    q = np.stack([poly[:, 0] / fx, poly[:, 1] / fy], 1)
+    d = _dist_to_polyline((xs[out] + 0.5) / fx, (ys[out] + 0.5) / fy, q)
+    v = np.clip(1.0 - d, 0.0, 1.0) ** float(falloff if falloff and falloff > 0 else 1.0)
+    sub = alpha[y0:y1, x0:x1]
+    sub[out] = v.astype(np.float32)
+    alpha[y0:y1, x0:x1] = sub
+    return alpha
+
+
+def object_alpha(store, object_id: str, frame: int, height: int, width: int):
+    """Like object_mask but float alpha that includes each shape's feather (max over shapes). -> (alpha, how,
+    feathered: bool)."""
+    alpha = np.zeros((height, width), np.float32)
+    how, feathered = {}, False
+    for s in store.shapes(object_id):
+        pts, h = key_points_at(store.keys(s["id"]), frame)
+        how[s["name"]] = h
+        if not pts:
+            continue
+        fx, fy, ff = float(s.get("feather_x") or 0), float(s.get("feather_y") or 0), float(s.get("feather_falloff") or 1)
+        feathered |= fx > 0 or fy > 0
+        alpha = np.maximum(alpha, feathered_alpha(pts, fx, fy, ff, height, width))
+    return alpha, how, feathered
+
+
+def _dist_to_polyline(px, py, poly):
+    a0, a1 = poly, np.roll(poly, -1, axis=0)
+    seg = a1 - a0
+    seg_len2 = np.maximum((seg ** 2).sum(1), 1e-12)
+    d = np.empty(len(px))
+    for i in range(0, len(px), 8192):                       # chunked: pixels x segments
+        cx, cy = px[i:i + 8192, None], py[i:i + 8192, None]
+        t = np.clip(((cx - a0[:, 0]) * seg[:, 0] + (cy - a0[:, 1]) * seg[:, 1]) / seg_len2, 0, 1)
+        dx = cx - (a0[:, 0] + t * seg[:, 0]); dy = cy - (a0[:, 1] + t * seg[:, 1])
+        d[i:i + 8192] = np.sqrt((dx ** 2 + dy ** 2).min(1))
+    return d
+

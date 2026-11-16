@@ -24,7 +24,7 @@ import traceback
 import nuke
 import nuke.rotopaint  # noqa: F401
 
-from st_roto import jobs, prompts
+from st_roto import jobs, prompts, views
 from . import colour, pixels, session
 from .roto_export import export_preview, import_edits, sync_shot
 from .track import apply_results, models_root, track_object, track_objects
@@ -104,6 +104,8 @@ def create(source=None, project_path: str = ""):
     ex = _button(group, "stroto_export_shapes", "Export shapes (JSON + SVG)", "n.on_export_shapes(nuke.thisNode())")
     ex.setTooltip("Writes <project>_export/<shot>/<shot>.json (every object, key and provenance; re-importable) and "
                   "one SVG per keyed frame.")
+    cr = _button(group, "stroto_copy_rotopaint", "Copy shapes to RotoPaint", "n.on_copy_to_rotopaint(nuke.thisNode())")
+    cr.setTooltip("Creates a RotoPaint node next to this one with native copies of every shape (keys and feather).")
     im = _button(group, "stroto_import_shapes", "Import shapes (JSON)", "n.on_import_shapes(nuke.thisNode())",
                  new_line=False)
     im.setTooltip("Adds the objects of an ST-ROTO JSON file to this shot (one undo step; marked as imported).")
@@ -777,3 +779,35 @@ def checkpoint_dir(project: str, shot_name: str) -> str:
     from st_roto import exr
     return os.path.join(os.path.splitext(os.path.abspath(project))[0] + "_cache", "track_resume",
                         exr.layer_name(shot_name))
+
+
+def on_copy_to_rotopaint(group):
+    """Copy every shape of this shot (keys and feather) into a NEW RotoPaint node next to ST_Roto, fed by the same
+    plate (T-073): independent native shapes, editable and renderable without ST-ROTO."""
+    from .roto_export import build_shape, feather_of
+    try:
+        project = group["stroto_project"].value()
+        if not project:
+            raise ValueError("set a project file")
+        store, _ = _open_project(group, project)
+        src = _inner(group, "src", None)
+        shot = store.conn.execute("SELECT id FROM shots WHERE name = ?", (src.name(),)).fetchone()
+        if shot is None:
+            raise ValueError("nothing tracked or imported yet for %s" % src.name())
+        resync(group)                                              # include the latest Roto edits
+        with nuke.root():                                          # next to ST_Roto, not inside it
+            rpn = nuke.nodes.RotoPaint(name=group.name() + "_paint")
+        rpn.setInput(0, src)
+        rpn.setXYpos(group.xpos() + 120, group.ypos())
+        curves, height = rpn["curves"], int(src.height())
+        n = 0
+        for s in views.shot_shapes(store, shot["id"]):
+            keys = {k["frame"]: k["points"] for k in store.keys(s["id"])}
+            if not keys:
+                continue
+            curves.rootLayer.append(build_shape(curves, s["name"], keys, height, feather_of(store.row("shapes", s["id"]))))
+            n += 1
+    except (ValueError, NodeBudgetError) as e:
+        _status(group, "error: %s" % e); return None
+    _status(group, "copied %d shape(s) into %s (independent native RotoPaint shapes)" % (n, rpn.name()))
+    return rpn

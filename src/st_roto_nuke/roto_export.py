@@ -27,9 +27,34 @@ def shape_label(name: str, shape_id: str) -> str:
     return _safe_name(name) + "_st" + host_tag(shape_id)
 
 
-def build_shape(curves_knob, label: str, keys: dict, height: float):
-    """Create (not yet attached) a fully keyed nuke.rotopaint.Shape from {frame: points}.
-    Keys are added BEFORE points are appended: later keys are silently lost in Nuke 17.1 (R-33)."""
+FEATHER_ATTRS = ("fx", "fy", "ff")          # Roto shape attributes: feather X / Y (px), feather falloff (measured)
+
+
+def feather_of(row) -> tuple:
+    """(feather_x, feather_y, feather_falloff) of a stored shape row (defaults for schemas before v5)."""
+    return (float(row.get("feather_x") or 0.0), float(row.get("feather_y") or 0.0),
+            float(row.get("feather_falloff") if row.get("feather_falloff") is not None else 1.0))
+
+
+def read_feather(shape, frame: float = 0) -> tuple:
+    a = shape.getAttributes()
+    return tuple(round(float(a.getValue(frame, k)), 6) for k in FEATHER_ATTRS)
+
+
+def write_feather(shape, feather) -> None:
+    a = shape.getAttributes()
+    for k, v in zip(FEATHER_ATTRS, feather):
+        a.set(k, float(v))                       # static value, no animation key (measured)
+
+
+def feather_equal(a, b, tol=1e-4) -> bool:
+    return all(abs(float(x) - float(y)) <= tol for x, y in zip(a, b))
+
+
+def build_shape(curves_knob, label: str, keys: dict, height: float, feather=None):
+    """Create (not yet attached) a fully keyed nuke.rotopaint.Shape from {frame: points}, with the shape-level
+    feather (fx, fy, ff) if given. Keys are added BEFORE points are appended: later keys are silently lost in
+    Nuke 17.1 (R-33)."""
     import nuke.rotopaint as rp
     frames = sorted(keys)
     converted = [(f, key_to_nuke(keys[f], height)) for f in frames]
@@ -48,6 +73,8 @@ def build_shape(curves_knob, label: str, keys: dict, height: float):
     for cp in cps:
         shape.append(cp)
     shape.name = label
+    if feather is not None:
+        write_feather(shape, feather)
     return shape
 
 
@@ -85,7 +112,7 @@ def export_shape(store, shape_id: str, curves_knob, height: float, layer=None):
     keys = {k["frame"]: k["points"] for k in store.keys(shape_id)}
     if not keys:
         raise ValueError("shape %s has no keys to export" % shape_id)
-    shape = build_shape(curves_knob, shape_label(row["name"], shape_id), keys, height)
+    shape = build_shape(curves_knob, shape_label(row["name"], shape_id), keys, height, feather_of(row))
     (layer if layer is not None else curves_knob.rootLayer).append(shape)
     _record(store, shape_id, keys)
     return shape
@@ -122,21 +149,24 @@ def sync_shot(store, shot_id: str, curves_knob, height: float) -> dict:
         tag = host_tag(s["id"]); seen.add(tag)
         db_keys = {k["frame"]: k["points"] for k in store.keys(s["id"])}
         label = shape_label(s["name"], s["id"])
+        feather = feather_of(store.row("shapes", s["id"]))
         if tag in existing:
             host_keys = read_keys(existing[tag], height)
             rec = _recorded(store, tag)
             if rec is not None and not keys_equal(host_keys, rec):
                 report["conflicts"].append(existing[tag].name); continue          # edited in Roto: hands off
             if keys_equal(host_keys, db_keys) and existing[tag].name == label:
+                if not feather_equal(read_feather(existing[tag]), feather):      # e.g. undo of a feather edit
+                    write_feather(existing[tag], feather); report["updated"].append(label); continue
                 report["unchanged"].append(label); continue
             _remove(layer, existing[tag])
             if db_keys:
-                layer.append(build_shape(curves_knob, label, db_keys, height)); _record(store, s["id"], db_keys)
+                layer.append(build_shape(curves_knob, label, db_keys, height, feather)); _record(store, s["id"], db_keys)
                 report["updated"].append(label)
             else:
                 _forget(store, tag); report["removed"].append(label)
         elif db_keys:
-            layer.append(build_shape(curves_knob, label, db_keys, height)); _record(store, s["id"], db_keys)
+            layer.append(build_shape(curves_knob, label, db_keys, height, feather)); _record(store, s["id"], db_keys)
             report["written"].append(label)
     for tag, item in existing.items():
         if tag in seen:
@@ -184,7 +214,17 @@ def import_edits(store, bus, shot_id: str, curves_knob, height: float, static_fr
                 report["skipped"].append((name, "its object was deleted in the project; shape kept as is")); continue
             rec = _recorded(store, tag) or {}
             host = read_keys(item, height)
+            host_feather = read_feather(item, static_frame)
+            feather_ops = [] if feather_equal(host_feather, feather_of(shape)) else [
+                {"op": "update_shape", "id": shape["id"], "fields": dict(zip(("feather_x", "feather_y", "feather_falloff"),
+                                                                              host_feather))}]
             if keys_equal(host, rec):
+                if feather_ops:                                    # only the feather was changed in Roto
+                    try:
+                        bus.execute({"op": "batch", "ops": feather_ops})
+                        report["imported"].append(name)
+                    except ProtectedError as e:
+                        report["skipped"].append((name, "protected: %s" % e))
                 continue
             if any(len(p) != int(shape["point_count"]) for p in host.values()):
                 report["skipped"].append((name, "point count changed in Roto (%d expected); not imported in v0"
@@ -192,6 +232,7 @@ def import_edits(store, bus, shot_id: str, curves_knob, height: float, static_fr
             ops = [{"op": "set_key", "shape_id": shape["id"], "frame": f, "points": host[f]}
                    for f in sorted(host) if f not in rec or not keys_equal({f: host[f]}, {f: rec[f]})]
             ops += [{"op": "delete_key", "shape_id": shape["id"], "frame": f} for f in sorted(rec) if f not in host]
+            ops += feather_ops
             try:
                 bus.execute({"op": "batch", "ops": ops})
             except ProtectedError as e:
@@ -204,13 +245,15 @@ def import_edits(store, bus, shot_id: str, curves_knob, height: float, static_fr
                 report["skipped"].append((name, "empty shape")); continue
             oid, sid = m.new_id(), m.new_id()
             n = len(next(iter(host.values())))
+            fx, fy, ff = read_feather(item, static_frame)
             ops = [{"op": "create_object", "row": {"id": oid, "shot_id": shot_id, "name": name}},
-                   {"op": "create_shape", "row": {"id": sid, "object_id": oid, "name": name, "point_count": n}}]
+                   {"op": "create_shape", "row": {"id": sid, "object_id": oid, "name": name, "point_count": n,
+                                                  "feather_x": fx, "feather_y": fy, "feather_falloff": ff}}]
             ops += [{"op": "set_key", "shape_id": sid, "frame": f, "points": host[f]} for f in sorted(host)]
             bus.execute({"op": "batch", "ops": ops})
             label = shape_label(name, sid)
             _remove(layer, item)                                   # re-create with the tag (rename-safe)
-            layer.append(build_shape(curves_knob, label, host, height))
+            layer.append(build_shape(curves_knob, label, host, height, (fx, fy, ff)))
             _record(store, sid, host)
             report["new_objects"].append(label)
     return report

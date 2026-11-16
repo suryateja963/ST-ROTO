@@ -47,13 +47,17 @@ def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, r
         guide = colour.to_model_input(get_rgb(f), colour_transform) if soft else None
         alphas = {}
         for o in objs:
-            m, how = matte.object_mask(store, o["id"], f, h, w)
+            fa, how, feathered = matte.object_alpha(store, o["id"], f, h, w)
+            m = fa >= 1.0
             for shape_name, kind in how.items():
                 if kind == "interpolated":
                     interp.setdefault(o["name"], []).append(f)
                 elif kind == "held":
                     held.setdefault(o["name"], []).append(f)
-            alphas[o["name"]] = matte.refine_alpha(guide, m, band=band, radius=radius, eps=eps) if soft else m.astype("float32")
+            if feathered:
+                alphas[o["name"]] = fa            # the artist's feather (T-073) decides the edge, as in Roto
+            else:
+                alphas[o["name"]] = matte.refine_alpha(guide, m, band=band, radius=radius, eps=eps) if soft else fa
         path = exr.frame_path(out_dir, base, f)
         layers = exr.write_mattes(path, alphas, compression=compression,
                                   attributes={"st_roto": json.dumps(settings, sort_keys=True)})

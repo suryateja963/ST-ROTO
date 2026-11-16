@@ -45,6 +45,8 @@ def test_v1_project_migrates_to_current(tmp_path):
     for t in ("host_exports", "key_reports"):                  # every table added after v1
         s.conn.execute("DROP TABLE %s" % t)
     s.conn.execute("ALTER TABLE shots DROP COLUMN source_fingerprint")   # column added in v4
+    for c in ("feather_x", "feather_y", "feather_falloff"):                 # columns added in v5
+        s.conn.execute("ALTER TABLE shapes DROP COLUMN %s" % c)
     s.conn.execute("PRAGMA user_version = 1"); s.close()        # a genuine v1 file
     s2 = ProjectStore(p)
     assert s2.schema_version() == SCHEMA_VERSION

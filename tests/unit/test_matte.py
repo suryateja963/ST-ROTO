@@ -55,3 +55,19 @@ def test_empty_and_full_masks_unchanged():
     img = composite(np.zeros((H, W)))
     assert not refine_alpha(img, np.zeros((H, W), bool)).any()
     assert refine_alpha(img, np.ones((H, W), bool)).all()
+
+
+def test_feathered_alpha_profile_and_falloff():
+    from st_roto.geometry import mask_to_points
+    from st_roto.matte import FEATHER_WIDTH, feathered_alpha
+    pts = mask_to_points(D * -1.0, count=16)                 # disc radius 45 at (100, 80)
+    hard = feathered_alpha(pts, 0, 0, 1, H, W)
+    soft = feathered_alpha(pts, 10, 10, 1, H, W)
+    soft2 = feathered_alpha(pts, 10, 10, 2, H, W)
+    assert np.array_equal(hard > 0.5, soft >= 1.0)           # inside stays 1, feather only grows outward
+    row = soft[80, 145:165]                                   # from the edge outward along +x
+    assert (np.diff(row) <= 1e-6).all() and row[-1] == 0      # monotone, zero beyond the feather
+    x = 145 + int(np.argmax(row < 0.5))
+    assert abs((x + 0.5 - 145) - 0.5 * 10 * FEATHER_WIDTH) <= 1.5   # 50 % at half the (scaled) feather
+    ring = (soft > 0) & (soft < 1)
+    assert np.allclose(soft2[ring], soft[ring] ** 2, atol=1e-6)     # falloff = exponent (Nuke: measured)

@@ -876,12 +876,84 @@ def test_package_script_relink(res):
                 and res["unpacked_keys"] >= n)
 
 
+def test_feather_and_rotopaint(res):
+    """T-073: a hand-drawn shape with feather (fx=fy=12, ff=1) is imported with its feather; a feather change made
+    in Roto is imported (undoable, undo syncs back); EXR mattes approximate Nuke's feather (error measured);
+    'Copy shapes to RotoPaint' gives a RotoPaint node that renders like the Roto node."""
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    from st_roto_nuke.roto_export import build_shape, read_feather
+    from st_roto import exr
+    from st_roto.geometry import mask_to_points
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=1)
+    proj = os.path.join(tempfile.mkdtemp(), "fe.stroto")
+    g = stnode.create(rd, proj)
+    curves = stnode._INNER[g.fullName()]["roto"]["curves"]
+    yy, xx = np.mgrid[0:H, 0:W] + 0.5
+    keys = {f: mask_to_points(150.0 - np.hypot(xx - (600 + 20 * f), yy - 360), count=12) for f in range(2)}
+    curves.rootLayer.append(build_shape(curves, "soft", keys, H, (12.0, 12.0, 1.0)))
+    store, bus = session.project(proj)
+    bus.execute({"op": "create_shot", "row": {"id": "shot1", "name": rd.name(), "width": W, "height": H,
+                                              "first_frame": 0, "last_frame": 1}})
+    stnode.resync(g)
+    sh = store.shapes(store.objects("shot1")[0]["id"])[0]
+    res["imported_feather"] = (sh["feather_x"], sh["feather_y"], sh["feather_falloff"])
+    ok = res["imported_feather"] == (12.0, 12.0, 1.0)
+    item = [it for it in curves.rootLayer][0]
+    a = item.getAttributes(); a.set("fx", 20.0); a.set("fy", 20.0)                    # artist edit in Roto
+    r2 = stnode.resync(g)
+    res["after_edit"] = store.row("shapes", sh["id"])["feather_x"]
+    bus.undo()
+    stnode.resync(g, import_first=False)
+    res["roto_after_undo"] = read_feather([it for it in curves.rootLayer][0])
+    ok &= res["after_edit"] == 20.0 and res["roto_after_undo"][0] == 12.0
+    # mattes vs Nuke's own render of the same feathered shape
+    g["stroto_soft"].setValue(False)
+    jm = stnode.on_render_mattes(g, background=False)
+    w = nuke.nodes.Write(file=OUT + "/fe.####.tif", file_type="tiff", channels="alpha")
+    w["datatype"].setValue("32 bit float"); w["compression"].setValue("none"); w.setInput(0, g)
+    nuke.execute(w, 0, 1)
+    errs = []
+    for f in range(2):
+        ours = exr.read_channels(jm.result["files"][f])["A"]
+        img = cv2.imread(OUT + "/fe.%04d.tif" % f, cv2.IMREAD_UNCHANGED)
+        nk = img if img.ndim == 2 else img[:, :, -1]
+        band = (nk > 0.01) & (nk < 0.99) | (ours > 0.01) & (ours < 0.99)
+        cx = 600 + 20 * f
+        r50 = []
+        for ang in np.radians(np.arange(0, 360, 10)):           # radius of the 50 % contour, Nuke vs ours
+            rr = np.arange(130, 190, 0.25)
+            x = np.clip((cx + rr * np.cos(ang)).astype(int), 0, W - 1); y = np.clip((360 + rr * np.sin(ang)).astype(int), 0, H - 1)
+            r50.append(abs(rr[np.argmax(nk[y, x] < 0.5)] - rr[np.argmax(ours[y, x] < 0.5)]))
+        errs.append({"band_px": int(band.sum()), "mean_abs": round(float(np.abs(ours - nk)[band].mean()), 4),
+                     "max_abs": round(float(np.abs(ours - nk)[band].max()), 4),
+                     "area_ratio": round(float(ours.sum() / nk.sum()), 4), "r50_max_diff_px": float(max(r50))})
+    res["matte_vs_nuke_feather"] = errs
+    # documented APPROXIMATION (st_roto.matte.feathered_alpha): area and 50 % contour match, tails differ
+    ok &= all(e["mean_abs"] < 0.15 and abs(e["area_ratio"] - 1) < 0.01 and e["r50_max_diff_px"] <= 1.5 for e in errs)
+    # RotoPaint copy renders like the Roto node
+    rpn = stnode.on_copy_to_rotopaint(g)
+    res["copy_status"] = g["stroto_status"].value()
+    w2 = nuke.nodes.Write(file=OUT + "/rp.####.tif", file_type="tiff", channels="alpha")
+    w2["datatype"].setValue("32 bit float"); w2["compression"].setValue("none"); w2.setInput(0, rpn)
+    nuke.execute(w2, 0, 1)
+    diffs = []
+    for f in range(2):
+        A = cv2.imread(OUT + "/rp.%04d.tif" % f, cv2.IMREAD_UNCHANGED); B = cv2.imread(OUT + "/fe.%04d.tif" % f, cv2.IMREAD_UNCHANGED)
+        A = A if A.ndim == 2 else A[:, :, -1]; B = B if B.ndim == 2 else B[:, :, -1]
+        diffs.append(round(float(np.abs(A - B).max()), 5))
+    res["rotopaint_vs_roto_max_abs"] = diffs
+    ok &= rpn is not None and max(diffs) < 1e-3
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
          test_export_import_shapes, test_crash_recovery_and_package, test_motion_blur_links,
          test_colour_auto_follows_script, test_split_object_parts, test_cancel_and_resume_track,
-         test_package_script_relink)
+         test_package_script_relink, test_feather_and_rotopaint)
 
 
 def main():
