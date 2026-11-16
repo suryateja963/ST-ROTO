@@ -65,3 +65,4 @@ Owner's full specification: `docs/MASTER_PROMPT.md` (authoritative). Public repo
 - Nuke Non-commercial saves scripts ENCRYPTED (`.nknc`): never edit them as text; relink knobs after opening (`st_roto_nuke.packages.apply_relink_to_open_script`).
 - Nuke reports Read paths as `d:/…/name_%04d.ext` (lowercase drive, %04d) even if set as `D:/…/name_####.ext`: compare paths case-insensitively and accept both frame spellings.
 - This Bash tool collapses `\` to `\` even inside quoted heredocs: put Python edit scripts in files with the Write tool (`tools/dev/replace_functions.py` replaces whole functions, CRLF-safe).
+- Nuke NC CatFileCreator writes `.catnc` (not `.cat`); create via `nuke.execute(node, nuke.FrameRanges([1]))`. TorchScript must come from torch 2.7.x (`.tools/torch27-venv`), Nuke's libtorch.

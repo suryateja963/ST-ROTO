@@ -1,0 +1,15 @@
+{
+ "mode": "cpu",
+ "nuke": "17.1v3",
+ "create_s": 0.22,
+ "cat_exists": true,
+ "render_s": [
+  0.09,
+  0.035,
+  0.027,
+  0.028
+ ],
+ "max_abs_diff_vs_pytorch": 0.0,
+ "mean_abs_diff": 0.0,
+ "interior_max_abs_diff": 0.0
+}

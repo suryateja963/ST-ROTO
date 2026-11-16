@@ -56,3 +56,6 @@ tests/nuke/out_*.txt
 
 # Model verification stamps (machine-specific, st_roto_ai.registry)
 models/.verified.json
+*.catnc
+research/probes/2026-11-16_route_a/out/
+research/probes/2026-11-16_route_a/reference.npz

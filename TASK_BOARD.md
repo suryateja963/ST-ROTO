@@ -6,6 +6,7 @@ Updated 2026-11-16.
 
 | ID | Task | Evidence |
 |---|---|---|
+| T-011a | Route A proven in NC: TorchScript (torch 2.7.1) → CatFileCreator → `.catnc` → Inference; CPU bit-identical to PyTorch, GPU 1.2e-7; 720p 0.017 s/frame GPU. Per-frame stateless: fits matting/refinement, not SAM video tracking | `research/probes/2026-11-16_route_a/RESULTS.md` |
 | T-046 | Pixel path researched and measured: Nuke Python has no buffer API (only per-pixel sample: 141 s/frame at 720p); current float TIFF is exact and fastest exact (0.022 s 720p, 0.041 s 1080p); kept (D-030); true in-memory needs the NDK (T-011b) | `research/probes/2026-11-16_pixels/RESULTS.md` |
 | T-012 | One requirement ID per master-prompt bullet: 740 items generated verbatim with their lead-in and group row (`tools/docs/split_requirements.py`); 16 group rows updated with this session's evidence | `docs/REQUIREMENTS_DETAILED.md`, `REQUIREMENTS_REGISTER.md` |
 | T-073 | Shape feather (schema v5: feather x/y/falloff) synced both ways with Roto (undoable), in JSON, and approximated in EXR mattes (50 % contour within 1 px, area 0.2 %, measured); 'Copy shapes to RotoPaint' (render identical to Roto) | `research/probes/2026-11-16_feather/RESULTS.md` |
@@ -75,4 +76,3 @@ Updated 2026-11-16.
 | T-034 | Competitor survey (§21) |
 | T-035 | Research implications of the five collaboration decisions |
 | T-036 | Identify open benchmark datasets with ground-truth mattes and their licences |
-| T-011a | Route A prototype: export a permissive model to TorchScript, convert to `.cat`, run in Inference node, measured |

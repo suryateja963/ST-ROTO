@@ -1,0 +1,14 @@
+{
+ "mode": "gpu",
+ "nuke": "17.1v3",
+ "cat_exists": true,
+ "render_s": [
+  2.426,
+  0.019,
+  0.018,
+  0.016
+ ],
+ "max_abs_diff_vs_pytorch": 1.1920928955078125e-07,
+ "mean_abs_diff": 2.243252250622163e-09,
+ "interior_max_abs_diff": 1.1920928955078125e-07
+}
