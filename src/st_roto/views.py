@@ -18,10 +18,28 @@ def review_for_object(store, object_id: str) -> list:
     """Frames of an object's shapes that the artist should review: [(frame, level, reason)]."""
     from .quality import review_frames
     out = []
-    for s in store.shapes(object_id):
+    shapes = store.shapes(object_id)
+    areas = _object_areas(store, shapes)
+    for s in shapes:
         keyed = [k["frame"] for k in store.keys(s["id"])]
-        out += review_frames(store.reports(s["id"]), keyed)
+        reps = store.reports(s["id"])
+        out += review_frames(reps, keyed, areas if reps else None)
     return sorted(out)
+
+
+def _object_areas(store, shapes) -> dict:
+    """{frame: area} of an object (all its shapes' keys; collapsed part keys add 0), polygon area of the spline."""
+    import numpy as np
+    from .geometry import Anchor, sample_spline
+    areas = {}
+    for s in shapes:
+        for k in store.keys(s["id"]):
+            pts = k["points"]
+            poly = sample_spline([Anchor(p=np.array(p[:2]), h_in=np.array(p[2:4]), h_out=np.array(p[4:6]), corner=False)
+                                  for p in pts], 16)
+            x, y = poly[:, 0], poly[:, 1]
+            areas[k["frame"]] = areas.get(k["frame"], 0.0) + 0.5 * abs(float(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))))
+    return areas
 
 
 def shot_shapes(store, shot_id: str) -> list:

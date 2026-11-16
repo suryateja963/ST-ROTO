@@ -6,6 +6,7 @@ Updated 2026-11-16 (second session).
 
 | ID | Task | Evidence |
 |---|---|---|
+| T-078 | Temporal-consistency review rule: shape area jumping > 35 % against both nearest present frames → CHECK (uncalibrated threshold). Synthetic reverse: newly flags frame 23 (confident, true IoU 0.42) and 24 (CPU truth IoU 0.986: possibly a false alarm; GPU run untested); good forward track: no new flags | `src/st_roto/quality.py` `area_jumps`, `tests/unit/test_quality.py` |
 | T-076 | Per-point feather (schema v7 `key_feather`): imported from / synced to Roto (undoable, AI refused, locks respected, kept by delete/undo snapshots), RotoPaint copy pixel-identical, JSON, sync conflict key | `tests/unit/test_point_feather.py`, `tests/nuke` `test_point_feather_roundtrip` |
 | T-068a | Calibration tooling + provisional run on synthetic data: current thresholds catch 6/7 bad frames with 14 flags; predicted IoU uninformative (corr 0.015); a confidently wrong frame needs a temporal rule. Defaults kept | `research/probes/2026-11-16_calibration/RESULTS.md` |
 | T-020 | Collaboration architecture (Proposed) + working replication prototype: op ids + origin site (schema v6), file transport, per-(shape, frame) auto-merge, same-key edits kept as branch candidates (D-023), resolve with tombstones, idempotent, protection still applies | `docs/COLLABORATION_ARCHITECTURE.md`, `src/st_roto/sync.py`, `tests/unit/test_sync.py` |
@@ -68,13 +69,12 @@ Updated 2026-11-16 (second session).
 
 | ID | Task | Blocked by |
 |---|---|---|
-| T-011b | In-process inference prototypes, routes B and D (NDK C++) | OQ-01; VS 2022 Build Tools + CMake not installed (OQ-14) |
+| T-068 | Calibrate review thresholds on REAL footage: tool ready (`tools/benchmark/calibrate_review.py --dir`); needs owner approval of a dataset licence (D-020, recommendation SA-V subset). Also evaluate a temporal-consistency rule (confidently wrong split frame found) | owner approval of a dataset licence (D-020 / OQ-23) |
+| T-072 | Learned matting model (hair) — waits for OQ-22 | OQ-22 (learned matting model) |
+| T-077 | Silhouette / Mocha direct shape formats — need those applications (or published specs) to validate; both already export Nuke Roto, which ST-ROTO ingests | Silhouette / Mocha applications or published specs to validate against |
+| T-011b | In-process inference prototypes, routes B and D (NDK C++) | D-019: Build Tools only with a plug-in-capable licence (D-009/D-011) |
 
 ## Ready (desk research, can proceed now)
 
 | ID | Task |
 |---|---|
-| T-068 | Calibrate review thresholds on REAL footage: tool ready (`tools/benchmark/calibrate_review.py --dir`); needs owner approval of a dataset licence (D-020, recommendation SA-V subset). Also evaluate a temporal-consistency rule (confidently wrong split frame found) |
-| T-077 | Silhouette / Mocha direct shape formats — need those applications (or published specs) to validate; both already export Nuke Roto, which ST-ROTO ingests |
-| T-078 | Temporal-consistency review rule (sudden area/shape change) for confidently wrong frames — evaluate with real footage (T-068) |
-| T-072 | Learned matting model (hair) — waits for OQ-22 |

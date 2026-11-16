@@ -8,6 +8,7 @@ from __future__ import annotations
 
 OBJECT_SCORE_MARGIN = 1.0      # |score| below this: the present/absent decision is fragile
 IOU_PRED_MIN = 0.7             # the model's own quality estimate of its mask
+AREA_JUMP = 0.35               # T-078: relative area change vs BOTH nearest present neighbours (uncalibrated)
 
 
 LOST, CHECK = "lost", "check"
@@ -17,9 +18,28 @@ LOST, CHECK = "lost", "check"
 # CHECK = model uncertain or low predicted quality (glance at it). Predicted IoU correlated only 0.50 with real IoU there.
 
 
-def review_frames(reports: list, keyed_frames) -> list:
-    """reports: [{"frame", "object_score", "iou_pred"}], keyed_frames: frames that currently have a key.
-    Returns [(frame, level, reason), ...] sorted by frame; level is LOST or CHECK."""
+def area_jumps(areas: dict, threshold: float = None) -> dict:
+    """{frame: relative change} for frames whose area differs by more than `threshold` from BOTH nearest frames
+    that have an area (> 0). Catches confidently wrong frames the model's own scores miss (T-078: the synthetic
+    split frame, score 8.0, predicted IoU 0.98, true IoU 0.42). Uncalibrated: CHECK level only."""
+    t = AREA_JUMP if threshold is None else threshold
+    fs = sorted(f for f, a in areas.items() if a and a > 0)
+    out = {}
+    for i, f in enumerate(fs):
+        if i == 0 or i == len(fs) - 1:
+            continue
+        a, p, n = areas[f], areas[fs[i - 1]], areas[fs[i + 1]]
+        dp, dn = abs(a - p) / max(a, p), abs(a - n) / max(a, n)
+        if dp > t and dn > t:
+            out[f] = round(min(dp, dn), 3)
+    return out
+
+
+def review_frames(reports: list, keyed_frames, areas: dict = None) -> list:
+    """reports: [{"frame", "object_score", "iou_pred"}], keyed_frames: frames that currently have a key,
+    areas: optional {frame: shape area} (AI frames). Returns [(frame, level, reason), ...] sorted by frame;
+    level is LOST or CHECK."""
+    jumps = area_jumps(areas) if areas else {}
     keyed = set(keyed_frames)
     present = sorted(r["frame"] for r in reports if (r["object_score"] or 0) > 0)
     out = []
@@ -32,6 +52,8 @@ def review_frames(reports: list, keyed_frames) -> list:
             reasons.append("uncertain whether the object is visible (score %.2f)" % s)
         if q is not None and f in keyed and q < IOU_PRED_MIN:
             reasons.append("low predicted mask quality (%.2f)" % q)
+        if f in jumps:
+            reasons.append("shape area jumps %.0f%% against both neighbouring frames" % (100 * jumps[f]))
         if reasons:
             out.append((f, level, "; ".join(reasons)))
     return out
