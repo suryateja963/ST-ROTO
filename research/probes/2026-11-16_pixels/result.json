@@ -1,0 +1,64 @@
+{
+ "HD_720 (1280x720)": {
+  "sample_per_pixel_us": 50.9,
+  "sample_full_frame_rgb_s_extrapolated": 140.7,
+  "tiff_float_uncompressed (current)": {
+   "render_s": 0.01,
+   "read_s": 0.0118,
+   "total_s": 0.0218,
+   "MB": 11.06
+  },
+  "exr_float_uncompressed": {
+   "render_s": 0.0171,
+   "read_s": 0.0071,
+   "total_s": 0.0242,
+   "MB": 11.07
+  },
+  "exr_half_uncompressed": {
+   "render_s": 0.0176,
+   "read_s": 0.0071,
+   "total_s": 0.0247,
+   "MB": 5.54
+  },
+  "tiff_16bit_int_uncompressed": {
+   "render_s": 0.0088,
+   "read_s": 0.0058,
+   "total_s": 0.0146,
+   "MB": 5.53
+  },
+  "exr_float_max_abs_diff_vs_tiff": 0.0,
+  "exr_half_max_abs_diff_vs_tiff": 0.000244140625,
+  "tiff16_max_abs_diff_vs_tiff": 0.2871478199958801
+ },
+ "HD_1080 (1920x1080)": {
+  "sample_per_pixel_us": 109.37,
+  "sample_full_frame_rgb_s_extrapolated": 680.3,
+  "tiff_float_uncompressed (current)": {
+   "render_s": 0.0129,
+   "read_s": 0.0276,
+   "total_s": 0.0405,
+   "MB": 24.89
+  },
+  "exr_float_uncompressed": {
+   "render_s": 0.0277,
+   "read_s": 0.013,
+   "total_s": 0.0407,
+   "MB": 24.9
+  },
+  "exr_half_uncompressed": {
+   "render_s": 0.0279,
+   "read_s": 0.0138,
+   "total_s": 0.0417,
+   "MB": 12.46
+  },
+  "tiff_16bit_int_uncompressed": {
+   "render_s": 0.0144,
+   "read_s": 0.0081,
+   "total_s": 0.0224,
+   "MB": 12.44
+  },
+  "exr_float_max_abs_diff_vs_tiff": 0.0,
+  "exr_half_max_abs_diff_vs_tiff": 0.000244140625,
+  "tiff16_max_abs_diff_vs_tiff": 0.2871479094028473
+ }
+}

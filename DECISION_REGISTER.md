@@ -31,5 +31,6 @@
 | D-027 | 2026-11-15 | Project data in one SQLite database per project + content-addressed cache; Nuke script holds only a link (ADR-0005) | Project owner (approved recommendation) | OQ-19 |
 | D-028 | 2026-11-15 | Git history is not rewritten; Apache-2.0 attribution for the SAM 2.1 parameter files added in `NOTICE` | Project owner (approved recommendation) | OQ-21 |
 | D-029 | 2026-11-16 | SAM 2.1 memory attention runs in fp16 by default (fp32 selectable); conversion via `tools/models/convert_fp16.py` | Claude (delegated technical choice) | `research/probes/2026-11-16_fp16/RESULTS.md`: identical masks on the synthetic shot (≤ 7 low-res pixels flip), −22% peak GPU (tiny), ~2× faster steps; to re-check on real footage |
+| D-030 | 2026-11-16 | Nuke → numpy pixels stay on the float-TIFF file path (no Python buffer API; exact; 0.022-0.041 s/frame); in-memory transfer deferred to the NDK route | Claude (delegated technical choice) | `research/probes/2026-11-16_pixels/RESULTS.md` |
 
 Architecture decisions: see `docs/adr/` (ADR-0001..0010 Accepted per D-026).
