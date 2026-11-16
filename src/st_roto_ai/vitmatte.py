@@ -14,8 +14,6 @@ import os
 
 import numpy as np
 
-from .runtime import open_session
-
 NAME = "vitmatte-small-composition-1k"
 CAVEAT = ("ViTMatte-S weights are Apache-2.0 but were trained on Composition-1k (Adobe Deep Image Matting data, "
           "terms on request from Adobe). Check that this suits your use before delivering work made with it.")
@@ -48,6 +46,7 @@ def trimap_from_mask(mask: np.ndarray, inner: int = 6, outer: int = 20) -> np.nd
 
 class ViTMatte(object):
     def __init__(self, models_root: str, device: str = "auto"):
+        from .runtime import open_session            # lazy: pre/post-processing needs no ONNX Runtime (CI)
         self.session, self.report = open_session(model_path(models_root), device)
 
     def alpha(self, rgb01: np.ndarray, trimap01: np.ndarray) -> np.ndarray:

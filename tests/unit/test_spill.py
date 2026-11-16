@@ -34,6 +34,7 @@ FR = os.path.join(ROOT, "research", "probes", "2026-11-15_video", "frames")
                     reason="exported model / synthetic frames not present")
 def test_tracker_identical_with_tiny_ram_budget():
     cv2 = pytest.importorskip("cv2")
+    pytest.importorskip("onnxruntime")                       # CI has no ONNX Runtime (and no models)
     from st_roto_ai.sam2 import Sam2Video
     meta = json.load(open(os.path.join(FR, "meta.json")))
     frames = [cv2.cvtColor(cv2.imread(os.path.join(FR, "frame_%04d.png" % i)), cv2.COLOR_BGR2RGB).astype(np.float32) / 255
