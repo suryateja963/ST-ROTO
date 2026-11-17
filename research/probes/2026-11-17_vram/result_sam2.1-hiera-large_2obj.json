@@ -1,0 +1,8 @@
+{
+ "model": "sam2.1-hiera-large",
+ "objects": 2,
+ "frames": 24,
+ "seconds": 23.0,
+ "status": "done: target: 24 keys (12 points), 0 frames without object | disc: 24 keys (8 points), 0 frames without object; device cuda",
+ "job": "done"
+}

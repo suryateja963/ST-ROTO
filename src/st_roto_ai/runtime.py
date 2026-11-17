@@ -95,6 +95,19 @@ def open_session(path: str, device: str = "auto", log_severity: int = 3, cache: 
     return res
 
 
+def loaded_model_dirs():
+    """Folders of model files whose sessions are cached (already holding GPU / CPU memory)."""
+    with _CACHE_LOCK:
+        return {os.path.dirname(k[0]) for k in _CACHE}
+
+
+def is_out_of_memory(err) -> bool:
+    """True if an exception from ONNX Runtime means the GPU ran out of memory (T-092)."""
+    t = str(err).lower()
+    return any(s in t for s in ("failed to allocate memory", "out of memory", "bfcarena", "cudaerrormemoryallocation",
+                                "cuda failure 2"))
+
+
 def clear_cache():
     """Release cached sessions (frees GPU memory; ADR-0009 GPU arbiter will call this under memory pressure)."""
     with _CACHE_LOCK:

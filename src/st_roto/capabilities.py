@@ -26,8 +26,49 @@ EDITION_LIMITS = {
                    "plugins_source": "docs"},
 }
 
-# Minimum free GPU memory (MiB) to run a model on the GPU. Filled from measurements by T-092; None = not measured.
-MODEL_VRAM_MIB = {"sam2.1-hiera-tiny": None, "sam2.1-hiera-large": None}
+# Peak GPU memory of a Track (MiB above the idle baseline, CUDA context included), measured by T-092 on an RTX 5060
+# Laptop 8 GB in Nuke 17.1 (research/probes/2026-11-17_vram): the same for 1 and 2 objects; SAM 2.1 works at
+# 1024x1024 internally, so the plate size matters little (720p measured).
+MODEL_VRAM_MIB = {"sam2.1-hiera-tiny": 3730, "sam2.1-hiera-large": 6793}
+VRAM_MARGIN = 1.05
+
+
+def vram_need(model):
+    """MiB of free GPU memory required before running `model` on the GPU (measured peak + 5 %), or None."""
+    v = MODEL_VRAM_MIB.get(model)
+    return None if v is None else int(v * VRAM_MARGIN)
+
+
+def plan_model(choice, device, free_mib, present, loaded=(), auto_choice="auto"):
+    """Memory-aware model/device choice (T-092, REQ-021). Pure.
+    choice: a model name or `auto_choice`; device: "auto" | "cuda" | "cpu"; free_mib: free GPU memory or None
+    (no NVIDIA GPU / unknown); present: {model: installed}; loaded: models whose sessions are already on the GPU
+    (they need no new memory). Returns (model, device, note). Never silently swaps a model the artist chose:
+    if it does not fit, it runs on the CPU and the note says so (and suggests the smaller model)."""
+    order = ("sam2.1-hiera-large", "sam2.1-hiera-tiny")
+
+    def fits(m):
+        need = vram_need(m)
+        return m in loaded or need is None or (free_mib is not None and free_mib >= need)
+    if choice == auto_choice:
+        if device == "cpu" or free_mib is None:
+            m = "sam2.1-hiera-tiny" if present.get("sam2.1-hiera-tiny") else "sam2.1-hiera-large"
+            return m, device, "auto model: %s (no GPU memory to choose by)" % m
+        for m in order:
+            if present.get(m) and fits(m):
+                return m, device, "auto model: %s (%d MiB GPU memory free, needs ~%s)" % (
+                    m, free_mib, "0 more: already loaded" if m in loaded else vram_need(m))
+        m = "sam2.1-hiera-tiny" if present.get("sam2.1-hiera-tiny") else "sam2.1-hiera-large"
+        return m, "cpu", ("auto model: not enough free GPU memory (%d MiB free, %s needs ~%d): running on the CPU, "
+                          "much slower; close GPU-heavy programs to use the GPU" % (free_mib, m, vram_need(m)))
+    if device == "cpu" or free_mib is None or fits(choice):
+        return choice, device, ""
+    note = ("%s needs ~%d MiB of free GPU memory, %d MiB free: running on the CPU, much slower"
+            % (choice, vram_need(choice), free_mib))
+    small = "sam2.1-hiera-tiny"
+    if choice != small and present.get(small) and fits(small):
+        note += "; '%s' fits on the GPU" % small
+    return choice, "cpu", note
 
 _NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0          # CREATE_NO_WINDOW: no console flash in the GUI
 

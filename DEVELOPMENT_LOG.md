@@ -374,3 +374,7 @@ Owner chose fit 1920x1080 as the Non-commercial default. The node now sets 'matt
 ## 2026-11-17 - T-091 hardware detection and capability report
 
 Owner asked for five features in a row (report, memory-aware model choice, easy large model, leases/keys UI, sharper-edge study). First: 'System report' (node button + ST-ROTO menu). Core rules in st_roto.capabilities (pure; local nvidia-smi and RAM probes; edition limits labelled measured/docs), Nuke facts in st_roto_nuke.capabilities. On this machine: 13 features, 7 fully available, 6 limited/unavailable with reasons. Model VRAM needs are not measured yet (filled by T-092). Not tested: the GUI dialog itself (nuke.message), AMD/Intel GPUs.
+
+## 2026-11-17 - T-092 memory-aware model choice
+
+Measured Track GPU memory (total-used increase; Windows reports no per-process figure): tiny 3,730 MiB, large 6,793 MiB on the 8 GB laptop GPU, unchanged by the object count. Added model 'auto (by free GPU memory)', a pre-check that runs a non-fitting chosen model on the CPU with a clear note (never swapping it), release of other cached sessions when they are what blocks, and a CPU fallback when ONNX Runtime runs out of GPU memory mid-run. Nuke test with fault injection (CUDA pool capped at 200 MiB) passes for Track and Re-track. My first probe run failed because I passed bare numbers to Nuke's command line (frame ranges) - a pitfall already in CLAUDE.md.

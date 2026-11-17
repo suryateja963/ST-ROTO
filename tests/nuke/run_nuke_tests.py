@@ -1365,6 +1365,49 @@ def test_system_report(res):
     return bool(ok)
 
 
+def test_memory_aware_model(res):
+    """T-092 / REQ-021: (1) model 'auto' picks what the measured-need rule says for the GPU memory free now and
+    tracks with it; (2) fault injection: ONNX Runtime's CUDA pool capped at 200 MiB -> a real out-of-memory error
+    -> Track and Re-track finish on the CPU, saying so."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto import capabilities as cap
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vh, n = meta["h"], 3
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    g = stnode.create(rd, os.path.join(tempfile.mkdtemp(), "mem.stroto"))
+    g["stroto_model"].setValue(stnode.AUTO_MODEL)
+    g["stroto_object"].setValue("target"); nuke.frame(0)
+    g["stroto_click"].setValue([meta["click_xy"][0], vh - meta["click_xy"][1]]); stnode.on_add_point(g, 1)
+    free = cap.gpu_info()["gpus"][0]["free_mib"]
+    expected = cap.plan_model(stnode.AUTO_MODEL, "auto", free, {"sam2.1-hiera-tiny": True, "sam2.1-hiera-large": True},
+                              auto_choice=stnode.AUTO_MODEL)
+    job = stnode.on_track(g, background=False)
+    res["free_mib"], res["expected"] = free, expected
+    res["auto_status"] = g["stroto_status"].value()
+    ok = (job is not None and job.status == "done" and ("auto model: %s" % expected[0]) in res["auto_status"]
+          and ("device cuda" in res["auto_status"]) == (expected[1] != "cpu"))
+    # fault injection: cap the CUDA pool so the next sessions cannot allocate
+    from st_roto_ai import runtime
+    stnode._release_gpu_sessions()
+    runtime.set_cuda_memory_limit(200)
+    g["stroto_model"].setValue("sam2.1-hiera-tiny")
+    g["stroto_object"].setValue("disc"); nuke.frame(0)
+    g["stroto_click"].setValue([1050.0, vh - 560.0]); stnode.on_add_point(g, 1)
+    j2 = stnode.on_track(g, background=False)
+    res["oom_track_status"] = g["stroto_status"].value()
+    ok &= (j2 is not None and j2.status == "done" and "ran out of memory" in res["oom_track_status"]
+           and "device cpu" in res["oom_track_status"])
+    g["stroto_object"].setValue("target")
+    j3 = stnode.on_retrack(g, background=False)
+    res["oom_retrack_status"] = g["stroto_status"].value()
+    ok &= j3 is not None and j3.status == "done" and "ran out of memory; re-tracked on the CPU" in res["oom_retrack_status"]
+    runtime.set_cuda_memory_limit(None)
+    return bool(ok)
+
+
 NET_EVENTS = ("socket.__new__", "socket.bind", "socket.connect", "socket.sendto", "socket.sendmsg",
               "socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyaddr", "socket.getnameinfo",
               "urllib.Request", "http.client.connect", "http.client.send", "ftplib.connect", "smtplib.connect",
@@ -1426,7 +1469,7 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_package_script_relink, test_feather_and_rotopaint, test_point_feather_roundtrip,
          test_vitmatte_mattes, test_box_prompt, test_reprompt_here, test_offline_no_network,
          test_difficult_sequences, test_traditional_roto_without_ai, test_plate_above_render_limit,
-         test_system_report)
+         test_system_report, test_memory_aware_model)
 
 
 def main():

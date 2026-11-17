@@ -31,7 +31,8 @@ from . import colour, pixels, session
 from .roto_export import export_preview, import_edits, sync_shot
 from .track import apply_results, models_root, track_object, track_objects
 
-MODELS = ["sam2.1-hiera-tiny", "sam2.1-hiera-large"]
+AUTO_MODEL = "auto (by free GPU memory)"
+MODELS = ["sam2.1-hiera-tiny", "sam2.1-hiera-large", AUTO_MODEL]
 MATTE_SIZES = ["full resolution", "fit 1920x1080"]
 
 
@@ -357,10 +358,51 @@ def _context(group, need_prompts: bool = True):
     mine = [o for o in objects if o["name"] == current] or (objects if len(objects) == 1 else [])
     return {"src": src, "write": write, "roto": roto, "objects": objects, "current": mine[0] if mine else None,
             "first": first, "last": last, "width": int(src.width()), "height": int(src.height()),
-            "model": group["stroto_model"].value(), "device": group["stroto_device"].value(),
+            "model": group["stroto_model"].value(), "device": group["stroto_device"].value(), "model_note": "",
             "colour": _colour(group), "anchors": _anchors(group),
             "project": group["stroto_project"].value(), "object": current,
             "pixel_path": pixels.temp_pixel_path(group.name()), "group": group}
+
+
+def plan_model(choice, device):
+    """Memory-aware (model, device, note) for an AI action (T-092, REQ-021): measured GPU memory needs vs free
+    memory now (local nvidia-smi); models already loaded by this Nuke need nothing new."""
+    from st_roto import capabilities as cap
+    present = {m: os.path.exists(os.path.join(models_root(), m, "video")) for m in MODELS if m != AUTO_MODEL}
+    loaded = _loaded_models()
+    gi = cap.gpu_info() if device != "cpu" else {"gpus": []}
+    free = gi["gpus"][0]["free_mib"] if gi["gpus"] else None
+    model, dev, note = cap.plan_model(choice, device, free, present, loaded, auto_choice=AUTO_MODEL)
+    if dev != device and dev == "cpu" and loaded - {model}:
+        # memory held by OTHER cached models may be what is missing: release it and look again
+        _release_gpu_sessions()
+        gi = cap.gpu_info()
+        free = gi["gpus"][0]["free_mib"] if gi["gpus"] else None
+        model, dev, note = cap.plan_model(choice, device, free, present, _loaded_models(), auto_choice=AUTO_MODEL)
+    return model, dev, note
+
+
+def _loaded_models():
+    import sys
+    rt = sys.modules.get("st_roto_ai.runtime")              # not loaded yet: nothing can be cached
+    if rt is None:
+        return set()
+    return {os.path.basename(os.path.dirname(d)) for d in rt.loaded_model_dirs()}
+
+
+def _release_gpu_sessions():
+    import gc
+    import sys
+    rt = sys.modules.get("st_roto_ai.runtime")
+    if rt is not None:
+        rt.clear_cache()
+    gc.collect()
+
+
+def _is_oom(err):
+    import sys
+    rt = sys.modules.get("st_roto_ai.runtime")
+    return bool(rt is not None and rt.is_out_of_memory(err))
 
 
 def _anchors(group):
@@ -575,7 +617,7 @@ def on_load_model(group):
     if _refuse_ai(group):
         return None
     from st_roto_ai.sam2 import preload_video
-    model, device = group["stroto_model"].value(), group["stroto_device"].value()
+    model, device, note = plan_model(group["stroto_model"].value(), group["stroto_device"].value())
     group["stroto_status"].setValue("loading %s (Nuke may pause briefly)..." % model)
     try:
         r = preload_video(os.path.join(models_root(), model, "video"), device)
@@ -585,6 +627,8 @@ def on_load_model(group):
     msg = "model %s loaded on %s in %.1f s" % (model, r["device"], r["seconds"])
     if r["fallback"]:
         msg += " (FALLBACK: %s)" % r["reason"]
+    if note:
+        msg += "; " + note
     group["stroto_status"].setValue(msg)
     return r
 
@@ -608,6 +652,8 @@ def on_preview(group, background: bool = True):
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None
     get_rgb = _renderer(ctx, background)
+
+    ctx["model"], ctx["device"], ctx["model_note"] = plan_model(ctx["model"], ctx["device"])
 
     def work(job):
         return track_object(get_rgb, [o["frame"]], o["frame"], o["points"], model=ctx["model"],
@@ -664,11 +710,25 @@ def on_track(group, background: bool = True, resume: bool = False):
         discard_checkpoint(ck)                              # a new run replaces any interrupted one
     start = frames[0]
     get_rgb = _renderer(ctx, background)
+    ctx["model"], ctx["device"], ctx["model_note"] = plan_model(ctx["model"], ctx["device"])
 
     def work(job):
-        return track_objects(get_rgb, frames, ctx["objects"], model=ctx["model"], device=ctx["device"], job=job,
-                             colour_transform=ctx["colour"], anchors=ctx["anchors"], parts=ctx.get("parts", True),
-                             checkpoint_dir=ck, resume=resume)
+        def run(device, again):
+            return track_objects(get_rgb, frames, ctx["objects"], model=ctx["model"], device=device, job=job,
+                                 colour_transform=ctx["colour"], anchors=ctx["anchors"],
+                                 parts=ctx.get("parts", True), checkpoint_dir=ck, resume=again)
+        try:
+            return run(ctx["device"], resume)
+        except Exception as e:                              # noqa: BLE001
+            if ctx["device"] == "cpu" or not _is_oom(e):
+                raise
+            # T-092: the GPU ran out of memory mid-run: free it and continue on the CPU from the last checkpoint
+            _release_gpu_sessions()
+            m = read_checkpoint(ck)
+            res = run("cpu", m is not None)
+            res["oom_fallback"] = ("the GPU ran out of memory; continued on the CPU from frame %s"
+                                   % (m["next_frame"] if m else frames[0]))
+            return res
 
     def apply(job):
         result = job.result
@@ -688,6 +748,9 @@ def on_track(group, background: bool = True, resume: bool = False):
                 len(r["absent_frames"])) + _review_text(store, oid))
         msg = "done%s: %s; device %s%s%s" % (" (resumed)" if resume else "", " | ".join(parts), result["device"],
                                               skipped_note, _sequence_note(ctx, result.get("missing_frames")))
+        for extra in (ctx.get("model_note"), result.get("oom_fallback")):
+            if extra:
+                msg += "; " + extra
         if result["device_fallback"]:
             msg += " (FALLBACK: %s)" % result["device_reason"]
         if rep["conflicts"]:
@@ -759,7 +822,7 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
         _status(group, "error: %s" % e); return None
     get_rgb = _renderer(ctx, background)
     sids = [sid for _, _, sid in targets]
-    model, device = group["stroto_model"].value(), group["stroto_device"].value()     # read knobs on main thread
+    model, device, model_note = plan_model(group["stroto_model"].value(), group["stroto_device"].value())
     try:
         ctransform = _colour(group)
     except ValueError as e:
@@ -768,8 +831,17 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
     def work(job):
         ro = store_ro(project)          # worker thread: its own connection (SQLite objects are thread-bound)
         try:
-            return retrack_objects(get_rgb, ro, sids, frames, width, height, model=model, device=device, job=job,
-                                   colour_transform=ctransform, fixes=fixes)
+            try:
+                return retrack_objects(get_rgb, ro, sids, frames, width, height, model=model, device=device,
+                                       job=job, colour_transform=ctransform, fixes=fixes)
+            except Exception as e:                          # noqa: BLE001
+                if device == "cpu" or not _is_oom(e):
+                    raise
+                _release_gpu_sessions()                     # T-092: GPU out of memory -> whole re-track on the CPU
+                res = retrack_objects(get_rgb, ro, sids, frames, width, height, model=model, device="cpu",
+                                      job=job, colour_transform=ctransform, fixes=fixes)
+                res["oom_fallback"] = "the GPU ran out of memory; re-tracked on the CPU"
+                return res
         finally:
             ro.close()
 
@@ -783,6 +855,9 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
                          + _review_text(store, oid))
         msg = "re-tracked %s; device %s" % (" | ".join(parts), job.result["device"])
         msg += _sequence_note(ctx, job.result.get("missing_frames"))
+        for extra in (model_note, job.result.get("oom_fallback")):
+            if extra:
+                msg += "; " + extra
         if fix is not None:
             msg = "re-prompted frame %d: %s" % (fix["frame"], msg)
         if skipped:

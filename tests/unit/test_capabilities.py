@@ -72,3 +72,34 @@ def test_report_text_and_probes_do_not_raise():
     assert set(gi) == {"gpus", "error"} and (gi["gpus"] or gi["error"])
     ram = cap.ram_info()
     assert ram == {} or ram["total_mib"] > 0
+
+
+# ------------------------------------------------------------------ T-092 memory-aware model choice
+BOTH = {"sam2.1-hiera-tiny": True, "sam2.1-hiera-large": True}
+AUTO = "auto"
+
+
+def test_measured_needs_have_margin():
+    assert cap.vram_need("sam2.1-hiera-tiny") == int(3730 * 1.05)
+    assert cap.vram_need("sam2.1-hiera-large") == int(6793 * 1.05)
+    assert cap.vram_need("unknown-model") is None
+
+
+def test_auto_picks_largest_model_that_fits():
+    assert cap.plan_model(AUTO, "auto", 7600, BOTH)[:2] == ("sam2.1-hiera-large", "auto")
+    assert cap.plan_model(AUTO, "auto", 5000, BOTH)[:2] == ("sam2.1-hiera-tiny", "auto")
+    m, d, note = cap.plan_model(AUTO, "auto", 2000, BOTH)
+    assert (m, d) == ("sam2.1-hiera-tiny", "cpu") and "CPU" in note and "2000 MiB free" in note
+    assert cap.plan_model(AUTO, "auto", 7600, {"sam2.1-hiera-tiny": True})[0] == "sam2.1-hiera-tiny"   # large absent
+    assert cap.plan_model(AUTO, "auto", None, BOTH)[:2] == ("sam2.1-hiera-tiny", "auto")              # no GPU info
+    assert cap.plan_model(AUTO, "auto", 500, BOTH, loaded={"sam2.1-hiera-large"})[:2] == ("sam2.1-hiera-large", "auto")
+
+
+def test_chosen_model_is_never_swapped_silently():
+    assert cap.plan_model("sam2.1-hiera-large", "auto", 7600, BOTH) == ("sam2.1-hiera-large", "auto", "")
+    m, d, note = cap.plan_model("sam2.1-hiera-large", "auto", 5000, BOTH)
+    assert (m, d) == ("sam2.1-hiera-large", "cpu") and "fits on the GPU" in note and "sam2.1-hiera-tiny" in note
+    m, d, note = cap.plan_model("sam2.1-hiera-tiny", "cuda", 1000, BOTH)
+    assert (m, d) == ("sam2.1-hiera-tiny", "cpu") and "1000 MiB free" in note
+    assert cap.plan_model("sam2.1-hiera-large", "cpu", 100, BOTH) == ("sam2.1-hiera-large", "cpu", "")
+    assert cap.plan_model("sam2.1-hiera-large", "auto", 100, BOTH, loaded={"sam2.1-hiera-large"})[1] == "auto"
