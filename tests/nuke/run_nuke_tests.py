@@ -1690,6 +1690,74 @@ def test_roles_and_merge(res):
     return bool(ok)
 
 
+def test_matte_outputs(res):
+    """T-099 / REQ-100, REQ-101: 'RGB in mattes' premultiplied + core/edge layers + edge blur, read back BY NUKE:
+    channels rgba.red/green/blue/alpha, core_matte.alpha, edge_matte.alpha; red = Nuke's own plate red x alpha at
+    sampled pixels; core + edge = alpha. Then straight: red = the plate's red. Header carries the convention."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import pixels
+    from st_roto_nuke.roto_export import build_shape
+    from st_roto.geometry import mask_to_points
+    from st_roto import exr
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vh, n = meta["h"], 2
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    g = stnode.create(rd, os.path.join(tempfile.mkdtemp(), "mo.stroto"))
+    curves = stnode._INNER[g.fullName()]["roto"]["curves"]
+    keys = {f: mask_to_points((cv2.imread(VIDEO + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE) > 127).astype(float) - 0.5,
+                              count=32) for f in range(n)}
+    curves.rootLayer.append(build_shape(curves, "hero", keys, vh))
+    nuke.frame(0); stnode.on_import_edits(g)
+    g["stroto_edges"].setValue("hard")
+    g["stroto_rgb_mode"].setValue("premultiplied"); g["stroto_core_edge"].setValue(4); g["stroto_edge_blur"].setValue(1.5)
+    jm = stnode.on_render_mattes(g, background=False)
+    res["status"] = g["stroto_status"].value()[-160:]
+    if jm is None or jm.status != "done":
+        res["error"] = getattr(jm, "error", None); return False
+    # Nuke's own linear plate for frame 1 (the pixels the matte pass also received)
+    wp = nuke.nodes.Write(inputs=[rd]); pth = OUT + "/mo_plate.tif"
+    pixels.configure_write(wp, pth); wp["disable"].setValue(True)
+    plate = pixels.render_frame(wp, 1, pth)
+    ch = exr.read_channels(jm.result["files"][1])
+    a = ch["A"]
+    rr = nuke.nodes.Read(file=jm.result["files"][1].replace("\\", "/"), first=1, last=1)
+    nuke.frame(1)
+    res["nuke_channels"] = sorted(c for c in rr.channels() if c.startswith(("rgba", "core_matte", "edge_matte")))
+    ys, xs = np.nonzero((a > 0.05) & (a < 0.95))
+    pick = list(zip(xs[::max(1, len(xs) // 8)], ys[::max(1, len(ys) // 8)]))[:8]
+    ys2, xs2 = np.nonzero(a > 0.999); pick += [(xs2[len(xs2) // 2], ys2[len(ys2) // 2])]
+    d_file, d_nuke = [], []
+    for x, y in pick:
+        d_file.append(abs(float(ch["R"][y, x]) - float(plate[y, x, 0]) * float(a[y, x])))
+        d_nuke.append(abs(rr.sample("rgba.red", x + 0.5, vh - y - 0.5) - float(ch["R"][y, x])))
+    res["max_diff_R_vs_plate_x_alpha"] = max(d_file)
+    res["max_diff_nuke_read_vs_file"] = max(d_nuke)
+    res["core_plus_edge_err"] = float(np.abs(ch["core_matte.A"] + ch["edge_matte.A"] - a).max())
+    ok = ({"rgba.red", "rgba.green", "rgba.blue", "rgba.alpha", "core_matte.alpha", "edge_matte.alpha"}
+          <= set(res["nuke_channels"]) and res["max_diff_R_vs_plate_x_alpha"] < 1e-4
+          and res["max_diff_nuke_read_vs_file"] < 1e-5 and res["core_plus_edge_err"] < 1e-5 and len(xs) > 50
+          and "RGB premultiplied" in res["status"])
+    g["stroto_rgb_mode"].setValue("straight"); g["stroto_core_edge"].setValue(0)
+    js = stnode.on_render_mattes(g, background=False)
+    res["straight_status"] = g["stroto_status"].value()[-300:]
+    if js is None or js.status != "done":
+        res["straight_error"] = getattr(js, "error", None); return False
+    c2 = exr.read_channels(js.result["files"][1])
+    res["straight_max_diff_vs_plate"] = float(np.abs(np.stack([c2["R"], c2["G"], c2["B"]], -1) - plate).max())
+    import OpenEXR
+    res["straight_header"] = json.loads(OpenEXR.File(js.result["files"][1]).header()["st_roto"])["alpha_convention"]
+    # the first render's frame 1 is still open in Nuke's Read 'rr' (Windows cannot replace it): new version folder
+    res["moved_from"] = js.result.get("moved_from")
+    res["straight_dir"] = os.path.dirname(js.result["files"][1])
+    ok &= (res["straight_max_diff_vs_plate"] < 1e-4 and res["straight_header"] == "straight" and "core_matte.A" not in c2
+           and res["moved_from"] is not None and res["straight_dir"].endswith("_v002")
+           and "went to a NEW folder" in res["straight_status"])
+    return bool(ok)
+
+
 NET_EVENTS = ("socket.__new__", "socket.bind", "socket.connect", "socket.sendto", "socket.sendmsg",
               "socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyaddr", "socket.getnameinfo",
               "urllib.Request", "http.client.connect", "http.client.send", "ftplib.connect", "smtplib.connect",
@@ -1752,7 +1820,8 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_vitmatte_mattes, test_box_prompt, test_reprompt_here, test_offline_no_network,
          test_difficult_sequences, test_traditional_roto_without_ai, test_plate_above_render_limit,
          test_system_report, test_memory_aware_model, test_retrack_flagged_large,
-         test_collaboration_ui, test_propagation_controls, test_roles_and_merge)
+         test_collaboration_ui, test_propagation_controls, test_roles_and_merge,
+         test_matte_outputs)
 
 
 def main():

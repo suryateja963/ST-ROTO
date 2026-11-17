@@ -179,3 +179,49 @@ def _dist_to_polyline(px, py, poly):
         d[i:i + 8192] = np.sqrt((dx ** 2 + dy ** 2).min(1))
     return d
 
+
+
+# ------------------------------------------------------------------------------------------------ refinement (T-099)
+def _disk(r):
+    import cv2
+    return cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
+
+
+def offset_alpha(alpha, px: int):
+    """Grow (px > 0, dilation) or shrink (px < 0, erosion) a matte by |px| pixels with a round kernel (REQ-12-10/11).
+    Works on soft mattes too (grey-scale morphology). 0 = unchanged."""
+    px = int(round(px))
+    a = np.asarray(alpha, np.float32)
+    if px == 0:
+        return a
+    import cv2
+    return (cv2.dilate if px > 0 else cv2.erode)(a, _disk(abs(px)))
+
+
+def blur_edge(alpha, px: float):
+    """Feather the matte edge with a Gaussian of sigma `px` pixels (REQ-12-12). Inside/outside far from an edge stay
+    1/0. 0 = unchanged."""
+    a = np.asarray(alpha, np.float32)
+    if px <= 0:
+        return a
+    import cv2
+    return np.clip(cv2.GaussianBlur(a, (0, 0), float(px)), 0.0, 1.0)
+
+
+def core_edge(alpha, width: int):
+    """Core matte (the matte eroded by `width` px: surely inside) and edge matte (alpha - core: the band where edge
+    work happens), both in [0, 1] (REQ-12-09 'multiple matte channels')."""
+    a = np.asarray(alpha, np.float32)
+    core = offset_alpha(a, -abs(int(width)))
+    return core, np.clip(a - core, 0.0, 1.0)
+
+
+def foreground_rgb(rgb, alpha, mode: str):
+    """Foreground colour for a matte (REQ-12-01..04): 'premultiplied' = plate x alpha, 'straight' = plate (colour
+    not multiplied; NO decontamination of edge colours yet). The convention is written into the file, never implied."""
+    rgb = np.asarray(rgb, np.float32)
+    if mode == "premultiplied":
+        return rgb * np.asarray(alpha, np.float32)[..., None]
+    if mode == "straight":
+        return rgb
+    raise ValueError("unknown RGB mode %r" % mode)

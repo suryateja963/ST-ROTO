@@ -64,6 +64,7 @@ Owner's full specification: `docs/MASTER_PROMPT.md` (authoritative). Public repo
 - `tests/nuke/run_nuke_tests.py` has CRLF line endings: string-replace scripts with LF text silently miss; use the Edit tool.
 - OCIO `applyRGB` is in place; never pass the caller's array (`st_roto.colour.OcioTransform` copies).
 - Nuke Non-commercial saves scripts ENCRYPTED (`.nknc`): never edit them as text; relink knobs after opening (`st_roto_nuke.packages.apply_relink_to_open_script`).
+- A Nuke Read node keeps an EXR open: on Windows the file cannot be replaced (Access is denied) until Nuke lets go - clearRAMCache/clearDiskCache/reload/emptying the file knob do NOT release it (T-099); mattes use version folders then. OpenEXR's Python API groups R,G,B(,A) into one 'RGB'/'RGBA' channel (exr.read_channels splits).
 - Roto shape blending (T-098, measured): attributes `bm` (blend) / `inv` (invert); `getValue` returns 0 for ANY name (useless for discovery: use `attrs.k...Attribute`); Python attribute edits after a render need `curves.changed()`; the FIRST layer item is on top; blend 12 = minus (can go negative -> STROTO_clamp).
 - ST_Roto nodes store knobChanged/onCreate callbacks (AI-off visibility): keep them wrapped in try/except and touch `nuke.thisNode()` only after filtering on `nuke.thisKnob()` (10-node budget). knobChanged does not fire in headless `-t`: tests call `apply_ai_visibility` directly.
 - SA-V truth masks are SAM-assisted: they cannot judge edge precision beyond SAM (T-095); use exact-edge composites (`edge_study.py --composite`) or precise human truth.

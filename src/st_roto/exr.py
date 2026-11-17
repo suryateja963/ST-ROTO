@@ -34,9 +34,12 @@ def sequence_pattern(directory: str, base: str, ext: str = "exr") -> str:
 
 
 def write_mattes(path: str, layers: dict, combined=True, compression: str = "zip", half: bool = False,
-                 attributes: dict = None):
+                 attributes: dict = None, rgb=None, extra: dict = None):
     """layers: {object name: H x W float alpha}. Writes `<layer>.A` per object and, if `combined`, `A` = max over
-    objects. Unique layer names are enforced (a clash gets a numeric suffix). Returns {object name: layer}."""
+    objects (or the given combined alpha). Unique layer names are enforced (a clash gets a numeric suffix).
+    rgb: optional H x W x 3 foreground colour -> R, G, B (T-099; its alpha convention goes in `attributes`).
+    extra: {layer: H x W alpha} additional matte layers (e.g. core_matte, edge_matte), never clashing with objects.
+    Returns {object name: layer}."""
     import OpenEXR
     if not layers:
         raise ValueError("no mattes to write")
@@ -56,10 +59,22 @@ def write_mattes(path: str, layers: dict, combined=True, compression: str = "zip
             ln, i = "%s_%d" % (layer_name(name), i), i + 1
         used.add(ln); names[name] = ln
         channels[ln + ".A"] = a
+    for name, a in (extra or {}).items():
+        ln, i = layer_name(name), 2
+        while ln in used:
+            ln, i = "%s_%d" % (layer_name(name), i), i + 1
+        used.add(ln)
+        channels[ln + ".A"] = np.ascontiguousarray(np.clip(a, 0, 1), dtype)
+    if rgb is not None:
+        rgb = np.asarray(rgb)
+        if rgb.shape[:2] != shape:
+            raise ValueError("RGB size %r differs from the mattes %r" % (rgb.shape[:2], shape))
+        for i, c in enumerate("RGB"):
+            channels[c] = np.ascontiguousarray(rgb[..., i], dtype)
     if combined is not None and not isinstance(combined, bool):        # an explicit combined alpha (T-098 roles)
         channels["A"] = np.ascontiguousarray(np.clip(combined, 0, 1), dtype)
     elif combined:
-        channels["A"] = np.ascontiguousarray(np.max(np.stack([channels[n + ".A"] for n in used]), 0), dtype)
+        channels["A"] = np.ascontiguousarray(np.max(np.stack([channels[n + ".A"] for n in names.values()]), 0), dtype)
     header = {"compression": comp, "type": OpenEXR.scanlineimage}
     for k, v in (attributes or {}).items():
         header[k] = str(v)
@@ -68,12 +83,53 @@ def write_mattes(path: str, layers: dict, combined=True, compression: str = "zip
         os.makedirs(d, exist_ok=True)
     tmp = path + ".part"
     OpenEXR.File(header, channels).write(tmp)
-    os.replace(tmp, path)                 # never leave a half-written frame behind (crash safety)
+    try:
+        os.replace(tmp, path)             # never leave a half-written frame behind (crash safety)
+    except PermissionError:
+        try:
+            os.remove(tmp)
+        except OSError:
+            pass
+        raise PermissionError("%s is open in another program (e.g. a Nuke Read node showing the mattes) and cannot be "
+                              "replaced; render into another folder or close it" % path)
     return names
 
 
+def is_locked(path: str) -> bool:
+    """True if `path` exists and cannot be replaced right now (Windows: another program holds it open without
+    delete sharing - a Nuke Read node does, measured in T-099; clearing Nuke's caches or reloading does not
+    release it). Tested by renaming the file away and back."""
+    if not os.path.exists(path):
+        return False
+    probe = path + ".lockcheck"
+    try:
+        os.rename(path, probe)
+    except OSError:
+        return True
+    os.rename(probe, path)
+    return False
+
+
+def next_version_dir(directory: str) -> str:
+    """'<dir>' -> '<dir>_v002' (or the next free _vNNN), for rendering when the current files are in use."""
+    base = directory.rstrip("/\\")
+    i = 2
+    while os.path.exists("%s_v%03d" % (base, i)):
+        i += 1
+    return "%s_v%03d" % (base, i)
+
+
 def read_channels(path: str) -> dict:
-    """{channel name: H x W array} (tests and tools)."""
+    """{channel name: H x W array} (tests and tools). OpenEXR's Python API groups R, G, B(, A) into one 'RGB'/'RGBA'
+    entry (H x W x n); those are split back into single channels."""
     import OpenEXR
+    out = {}
     with OpenEXR.File(path) as f:
-        return {k: np.array(v.pixels) for k, v in f.channels().items()}
+        for k, v in f.channels().items():
+            px = np.array(v.pixels)
+            if k in ("RGB", "RGBA") and px.ndim == 3:
+                for i, c in enumerate(k):
+                    out[c] = px[..., i]
+            else:
+                out[k] = px
+    return out

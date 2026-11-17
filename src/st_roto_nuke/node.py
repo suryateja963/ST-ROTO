@@ -178,6 +178,22 @@ def create(source=None, project_path: str = ""):
     band.setTooltip("Half-width in pixels of the zone that may become soft.")
     rad = nuke.Int_Knob("stroto_radius", "radius"); rad.setValue(8); rad.clearFlag(nuke.STARTLINE); group.addKnob(rad)
     rad.setTooltip("Guided-filter window radius in pixels.")
+    rgbk = nuke.Enumeration_Knob("stroto_rgb_mode", "RGB in mattes", ["none", "premultiplied", "straight"])
+    rgbk.setTooltip("none: EXRs hold mattes only. premultiplied: the plate's scene-linear RGB x combined alpha in "
+                    "R, G, B (ready to merge 'over'). straight: the plate RGB unmultiplied (edge colours are NOT "
+                    "decontaminated). The convention is written into each EXR header.")
+    group.addKnob(rgbk)
+    ofk = nuke.Int_Knob("stroto_offset", "edge offset"); ofk.clearFlag(nuke.STARTLINE)
+    ofk.setTooltip("Grow (+) or shrink (-) every matte by this many pixels (dilate / erode). Mattes only: shapes "
+                   "do not change.")
+    group.addKnob(ofk)
+    blk = nuke.Double_Knob("stroto_edge_blur", "edge blur"); blk.clearFlag(nuke.STARTLINE)
+    blk.setTooltip("Feather the matte edges with a Gaussian of this size in pixels (mattes only).")
+    group.addKnob(blk)
+    cek = nuke.Int_Knob("stroto_core_edge", "core/edge width")
+    cek.setTooltip("> 0: also write layers core_matte (the combined matte shrunk by this width) and edge_matte "
+                   "(the band between), for edge work in comp.")
+    group.addKnob(cek)
     rl = nuke.Enumeration_Knob("stroto_role", "object role", ["add", "holdout", "garbage"])
     rl.setTooltip("Role of the object named above in the combined matte (rgba.alpha and Nuke's render): add, holdout "
                   "(cut out, e.g. a pole in front of the actor) or garbage (the matte is kept only inside it). Its "
@@ -1090,6 +1106,11 @@ def on_render_mattes(group, background: bool = True):
         size_choice = (group["stroto_matte_size"].value() if "stroto_matte_size" in group.knobs()
                        else default_matte_size())             # nodes made before T-090 follow the edition default
         out_size = (1920, 1080) if size_choice == "fit 1920x1080" else None
+        knobs = group.knobs()
+        extras = {"rgb_mode": group["stroto_rgb_mode"].value() if "stroto_rgb_mode" in knobs else None,
+                  "offset_px": int(group["stroto_offset"].value()) if "stroto_offset" in knobs else 0,
+                  "blur_px": float(group["stroto_edge_blur"].value()) if "stroto_edge_blur" in knobs else 0.0,
+                  "core_edge_px": int(group["stroto_core_edge"].value()) if "stroto_core_edge" in knobs else 0}
         ctransform = _colour(group)
         ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name()),
                "width": int(src.width()), "height": int(src.height()), "group": group}
@@ -1102,6 +1123,7 @@ def on_render_mattes(group, background: bool = True):
         try:
             return render_mattes(get_rgb, ro, shot["id"], frames, out_dir, soft=soft, method=method,
                                  models_root=models_root(), device=dev, band=band, radius=radius, out_size=out_size,
+                                 **extras,
                                  job=job, colour_transform=ctransform)
         finally:
             ro.close()
@@ -1121,6 +1143,21 @@ def on_render_mattes(group, background: bool = True):
                 "%s %s" % (k, _ranges(v)) for k, v in sorted(r["frames_interpolated"].items()))
         if r.get("plate_missing"):
             msg += "; plate unreadable, hard edges written: %s" % _ranges(r["plate_missing"])
+        if r.get("moved_from"):
+            msg += ("; the previous mattes are open in Nuke (a Read node), so this render went to a NEW folder: %s"
+                    % os.path.dirname(r["pattern"]))
+        st_ = r["settings"]
+        bits = []
+        if st_.get("alpha_convention") not in (None, "alpha only"):
+            bits.append("RGB %s" % st_["alpha_convention"])
+        if st_.get("offset_px"):
+            bits.append("offset %+d px" % st_["offset_px"])
+        if st_.get("blur_px"):
+            bits.append("edge blur %g px" % st_["blur_px"])
+        if st_.get("core_edge_px"):
+            bits.append("core/edge layers (%d px)" % st_["core_edge_px"])
+        if bits:
+            msg += "; " + ", ".join(bits)
         msg += _sequence_note(ctx, None)
         job.applied = msg
         group["stroto_status"].setValue(msg)

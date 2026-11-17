@@ -1,0 +1,25 @@
+{
+ "nuke": "17.1v3",
+ "nc": true,
+ "test_matte_outputs": {
+  "status": "ata/Local/Temp/tmpt9g0am0i/mo_mattes/Read1/Read1_mattes.####.exr (layers: hero; hard edges, 0.3 s); RGB premultiplied, edge blur 1.5 px, core/edge layers (4 px)",
+  "nuke_channels": [
+   "core_matte.alpha",
+   "edge_matte.alpha",
+   "rgba.alpha",
+   "rgba.blue",
+   "rgba.green",
+   "rgba.red"
+  ],
+  "max_diff_R_vs_plate_x_alpha": 1.1677057543124647e-08,
+  "max_diff_nuke_read_vs_file": 0.0,
+  "core_plus_edge_err": 5.960464477539063e-08,
+  "straight_status": "rya/AppData/Local/Temp/tmpt9g0am0i/mo_mattes/Read1_v002/Read1_mattes.####.exr (layers: hero; hard edges, 0.3 s); the previous mattes are open in Nuke (a Read node), so this render went to a NEW folder: <TEMP>/tmpt9g0am0i/mo_mattes/Read1_v002; RGB straight, edge blur 1.5 px",
+  "straight_max_diff_vs_plate": 0.0,
+  "straight_header": "straight",
+  "moved_from": "<TEMP>\\tmpt9g0am0i\\mo_mattes\\Read1",
+  "straight_dir": "<TEMP>\\tmpt9g0am0i\\mo_mattes\\Read1_v002",
+  "passed": true
+ },
+ "failed": 0
+}

@@ -402,3 +402,7 @@ While waiting for the owner's edge drawing (OQ-29), built range-limited re-track
 ## 2026-11-17 - T-098 holdouts, garbage mattes, merge
 
 Measured how Nuke's Roto combines shapes before building: attribute names via the k...Attribute constants (getValue returns 0 for any name, which first misled me), Python edits need curves.changed() to re-render (my first two probe runs showed no effect for that reason), the first layer item is on top, and blend 12 subtracts but can go negative. Recipe: minus on top (inverted for garbage) plus a Clamp after the Roto; ST-ROTO's EXR combine uses the same arithmetic. Added object roles (schema v10), Set role / Role..., Merge into..., and the Clamp in new nodes (lazily in old ones). Nuke test: Nuke's render and the EXR agree at IoU 0.9987; merge and undo behave. A session pause happened mid-task because the command permission check was temporarily unavailable.
+
+## 2026-11-17 - T-099 matte outputs and refinement
+
+Added premultiplied / straight foreground RGB in the matte EXRs (convention in the header), edge offset (erode/dilate), edge blur and core/edge layers. The Nuke test found a real problem: the test's own Read node kept the first EXR open and the second render failed with 'Access is denied' (Windows), leaving a .part file. A probe showed no Nuke call releases the handle, so renders now go to the next version folder when target files are in use (with an explanation) and a failed replace cleans up and explains. Also: OpenEXR's Python API returns R,G,B,A as one 'RGBA' channel, which my reader did not expect.
