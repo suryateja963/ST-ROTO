@@ -10,7 +10,9 @@ except ImportError:                       # Nuke 13-15 ship PySide2
 
 from . import models_ui
 
-COLUMNS = ["model", "location", "used", "licence", "approval", "revision", "installed", "GPU memory", "source"]
+COLUMNS = ["model", "location", "used", "licence", "approval", "revision", "installed", "versions", "GPU memory",
+           "source"]
+VERSION_COLUMNS = ["version", "state", "revision", "export tool", "size", "archived", "note"]
 
 
 class ModelPanel(QtWidgets.QWidget):
@@ -34,6 +36,25 @@ class ModelPanel(QtWidgets.QWidget):
                                                  "location (refused unless licence, approval and checksums are right).")):
             b = QtWidgets.QPushButton(label); b.setToolTip(tip); b.clicked.connect(fn); btns.addWidget(b)
         lay.addLayout(btns)
+        # T-114: versions of the selected model, side by side
+        lay.addWidget(QtWidgets.QLabel("Versions of the selected model (one is used; the others are kept for rollback):"))
+        self.vtable = QtWidgets.QTableWidget(0, len(VERSION_COLUMNS))
+        self.vtable.setHorizontalHeaderLabels(VERSION_COLUMNS)
+        self.vtable.setSelectionBehavior(QtWidgets.QAbstractItemView.SelectRows)
+        self.vtable.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
+        lay.addWidget(self.vtable)
+        vb = QtWidgets.QHBoxLayout()
+        for label, fn, tip in (
+                ("Use this version", self.activate, "Verify the selected version (every checksum) and make it the one "
+                                                    "ST-ROTO uses; the current one is kept for rollback."),
+                ("Roll back", self.rollback, "Go back to the version used before the last change."),
+                ("Compare (self-test all)", self.compare, "Self-test every version side by side on this machine "
+                                                          "(nothing is switched)."),
+                ("Remove version...", self.remove_version, "Delete the selected ARCHIVED version's files.")):
+            b = QtWidgets.QPushButton(label); b.setToolTip(tip); b.clicked.connect(fn); vb.addWidget(b)
+        lay.addLayout(vb)
+        self.versions = []
+        self.table.itemSelectionChanged.connect(self.refresh_versions)
         self.info = QtWidgets.QLabel("")
         self.info.setWordWrap(True)
         lay.addWidget(self.info)
@@ -46,9 +67,13 @@ class ModelPanel(QtWidgets.QWidget):
             self.info.setText("error: %s" % e); return
         self.table.setRowCount(len(self.rows))
         for i, r in enumerate(self.rows):
+            try:
+                nv = len(models_ui.versions(r["name"], r["root"])) if r.get("root") else 0
+            except Exception:                                 # noqa: BLE001
+                nv = 0
             vals = [r["name"], r.get("location", ""), "yes" if r.get("active") else "", r["licence"] or "",
                     r["approval"] or "", (r["revision"] or "")[:10], "yes" if r["exports_present"] else "no",
-                    r.get("vram", ""), r["repo"] or ""]
+                    nv, r.get("vram", ""), r["repo"] or ""]
             for j, v in enumerate(vals):
                 item = QtWidgets.QTableWidgetItem(str(v))
                 if j == 3 and not r["usable"]:
@@ -119,3 +144,91 @@ class ModelPanel(QtWidgets.QWidget):
         self.refresh()
         self.info.setText("imported %s (%d files) into %s" % (res["model"], res["files"], res["to"]))
         return res
+
+    # ---------------------------------------------------------------------------------------- versions (T-114)
+    def refresh_versions(self):
+        self.versions = []
+        self.vtable.setRowCount(0)
+        try:
+            r = self._selected()
+        except ValueError:
+            return []
+        try:
+            self.versions = models_ui.versions(r["name"], r["root"])
+        except Exception as e:                                # noqa: BLE001
+            self.info.setText("error: %s" % e); return []
+        self.vtable.setRowCount(len(self.versions))
+        for i, v in enumerate(self.versions):
+            vals = [v["id"], "USED" if v["active"] else "kept", (v["revision"] or "")[:10], v["tool"] or "",
+                    "%.0f MB" % (v["bytes"] / 1e6), v.get("archived_utc") or "", v.get("note") or ""]
+            for j, x in enumerate(vals):
+                self.vtable.setItem(i, j, QtWidgets.QTableWidgetItem(str(x)))
+        return self.versions
+
+    def _selected_version(self):
+        r = self._selected()
+        i = self.vtable.currentRow()
+        if i < 0 or i >= len(self.versions):
+            raise ValueError("select a version row first")
+        return r, self.versions[i]
+
+    def activate(self):
+        try:
+            r, v = self._selected_version()
+            if v["active"]:
+                raise ValueError("%s is already the version in use" % v["id"])
+            res = models_ui.activate(r["name"], r["root"], v["id"])
+        except Exception as e:                                # noqa: BLE001
+            self.info.setText("error: %s" % e); return None
+        self.refresh(); self._reselect(r)
+        self.info.setText("%s: now using version %s (previous %s kept; 'Roll back' returns to it)"
+                          % (r["name"], res["active"], res["previous"]))
+        return res
+
+    def rollback(self):
+        try:
+            r = self._selected()
+            res = models_ui.rollback(r["name"], r["root"])
+        except Exception as e:                                # noqa: BLE001
+            self.info.setText("error: %s" % e); return None
+        self.refresh(); self._reselect(r)
+        self.info.setText("%s: rolled back to version %s" % (r["name"], res["active"]))
+        return res
+
+    def compare(self):
+        try:
+            r = self._selected()
+            res = models_ui.compare(r["name"], r["root"])
+        except Exception as e:                                # noqa: BLE001
+            self.info.setText("error: %s" % e); return None
+        self.info.setText("%s: %s" % (r["name"], " | ".join(
+            "%s%s: %s %s" % (x["id"], " (used)" if x["active"] else "", "PASSED" if x["result"].get("ok") else "FAILED",
+                             {k: v for k, v in x["result"].items() if k in ("iou", "seconds_per_frame",
+                                                                            "mean_abs_error", "error")})
+            for x in res)))
+        return res
+
+    def remove_version(self, confirm=None):
+        try:
+            r, v = self._selected_version()
+            if v["active"]:
+                raise ValueError("the version in use cannot be removed; use another one first")
+        except ValueError as e:
+            self.info.setText("error: %s" % e); return None
+        if confirm is None:
+            confirm = QtWidgets.QMessageBox.question(
+                self, "Remove version", "Delete version %s of %s (%.0f MB)?" % (v["id"], r["name"], v["bytes"] / 1e6)) \
+                == QtWidgets.QMessageBox.Yes
+        if not confirm:
+            return None
+        p = models_ui.remove_version(r["name"], r["root"], v["id"])
+        self.refresh(); self._reselect(r)
+        self.info.setText("removed version %s of %s" % (v["id"], r["name"]))
+        return p
+
+    def _reselect(self, r):
+        for i, x in enumerate(self.rows):
+            if x["name"] == r["name"] and x.get("root") == r.get("root"):
+                self.table.selectRow(i)
+                break
+        self.refresh_versions()

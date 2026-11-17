@@ -28,6 +28,8 @@ GUI_PROBES = [  # (script, result json) - interactive Nuke, each exits by itself
      "research/probes/2026-11-17_model_manager/result_gui_model_panel.json"),
     ("research/probes/2026-11-18_overlay/gui_review_overlay.py",
      "research/probes/2026-11-18_overlay/result_gui_review_overlay.json"),
+    ("research/probes/2026-11-18_model_versions/gui_model_versions.py",
+     "research/probes/2026-11-18_model_versions/result_gui_model_versions.json"),
 ]
 
 

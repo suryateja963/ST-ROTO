@@ -75,7 +75,11 @@ def find_model(name: str) -> str:
 
 
 def model_dir(name: str) -> str:
-    """Folder of a model's exported files in the location that is used (find_model)."""
+    """Folder of a model's exported files in the location that is used (find_model). 'name@<version id>' names an
+    archived version (T-114) of the location that is used: versions run side by side without being activated."""
+    if "@" in name:
+        base, vid = name.split("@", 1)
+        return os.path.join(version_root(find_model(base), base, vid), "onnx", base)
     return os.path.join(find_model(name), "onnx", name)
 
 
@@ -262,15 +266,23 @@ def remove_model(name: str, root: str) -> list:
     return gone
 
 
-def import_model(src_root: str, name: str, dst_root: str) -> dict:
+def import_model(src_root: str, name: str, dst_root: str, note: str = "", user: str = "") -> dict:
     """Manual import (REQ-15): copy model `name` (its manifests and onnx/<name>/) from another models root into
     `dst_root` - ONLY if its source manifest records a production licence, an owner approval and a pinned revision,
-    and every exported file matches its recorded size and SHA-256. Nothing is copied otherwise."""
+    and every exported file matches its recorded size and SHA-256. Nothing is copied otherwise.
+    T-114: a version already installed there is ARCHIVED (versions/<name>/<id>/), never deleted, so the import can be
+    rolled back; importing the version that is already active changes nothing."""
     import shutil
     check = verify_model(name, src_root)
     bad = [c for c in check if not c["ok"]]
     if bad:
         raise ModelIntegrityError("not imported: %s" % "; ".join("%s: %s" % (c["file"], c["detail"]) for c in bad))
+    new_vid = version_id(load_manifests(name, src_root)[1])
+    old = active_version(name, dst_root)
+    if old is not None and old["id"] == new_vid:
+        return {"model": name, "to": os.path.join(dst_root, "onnx", name), "files": len(check) - 1,
+                "version": new_vid, "archived": None, "unchanged": True}
+    archived = _archive_active(name, dst_root) if old is not None else None
     os.makedirs(os.path.join(dst_root, "manifests"), exist_ok=True)
     for fn in (name + ".json", name + ".exports.json"):
         shutil.copy2(os.path.join(src_root, "manifests", fn), os.path.join(dst_root, "manifests", fn))
@@ -278,7 +290,184 @@ def import_model(src_root: str, name: str, dst_root: str) -> dict:
     if os.path.isdir(dst):
         shutil.rmtree(dst)
     shutil.copytree(os.path.join(src_root, "onnx", name), dst)
-    return {"model": name, "to": dst, "files": len(check) - 1}
+    _history(dst_root, name, "import", archived, new_vid, note, user)
+    with _LOCK:
+        _MEM.clear()
+    return {"model": name, "to": dst, "files": len(check) - 1, "version": new_vid, "archived": archived}
+
+
+# ------------------------------------------------------------------------------------------------ versions (T-114)
+# Several versions of a model side by side, one ACTIVE (the normal layout: manifests/<name>*.json + onnx/<name>/),
+# the others archived as complete mini models roots: <root>/versions/<name>/<id>/{manifests/, onnx/<name>/}, so the
+# same verification applies to them and 'name@id' can load one without activating it. A version id is a hash of its
+# exports manifest (every file's SHA-256 + the source revision). Activation MOVES folders (models are GBs), records
+# who/when in versions/<name>/history.json and is undone by 'rollback'. Source weights (weights/<name>/) are not
+# versioned: the runtime never loads them.
+
+def version_id(exports_manifest: dict) -> str:
+    h = hashlib.sha256()
+    h.update(str(exports_manifest.get("source_revision")).encode())
+    for rel, e in sorted(exports_manifest.get("files", {}).items()):
+        h.update(("%s:%s:%s;" % (rel, e.get("sha256"), e.get("bytes"))).encode())
+    return h.hexdigest()[:12]
+
+
+def version_root(root: str, name: str, vid: str) -> str:
+    return os.path.join(root, "versions", name, vid)
+
+
+def _describe(name, mroot, vid, active):
+    src, exp = load_manifests(name, mroot)
+    meta = {}
+    mp = os.path.join(mroot, "version.json")
+    if os.path.exists(mp):
+        try:
+            meta = json.load(open(mp, encoding="utf-8"))
+        except ValueError:
+            meta = {}
+    files = exp.get("files", {})
+    return {"id": vid, "active": active, "root": mroot, "revision": src.get("revision"), "licence": src.get("licence"),
+            "approval": src.get("approval"), "tool": exp.get("tool", ""), "files": len(files),
+            "bytes": sum(int(e.get("bytes", 0)) for e in files.values()), "archived_utc": meta.get("archived_utc"),
+            "note": meta.get("note", "")}
+
+
+def active_version(name: str, root: str):
+    """The active version's description, or None if `root` has no installed copy of `name`."""
+    if not (os.path.exists(os.path.join(root, "manifests", name + ".exports.json"))
+            and os.path.isdir(os.path.join(root, "onnx", name))):
+        return None
+    return _describe(name, root, version_id(load_manifests(name, root)[1]), True)
+
+
+def list_versions(name: str, root: str) -> list:
+    """Active version first, then archived ones (newest archive first)."""
+    out = []
+    a = active_version(name, root)
+    if a:
+        out.append(a)
+    vd = os.path.join(root, "versions", name)
+    arch = []
+    for vid in sorted(os.listdir(vd)) if os.path.isdir(vd) else []:
+        p = os.path.join(vd, vid)
+        if os.path.isdir(p) and os.path.isdir(os.path.join(p, "manifests")):
+            try:
+                arch.append(_describe(name, p, vid, False))
+            except ModelIntegrityError:
+                continue
+    arch.sort(key=lambda d: d.get("archived_utc") or "", reverse=True)
+    return out + arch
+
+
+def history(name: str, root: str) -> list:
+    p = os.path.join(root, "versions", name, "history.json")
+    try:
+        return json.load(open(p, encoding="utf-8"))
+    except (OSError, ValueError):
+        return []
+
+
+def _history(root, name, action, frm, to, note="", user=""):
+    import datetime
+    d = os.path.join(root, "versions", name)
+    os.makedirs(d, exist_ok=True)
+    h = history(name, root)
+    h.append({"utc": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"), "action": action, "from": frm,
+              "to": to, "note": note, "user": user or os.environ.get("USERNAME") or os.environ.get("USER") or ""})
+    tmp = os.path.join(d, "history.json.part")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(h, fh, indent=1)
+    os.replace(tmp, os.path.join(d, "history.json"))
+
+
+def _archive_active(name, root, note=""):
+    """MOVE the active version into versions/<name>/<id>/ (manifests copied, onnx folder moved). Returns its id.
+    If that id is already archived, the active copy is identical: the active onnx folder is removed instead."""
+    import datetime
+    import shutil
+    vid = version_id(load_manifests(name, root)[1])
+    dst = version_root(root, name, vid)
+    if os.path.isdir(dst):
+        shutil.rmtree(os.path.join(root, "onnx", name))
+    else:
+        os.makedirs(os.path.join(dst, "manifests"))
+        os.makedirs(os.path.join(dst, "onnx"))
+        for fn in (name + ".json", name + ".exports.json"):
+            shutil.copy2(os.path.join(root, "manifests", fn), os.path.join(dst, "manifests", fn))
+        os.rename(os.path.join(root, "onnx", name), os.path.join(dst, "onnx", name))
+        with open(os.path.join(dst, "version.json"), "w", encoding="utf-8") as fh:
+            json.dump({"id": vid, "archived_utc": datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+                       "note": note}, fh, indent=1)
+    return vid
+
+
+def verify_version(name: str, root: str, vid: str) -> list:
+    """verify_model on an archived version (full SHA-256 of every file)."""
+    return verify_model(name, version_root(root, name, vid))
+
+
+def activate_version(name: str, root: str, vid: str, note: str = "", user: str = "") -> dict:
+    """Make archived version `vid` the active one: verified first (licence, approval, revision, every file's
+    SHA-256 - nothing changes if anything fails), then the active version is archived and `vid` moved into place.
+    Callers must release loaded sessions of `name` first (Windows cannot move files a session still holds)."""
+    import shutil
+    src = version_root(root, name, vid)
+    if not os.path.isdir(src):
+        raise ModelIntegrityError("%s has no archived version %s" % (name, vid))
+    bad = [c for c in verify_version(name, root, vid) if not c["ok"]]
+    if bad:
+        raise ModelIntegrityError("version %s not activated: %s" % (vid, "; ".join("%s: %s" % (c["file"], c["detail"])
+                                                                                 for c in bad)))
+    cur = active_version(name, root)
+    if cur is not None and cur["id"] == vid:
+        return {"model": name, "active": vid, "previous": vid, "unchanged": True}
+    prev = _archive_active(name, root, note="replaced by %s" % vid) if cur is not None else None
+    try:
+        os.makedirs(os.path.join(root, "manifests"), exist_ok=True)
+        os.makedirs(os.path.join(root, "onnx"), exist_ok=True)
+        for fn in (name + ".json", name + ".exports.json"):
+            shutil.copy2(os.path.join(src, "manifests", fn), os.path.join(root, "manifests", fn))
+        os.rename(os.path.join(src, "onnx", name), os.path.join(root, "onnx", name))
+    except OSError:
+        if prev is not None and not os.path.isdir(os.path.join(root, "onnx", name)):   # put the old one back
+            _restore_from_archive(name, root, prev)
+        raise
+    shutil.rmtree(src)
+    _history(root, name, "activate", prev, vid, note, user)
+    with _LOCK:
+        _MEM.clear()
+    return {"model": name, "active": vid, "previous": prev}
+
+
+def _restore_from_archive(name, root, vid):
+    import shutil
+    src = version_root(root, name, vid)
+    for fn in (name + ".json", name + ".exports.json"):
+        shutil.copy2(os.path.join(src, "manifests", fn), os.path.join(root, "manifests", fn))
+    os.rename(os.path.join(src, "onnx", name), os.path.join(root, "onnx", name))
+    shutil.rmtree(src)
+
+
+def rollback(name: str, root: str, user: str = "") -> dict:
+    """Re-activate the version that was active before the last import / activation (history.json)."""
+    cur = active_version(name, root)
+    for h in reversed(history(name, root)):
+        if h.get("from") and (cur is None or h["from"] != cur["id"]) and \
+                os.path.isdir(version_root(root, name, h["from"])):
+            r = activate_version(name, root, h["from"], note="rollback", user=user)
+            return r
+    raise ModelIntegrityError("nothing to roll back to for %s (no earlier version archived)" % name)
+
+
+def remove_version(name: str, root: str, vid: str) -> str:
+    """Delete an ARCHIVED version (the active one cannot be removed here)."""
+    import shutil
+    p = version_root(root, name, vid)
+    if not os.path.isdir(p):
+        raise ModelIntegrityError("%s has no archived version %s" % (name, vid))
+    shutil.rmtree(p)
+    _history(root, name, "remove", vid, None)
+    return p
 
 
 def status() -> str:

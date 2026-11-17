@@ -101,3 +101,56 @@ def import_from(src_root: str, name: str, dst_label: str = "user") -> dict:
         raise ValueError("no %s model location configured (set %s)" % (
             dst_label, dict(reg.LOCATION_ENV).get(dst_label, "?")))
     return reg.import_model(src_root, name, dst)
+
+
+# ------------------------------------------------------------------------------------------------ versions (T-114)
+def _release_sessions():
+    """Loaded ONNX Runtime sessions keep model files open on Windows: release them before folders are moved."""
+    import gc
+    import sys
+    rt = sys.modules.get("st_roto_ai.runtime")
+    if rt is not None:
+        rt.clear_cache()
+    gc.collect()
+
+
+def versions(name: str, root: str) -> list:
+    """Active version first, then archived ones, each with its id, revision, export tool, size, note, date."""
+    return _registry().list_versions(name, root)
+
+
+def history(name: str, root: str) -> list:
+    return _registry().history(name, root)
+
+
+def activate(name: str, root: str, vid: str, note: str = "") -> dict:
+    """Verify archived version `vid` fully, then make it the one ST-ROTO uses (the current one is archived)."""
+    _release_sessions()
+    return _registry().activate_version(name, root, vid, note=note)
+
+
+def rollback(name: str, root: str) -> dict:
+    _release_sessions()
+    return _registry().rollback(name, root)
+
+
+def remove_version(name: str, root: str, vid: str) -> str:
+    return _registry().remove_version(name, root, vid)
+
+
+def compare(name: str, root: str, device: str = "auto") -> list:
+    """Self-test EVERY installed version of `name` side by side (archived ones run as 'name@id', nothing is
+    activated): [{"id", "active", "result"}]."""
+    reg = _registry()
+    if os.path.abspath(reg.find_model(name)) != os.path.abspath(root):
+        raise ValueError("%s: this copy (%s) is not the one ST-ROTO uses (%s); compare runs on the used location"
+                         % (name, root, reg.find_model(name)))
+    out = []
+    for v in versions(name, root):
+        model = name if v["active"] else "%s@%s" % (name, v["id"])
+        try:
+            res = self_test(model, device)
+        except Exception as e:                                    # noqa: BLE001
+            res = {"ok": False, "error": str(e)}
+        out.append({"id": v["id"], "active": v["active"], "result": res})
+    return out

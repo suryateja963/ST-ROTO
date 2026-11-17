@@ -2447,6 +2447,70 @@ def test_alembic_export(res):
     return bool(ok)
 
 
+def test_model_versions(res):
+    """T-114 (REQ-130) with the REAL SAM 2.1 tiny model in temporary locations (the project's models are never
+    touched): import v1 into a user location; v2 = the same export with one config file changed (a genuinely
+    different, still working version, registered like any export); importing v2 archives v1; both self-test side by
+    side on the GPU ('name@id' runs the archived one without activating it); activating v1 while ONNX Runtime
+    sessions are loaded (they are released first); rollback returns to v2; history records it."""
+    import shutil
+    from st_roto_ai import registry as reg
+    from st_roto_nuke import models_ui
+    name = "sam2.1-hiera-tiny"
+    plugin = reg.default_models_root()
+    if not os.path.isdir(os.path.join(plugin, "onnx", name, "video")):
+        res["skipped"] = "model not installed"; return True
+    tmp = tempfile.mkdtemp(prefix="stroto_versions_")
+    user, stage = os.path.join(tmp, "user"), os.path.join(tmp, "stage")
+    os.makedirs(user)
+    os.environ["ST_ROTO_MODELS_USER"] = user
+    try:
+        r1 = models_ui.import_from(plugin, name, "user")
+        v1 = r1["version"]
+        # v2: same weights, config.json with an extra (ignored) key, re-registered
+        os.makedirs(os.path.join(stage, "manifests"))
+        shutil.copy2(os.path.join(plugin, "manifests", name + ".json"), os.path.join(stage, "manifests"))
+        shutil.copytree(os.path.join(plugin, "onnx", name), os.path.join(stage, "onnx", name))
+        cfgp = os.path.join(stage, "onnx", name, "video", "config.json")
+        cfg = json.load(open(cfgp))
+        cfg["st_roto_test_variant"] = "T-114"
+        json.dump(cfg, open(cfgp, "w"), indent=1)
+        reg.build_exports_manifest(name, stage, tool="T-114 test variant")
+        r2 = models_ui.import_from(stage, name, "user")
+        v2 = r2["version"]
+        res["ids"] = {"v1": v1, "v2": v2, "archived_on_import": r2["archived"]}
+        ok = v1 != v2 and r2["archived"] == v1
+        vs = models_ui.versions(name, user)
+        res["versions"] = [(v["id"], v["active"], v["tool"]) for v in vs]
+        ok &= [(v["id"], v["active"]) for v in vs] == [(v2, True), (v1, False)]
+        ok &= reg.find_model(name) == os.path.abspath(user)
+        cmp_ = models_ui.compare(name, user)
+        res["compare"] = [(c["id"], c["active"], c["result"].get("ok"), c["result"].get("iou"),
+                           c["result"].get("device")) for c in cmp_]
+        ok &= len(cmp_) == 2 and all(c["result"].get("ok") for c in cmp_)
+        # activate v1 while sessions of both versions are loaded (models_ui releases them first)
+        a = models_ui.activate(name, user, v1, note="test")
+        res["activate"] = a
+        cfg_now = json.load(open(os.path.join(user, "onnx", name, "video", "config.json")))
+        ok &= a["active"] == v1 and "st_roto_test_variant" not in cfg_now
+        st = models_ui.self_test(name)
+        res["self_test_after_activate"] = {"ok": st.get("ok"), "iou": st.get("iou")}
+        ok &= bool(st.get("ok"))
+        rb = models_ui.rollback(name, user)
+        res["rollback"] = rb
+        cfg_now = json.load(open(os.path.join(user, "onnx", name, "video", "config.json")))
+        ok &= rb["active"] == v2 and cfg_now.get("st_roto_test_variant") == "T-114"
+        res["history"] = [(h["action"], h["from"], h["to"]) for h in models_ui.history(name, user)]
+        ok &= [h[0] for h in res["history"]] == ["import", "import", "activate", "activate"]
+        res["plugin_untouched"] = reg.active_version(name, plugin)["id"] == v1
+        ok &= res["plugin_untouched"]
+    finally:
+        os.environ.pop("ST_ROTO_MODELS_USER", None)
+        models_ui._release_sessions()
+        shutil.rmtree(tmp, ignore_errors=True)
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
@@ -2459,7 +2523,7 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_collaboration_ui, test_propagation_controls, test_roles_and_merge,
          test_matte_outputs, test_prompt_from_mask, test_model_manager,
          test_delivery_package, test_stereo_views, test_extra_channels, test_review_overlay_and_presets,
-         test_node_family, test_alembic_export)
+         test_node_family, test_alembic_export, test_model_versions)
 
 
 def main():

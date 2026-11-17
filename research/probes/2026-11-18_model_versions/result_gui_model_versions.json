@@ -1,0 +1,43 @@
+{
+ "gui": true,
+ "versions_column": "2",
+ "version_rows": [
+  [
+   "5e1f694042a5",
+   "USED"
+  ],
+  [
+   "f4b9aef53ae2",
+   "kept"
+  ]
+ ],
+ "activate_info": "fake-model: now using version f4b9aef53ae2 (previous 5e1f694042a5 kept; 'Roll back' returns to it)",
+ "after_activate": [
+  [
+   "f4b9aef53ae2",
+   "USED"
+  ],
+  [
+   "5e1f694042a5",
+   "kept"
+  ]
+ ],
+ "rollback_info": "fake-model: rolled back to version 5e1f694042a5",
+ "after_rollback": [
+  [
+   "5e1f694042a5",
+   "USED"
+  ],
+  [
+   "f4b9aef53ae2",
+   "kept"
+  ]
+ ],
+ "after_remove": [
+  [
+   "5e1f694042a5",
+   "USED"
+  ]
+ ],
+ "passed": true
+}
