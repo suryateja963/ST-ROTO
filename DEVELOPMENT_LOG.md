@@ -406,3 +406,7 @@ Measured how Nuke's Roto combines shapes before building: attribute names via th
 ## 2026-11-17 - T-099 matte outputs and refinement
 
 Added premultiplied / straight foreground RGB in the matte EXRs (convention in the header), edge offset (erode/dilate), edge blur and core/edge layers. The Nuke test found a real problem: the test's own Read node kept the first EXR open and the second render failed with 'Access is denied' (Windows), leaving a .part file. A probe showed no Nuke call releases the handle, so renders now go to the next version folder when target files are in use (with an explanation) and a failed replace cleans up and explains. Also: OpenEXR's Python API returns R,G,B,A as one 'RGBA' channel, which my reader did not expect.
+
+## 2026-11-17 - Privacy slip (my mistake)
+
+Commit 1ee7c06 (T-099) contained the Windows user name inside a truncated temp path in research/probes/2026-11-17_matte_outputs/result_file_lock.json. The privacy check printed the matches, but my one-line commit command did not stop on them and pushed. No email address was involved. Fixed forward (path redacted) and added tools/dev/commit_checked.ps1, which refuses to commit when the check finds anything; all further commits go through it. The old commit remains in the public history unless the owner decides to rewrite it (force push).
