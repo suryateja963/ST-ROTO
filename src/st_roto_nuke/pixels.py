@@ -7,17 +7,30 @@ Difficult sequences (T-086, master prompt section 11, measured in research/probe
   skip it and report it instead of failing the whole run;
 * proxy mode: the Write node needs a proxy file name, otherwise Nuke refuses to execute it; the frame then comes
   at proxy resolution and is brought to the shot format by `fit_to_format`;
+* an edition render limit (Non-commercial: 1920 x 1080) raises `ResolutionCapped`; the node then renders the
+  frame reduced into that box and scales it back, so tracking still works on larger plates (T-089);
 * a frame whose resolution differs from the shot (mixed-resolution sequences) is brought to the shot format the
   way Nuke's default Reformat node does (scale to the format width, centred), so shapes stay in shot coordinates.
 """
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 
 import numpy as np
 
 _MISSING = ("no such file", "read error", "cannot open", "can't open", "missing frame", "file not found")
+
+
+class ResolutionCapped(Exception):
+    """The Nuke edition refuses to render this size (Non-commercial: 1920 x 1080, measured, T-089). `limit` is
+    (width, height) parsed from Nuke's message, or None if it could not be parsed."""
+
+    def __init__(self, message):
+        Exception.__init__(self, message)
+        m = re.search(r"\((\d+)\s*x\s*(\d+)\)", message)
+        self.limit = (int(m.group(1)), int(m.group(2))) if m else None
 
 
 class FrameUnavailable(Exception):
@@ -49,6 +62,8 @@ def render_frame(write_node, frame: int, path: str):
         nuke.execute(write_node, frame, frame)
     except RuntimeError as e:
         text = str(e)
+        if "maximum resolution allowed" in text.lower():
+            raise ResolutionCapped(text.strip())
         if any(m in text.lower() for m in _MISSING):
             raise FrameUnavailable(frame, text.strip().splitlines()[-1][:300])
         raise

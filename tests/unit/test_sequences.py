@@ -134,3 +134,12 @@ def test_resume_across_a_gap_is_identical(tmp_path, gap_run):
     a, b = resumed["objects"][0], gap_run["objects"][0]
     assert a["keys"] == b["keys"] and a["reports"] == b["reports"]
     assert resumed["missing_frames"] == list(GAP)
+
+
+def test_resolution_cap_message_is_parsed():
+    """T-089: Nuke Non-commercial's render-limit error (measured text) -> the box ST-ROTO renders the AI frames in."""
+    from st_roto_nuke.pixels import ResolutionCapped
+    msg = ("The bounding box exceeds the maximum resolution allowed in Non-commercial mode (1920 x 1080).\n"
+           "This could be resolved by adding a Reformat node before the Write node.")
+    assert ResolutionCapped(msg).limit == (1920, 1080)
+    assert ResolutionCapped("maximum resolution allowed").limit is None

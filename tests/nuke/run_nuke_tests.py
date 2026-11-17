@@ -1278,6 +1278,47 @@ def test_traditional_roto_without_ai(res):
     return bool(ok)
 
 
+def test_plate_above_render_limit(res):
+    """T-089 / REQ-111: a UHD (3840x2160) plate in Nuke Non-commercial, whose renders are capped at 1920x1080.
+    Before T-089 Track failed ('bounding box exceeds the maximum resolution'); now the AI sees frames reduced into
+    the allowed box through the node's STROTO_pixel_fit Reformat (enabled only around each render) and the shapes
+    are at full resolution."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto import views
+    from st_roto_nuke import session
+    from st_roto.geometry import Anchor
+    meta = json.load(open(VIDEO + "/meta.json"))
+    W, H, n, s = 3840, 2160, 3, 3.0
+    seq = tempfile.mkdtemp().replace("\\", "/")
+    gts = {}
+    for f in range(n):
+        cv2.imwrite(seq + "/frame_%04d.png" % f, cv2.resize(cv2.imread(VIDEO + "/frame_%04d.png" % f), (W, H)))
+        gts[f] = cv2.resize(cv2.imread(VIDEO + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE), (W, H),
+                            interpolation=cv2.INTER_NEAREST) > 127
+    rd = nuke.nodes.Read(file=seq + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "uhd.stroto")
+    g = stnode.create(rd, proj)
+    g["stroto_object"].setValue("target"); nuke.frame(0)
+    g["stroto_click"].setValue([meta["click_xy"][0] * s, H - meta["click_xy"][1] * s]); stnode.on_add_point(g, 1)
+    job = stnode.on_track(g, background=False)
+    res["status"] = g["stroto_status"].value()
+    if job is None or job.status != "done":
+        res["error"] = job.error if job else "no job"; return False
+    store, _ = session.project(proj)
+    oid = store.objects(store.conn.execute("SELECT id FROM shots").fetchone()["id"])[0]["id"]
+    sid = views.main_shape(store, oid)["id"]
+    res["key_iou"] = {}
+    for k in store.keys(sid):
+        a = [Anchor(p=np.array(p[:2]), h_in=np.array(p[2:4]), h_out=np.array(p[4:]), corner=False) for p in k["points"]]
+        res["key_iou"][k["frame"]] = round(iou(rasterize_spline(a, H, W), gts[k["frame"]]), 4)
+    fit = stnode._INNER[g.fullName()].get("fit")
+    res["fit_disabled_after"] = bool(fit is not None and fit["disable"].value())
+    return bool(sorted(res["key_iou"]) == list(range(n)) and min(res["key_iou"].values()) > 0.99
+                and "frames reduced to 1920x1080 (from 3840x2160)" in res["status"] and res["fit_disabled_after"])
+
+
 NET_EVENTS = ("socket.__new__", "socket.bind", "socket.connect", "socket.sendto", "socket.sendmsg",
               "socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyaddr", "socket.getnameinfo",
               "urllib.Request", "http.client.connect", "http.client.send", "ftplib.connect", "smtplib.connect",
@@ -1338,7 +1379,7 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_colour_auto_follows_script, test_split_object_parts, test_cancel_and_resume_track,
          test_package_script_relink, test_feather_and_rotopaint, test_point_feather_roundtrip,
          test_vitmatte_mattes, test_box_prompt, test_reprompt_here, test_offline_no_network,
-         test_difficult_sequences, test_traditional_roto_without_ai)
+         test_difficult_sequences, test_traditional_roto_without_ai, test_plate_above_render_limit)
 
 
 def main():

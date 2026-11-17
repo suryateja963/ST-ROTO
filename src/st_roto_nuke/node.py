@@ -338,7 +338,7 @@ def _context(group, need_prompts: bool = True):
             "model": group["stroto_model"].value(), "device": group["stroto_device"].value(),
             "colour": _colour(group), "anchors": _anchors(group),
             "project": group["stroto_project"].value(), "object": current,
-            "pixel_path": pixels.temp_pixel_path(group.name())}
+            "pixel_path": pixels.temp_pixel_path(group.name()), "group": group}
 
 
 def _anchors(group):
@@ -362,17 +362,18 @@ def _object_name(group):
 def _renderer(ctx, background):
     """get_rgb(frame) for jobs. Frames of another size (proxy mode, mixed-resolution sequences) are brought to the
     shot format and listed in ctx["refitted"] {frame: (w, h)}; unreadable frames raise pixels.FrameUnavailable
-    (in background mode Nuke's main-thread call returns the exception object, so it is re-raised here)."""
+    (in background mode Nuke's main-thread call returns the exception object, so it is re-raised here). If the Nuke
+    edition refuses to render the plate's size (Non-commercial: 1920 x 1080), frames are rendered reduced into the
+    allowed box and scaled back to the shot size; ctx["capped"] records it (T-089)."""
     ctx.setdefault("refitted", {})
 
     def get_rgb(frame):
-        args = (ctx["write"], frame, ctx["pixel_path"])
         if background:
-            img = nuke.executeInMainThreadWithResult(_render_or_error, args)
+            img = nuke.executeInMainThreadWithResult(_render_or_error, (ctx, frame))
             if isinstance(img, Exception):
                 raise img
         else:
-            img = pixels.render_frame(*args)
+            img = _render_capped(ctx, frame)
         if img.shape[:2] != (ctx["height"], ctx["width"]):
             ctx["refitted"][frame] = (img.shape[1], img.shape[0])
             img = pixels.fit_to_format(img, ctx["width"], ctx["height"])
@@ -380,17 +381,75 @@ def _renderer(ctx, background):
     return get_rgb
 
 
-def _render_or_error(write, frame, path):
+def _render_or_error(ctx, frame):
     """Main-thread side of get_rgb: exceptions in executeInMainThread callbacks are swallowed, so return them."""
     try:
-        return pixels.render_frame(write, frame, path)
+        return _render_capped(ctx, frame)
     except Exception as e:                                    # noqa: BLE001 - handed back to the worker thread
         return e
+
+
+def _render_capped(ctx, frame):
+    """Main thread. Plain render; on the edition's resolution limit switch this job to a reduced render through the
+    node's STROTO_pixel_fit Reformat (enabled only around each render, so saved scripts keep it off)."""
+    if not ctx.get("capped"):
+        try:
+            return pixels.render_frame(ctx["write"], frame, ctx["pixel_path"])
+        except pixels.ResolutionCapped as e:
+            ctx["capped"] = _setup_fit(ctx, e)
+    cap = ctx["capped"]
+    fit = cap["node"]
+    fit["disable"].setValue(False)
+    try:
+        img = pixels.render_frame(ctx["write"], frame, ctx["pixel_path"])
+    finally:
+        fit["disable"].setValue(True)
+    if img.shape[:2] == (cap["box"][1], cap["box"][0]):
+        import cv2
+        img = cv2.resize(img, (ctx["width"], ctx["height"]), interpolation=cv2.INTER_LINEAR)
+    return img
+
+
+def _setup_fit(ctx, err):
+    """Reformat (to box, distort) between the node's Input and its pixel Write, sized to the largest box inside the
+    edition's limit with the plate's proportions. Created once per node (costs Non-commercial node budget)."""
+    limit = err.limit or (1920, 1080)
+    w, h = ctx["width"], ctx["height"]
+    s = min(limit[0] / float(w), limit[1] / float(h), 1.0)
+    box = (max(1, int(w * s)), max(1, int(h * s)))
+    group = ctx.get("group")
+    if group is None:
+        raise ValueError("%s (this node cannot reduce frames for the AI; recreate it)" % err)
+    cache = _INNER.setdefault(group.fullName(), {})
+    fit = cache.get("fit")
+    if fit is None:
+        with group:
+            fit = nuke.toNode("STROTO_pixel_fit")
+            if fit is None:
+                fit = nuke.nodes.Reformat(name="STROTO_pixel_fit")
+                fit["disable"].setValue(True)
+                fit.setInput(0, ctx["write"].input(0))
+                ctx["write"].setInput(0, fit)
+        if fit is None:
+            raise NodeBudgetError("Nuke returned no node for the frame-reduction Reformat (Non-commercial 10-node "
+                                  "limit); save the script, reopen it and try again.")
+        cache["fit"] = fit
+    fit["type"].setValue("to box")
+    fit["box_fixed"].setValue(True)
+    fit["box_width"].setValue(box[0])
+    fit["box_height"].setValue(box[1])
+    fit["resize"].setValue("distort")
+    return {"node": fit, "box": box, "limit": limit}
 
 
 def _sequence_note(ctx, missing):
     """Status text for T-086 conditions: skipped unreadable frames and frames brought to the shot format."""
     note = ""
+    cap = ctx.get("capped")
+    if cap:
+        note += ("; this Nuke edition renders at most %dx%d, so the AI saw frames reduced to %dx%d (from %dx%d); "
+                 "shapes are full resolution, accuracy slightly lower" % (cap["limit"] + cap["box"]
+                                                                          + (ctx["width"], ctx["height"])))
     if missing:
         note += "; %d unreadable frame(s) skipped (no key): %s" % (len(missing), _ranges(sorted(missing)))
     ref = ctx.get("refitted") or {}
@@ -672,7 +731,8 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
                 raise ValueError("frame %d has your own key for %r: it already guides the re-track (edit that key "
                                  "instead)" % (fix["frame"], targets[0][0]))
             fixes = {sid: fix}
-        ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name()), "width": width, "height": height}
+        ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name()), "width": width, "height": height,
+               "group": group}
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None
     get_rgb = _renderer(ctx, background)
@@ -742,7 +802,7 @@ def on_render_mattes(group, background: bool = True):
         band, radius = max(1, int(group["stroto_band"].value())), max(1, int(group["stroto_radius"].value()))
         ctransform = _colour(group)
         ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name()),
-               "width": int(src.width()), "height": int(src.height())}
+               "width": int(src.width()), "height": int(src.height()), "group": group}
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None
     get_rgb = _renderer(ctx, background)
