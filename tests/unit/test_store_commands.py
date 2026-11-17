@@ -180,3 +180,25 @@ def test_undo_is_logged(env):
     useq = bus.undo()
     ops = {o["seq"]: o for o in store.operations()}
     assert ops[useq]["undoes"] == seq and ops[useq]["kind"] == "delete_key"
+
+
+def test_ai_cannot_write_locked_frames(tmp_path):
+    """DEF-007: frames in a shape's locked_frames are refused for the AI at the command bus (any code path); the
+    artist may still edit them."""
+    import json as _json
+    from st_roto.store import ProjectStore as _PS
+    from st_roto.commands import CommandBus as _Bus, ProtectedError as _PE
+    from st_roto import model as _m
+    s = _PS(str(tmp_path / "l.stroto")); bus = _Bus(s)
+    bus.execute({"op": "create_shot", "row": {"id": "S", "name": "s", "width": 10, "height": 10}})
+    bus.execute({"op": "create_object", "row": {"id": "O", "shot_id": "S", "name": "o"}}, actor=_m.ACTOR_AI)
+    bus.execute({"op": "create_shape", "row": {"id": "P", "object_id": "O", "name": "o", "point_count": 3,
+                                               "generator": _json.dumps({"locked_frames": [5]})}}, actor=_m.ACTOR_AI)
+    pts = [[1, 1, 0, 0, 0, 0], [5, 1, 0, 0, 0, 0], [3, 5, 0, 0, 0, 0]]
+    bus.execute({"op": "set_key", "shape_id": "P", "frame": 4, "points": pts}, actor=_m.ACTOR_AI)
+    with pytest.raises(_PE, match="locked"):
+        bus.execute({"op": "set_key", "shape_id": "P", "frame": 5, "points": pts}, actor=_m.ACTOR_AI)
+    bus.execute({"op": "set_key", "shape_id": "P", "frame": 5, "points": pts}, actor=_m.ACTOR_ARTIST)
+    with pytest.raises(_PE, match="locked"):
+        bus.execute({"op": "delete_key", "shape_id": "P", "frame": 5}, actor=_m.ACTOR_AI)
+    s.close()

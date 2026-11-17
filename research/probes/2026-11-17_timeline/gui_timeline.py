@@ -37,8 +37,7 @@ def main():
         bus.execute({"op": "create_shot", "row": {"id": "S", "name": rd.name(), "width": 1280, "height": 720,
                                                   "first_frame": 0, "last_frame": 9}})
         bus.execute({"op": "create_object", "row": {"id": "O", "shot_id": "S", "name": "hero"}})
-        bus.execute({"op": "create_shape", "row": {"id": "Os", "object_id": "O", "name": "hero", "point_count": 12,
-                                                   "generator": json.dumps({"locked_frames": [6, 7]})}})
+        bus.execute({"op": "create_shape", "row": {"id": "Os", "object_id": "O", "name": "hero", "point_count": 12}})
         yy, xx = np.mgrid[0:720, 0:1280] + 0.5
         for f in range(10):
             if f == 8:
@@ -48,6 +47,7 @@ def main():
                         actor=m.ACTOR_ARTIST if f == 4 else m.ACTOR_AI)
             bus.execute({"op": "set_report", "shape_id": "Os", "frame": f, "object_score": 5.0, "iou_pred": 0.95})
         bus.execute({"op": "set_report", "shape_id": "Os", "frame": 8, "object_score": -4.0, "iou_pred": 0.1})
+        bus.execute({"op": "update_shape", "id": "Os", "fields": {"generator": json.dumps({"locked_frames": [6, 7]})}})
         p = ObjectPanel(); p.resize(700, 400); p.show()
         p.set_group(g)
         tl = p.timeline

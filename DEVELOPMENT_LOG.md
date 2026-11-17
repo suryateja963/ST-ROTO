@@ -438,3 +438,11 @@ Wrote docs/ACCEPTANCE.md: the 20 criteria of section 30 with verification method
 ## 2026-11-17 - T-105 defect register
 
 Created DEFECTS.md (criterion 20) with the defects found today and the acceptance-run step that fails on open release blockers. While listing them, confirmed and fixed DEF-001: without roles the combined EXR matte took the maximum of the objects while Nuke's render composites them 'over' (0.5 vs 0.75 where two soft edges overlap); fixed DEF-008 (locked-frame re-prompt message). I first wrote 'verified in test_propagation_controls' for DEF-008 before that check existed; added it to the Nuke test, which passes.
+
+## 2026-11-17 - T-106 DEF-007 fixed
+
+Locked frames ('Lock range') are now enforced by the command bus for every AI key write or delete, not only by the re-track path; artists may still edit them. Unit test; full acceptance run repeated.
+
+## 2026-11-17 - T-107 benchmark methodology
+
+Published docs/BENCHMARK_METHODOLOGY.md (version 1) before any comparative test, with the metric implementation st_roto.metrics (IoU, Dice, boundary F, MAE, SAD, MSE, temporal error, HD95 contour, stability, identity; category weights and overall score). No competitor is lawfully accessible here yet; none was run and no comparison is claimed.

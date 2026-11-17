@@ -251,10 +251,17 @@ def _set_report(conn, op, actor):
             "object_score": prev["object_score"] if prev else None, "iou_pred": prev["iou_pred"] if prev else None}
 
 
-def _check_shape_writable(conn, shape, actor, existing_key):
+def _check_shape_writable(conn, shape, actor, existing_key, frame=None):
     if actor == m.ACTOR_AI:
         if shape["locked"] or _object_locked_chain(conn, shape["object_id"]):
             raise ProtectedError("shape %s is locked" % shape["id"])
+        if frame is not None and shape["generator"]:          # DEF-007: 'Lock range' enforced for every AI write
+            try:
+                locked = json.loads(shape["generator"]).get("locked_frames", [])
+            except ValueError:
+                locked = []
+            if frame in locked:
+                raise ProtectedError("frame %d of shape %s is locked (Lock range)" % (frame, shape["id"]))
         if existing_key is not None and existing_key["origin"] != m.AI_GENERATED:
             raise ProtectedError("AI may not overwrite %s key at frame %d of shape %s"
                                  % (existing_key["origin"], existing_key["frame"], shape["id"]))
@@ -266,7 +273,7 @@ def _set_key(conn, op, actor):
     shape = _shape_row(conn, op["shape_id"])
     frame = int(op["frame"])
     prev = _key_row(conn, shape["id"], frame)
-    _check_shape_writable(conn, shape, actor, prev)
+    _check_shape_writable(conn, shape, actor, prev, frame)
     pts = m.validate_points(op["points"], int(shape["point_count"]))
     origin = op.get("origin_override") or m.origin_for_write(actor, prev["origin"] if prev else shape["origin"])
     conn.execute("INSERT OR REPLACE INTO shape_keys (shape_id, frame, points, origin, generator) VALUES (?, ?, ?, ?, ?)",
@@ -283,7 +290,7 @@ def _delete_key(conn, op, actor):
     prev = _key_row(conn, shape["id"], frame)
     if prev is None:
         raise KeyError("no key at frame %d of shape %s" % (frame, shape["id"]))
-    _check_shape_writable(conn, shape, actor, prev)
+    _check_shape_writable(conn, shape, actor, prev, frame)
     conn.execute("DELETE FROM shape_keys WHERE shape_id = ? AND frame = ?", (shape["id"], frame))
     return {"op": "set_key", "shape_id": shape["id"], "frame": frame, "points": prev["points"],
             "origin_override": prev["origin"], "generator": prev["generator"]}

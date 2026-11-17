@@ -16,7 +16,7 @@ RISK_REGISTER.md and docs/ACCEPTANCE.md.
 | DEF-004 | 2026-11-17 | Plates above 1920x1080 could not be tracked in Nuke Non-commercial | Track on a UHD plate in NC | major | no | fixed | T-089: reduced AI render |
 | DEF-005 | 2026-11-17 | Mixed-resolution sequences gave wrong shapes without any warning | half-res frames inside a full-res sequence | critical | yes | fixed | T-086 |
 | DEF-006 | 2026-11-17 | 'Save Roto edits to project' recorded nothing before a first Track | draw by hand in a new node, press Save | critical | yes | fixed | T-088 |
-| DEF-007 | 2026-11-17 | 'Lock range' is enforced by the re-track path only; the command bus does not refuse AI writes to locked frames | (no current AI path writes them; a future one could) | minor | no | open | enforce in the command bus before any new AI write path |
+| DEF-007 | 2026-11-17 | 'Lock range' is enforced by the re-track path only; the command bus does not refuse AI writes to locked frames | (no current AI path writes them; a future one could) | minor | no | fixed | T-106: the command bus refuses AI set_key/delete_key on locked frames for every code path; `test_ai_cannot_write_locked_frames` |
 | DEF-008 | 2026-11-17 | Re-prompt on a LOCKED frame is refused with the message for artist keys ("you have your own key") | lock frames, Re-prompt here on one of them | minor | no | fixed | T-105: "frame N is locked: press Unlock range for it first" (verified in test_propagation_controls) |
 | DEF-009 | 2026-11-17 | ST-ROTO-Setup.exe is not code-signed: Windows SmartScreen warns | run the .exe on a fresh machine | minor | no | open | needs a signing certificate (owner decision) |
 

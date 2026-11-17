@@ -19,12 +19,13 @@ def test_timeline_keys_flags_locks(tmp_path):
     s = ProjectStore(str(tmp_path / "p.stroto")); bus = CommandBus(s)
     bus.execute({"op": "create_shot", "row": {"id": "S", "name": "shot", "width": 64, "height": 48}})
     bus.execute({"op": "create_object", "row": {"id": "A", "shot_id": "S", "name": "hero"}})
-    bus.execute({"op": "create_shape", "row": {"id": "As", "object_id": "A", "name": "hero", "point_count": 12,
-                                               "generator": json.dumps({"locked_frames": [3, 4]})}})
+    bus.execute({"op": "create_shape", "row": {"id": "As", "object_id": "A", "name": "hero", "point_count": 12}})
     for f in range(6):
         actor = m.ACTOR_ARTIST if f == 2 else m.ACTOR_AI
         bus.execute({"op": "set_key", "shape_id": "As", "frame": f, "points": mask_to_points(disc(20 + f), count=12)},
                     actor=actor)
+    # lock AFTER the AI keys exist (since DEF-007 the bus refuses AI writes to locked frames)
+    bus.execute({"op": "update_shape", "id": "As", "fields": {"generator": json.dumps({"locked_frames": [3, 4]})}})
     bus.execute({"op": "set_report", "shape_id": "As", "frame": 5, "object_score": -3.0, "iou_pred": 0.2})
     bus.execute({"op": "set_report", "shape_id": "As", "frame": 4, "object_score": 5.0, "iou_pred": 0.9})
     bus.execute({"op": "set_report", "shape_id": "As", "frame": 6, "object_score": 5.0, "iou_pred": 0.9})
