@@ -1,0 +1,32 @@
+{
+ "nuke": "17.1v3",
+ "gui": true,
+ "job_status": "done",
+ "error": null,
+ "status_knob": "done: 48 keys (12 points), 1 extra piece(s), 0 frames without object; REVIEW check 25-30; device cuda",
+ "seconds": 24.9,
+ "shapes_in_roto": [
+  "object1_part2_st5e748caf",
+  "object1_st6ba79e69"
+ ],
+ "keys_on_point0": 48,
+ "panel_rows": 1,
+ "locked_after_toggle": true,
+ "locked_after_undo": false,
+ "after_rename_layer": [
+  "hero_part2_st5e748caf",
+  "hero_st6ba79e69"
+ ],
+ "panel_info": "1 objects \u00b7 undo yes \u00b7 redo no",
+ "passed": true,
+ "job_progress": 1.0,
+ "job_message": "tracked 48 frames, 1 object(s)",
+ "applied": "done: 48 keys (12 points), 1 extra piece(s), 0 frames without object; REVIEW check 25-30; device cuda",
+ "apply_error": null,
+ "ui_gap_ms_during_track": {
+  "mean": 19.0,
+  "max": 1600.5,
+  "over_100ms": 8,
+  "ticks": 1356
+ }
+}

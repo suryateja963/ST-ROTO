@@ -1,0 +1,13 @@
+{
+ "nuke": "17.1v3",
+ "nc": true,
+ "test_offline_no_network": {
+  "load_status": "model sam2.1-hiera-tiny loaded on cuda in 3.1 s",
+  "track_status": "done: target: 6 keys (12 points), 0 frames without object | disc: 6 keys (8 points), 0 frames without object; device cuda",
+  "onnxruntime_telemetry_disabled": true,
+  "network_events": [],
+  "network_event_count": 0,
+  "passed": true
+ },
+ "failed": 0
+}

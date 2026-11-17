@@ -28,12 +28,30 @@ The machine's own LAN address is redacted (`<local>`). Loopback connections (127
 commercial Nuke licence, interactive (GUI) Nuke, and whether Nuke NC still starts with this traffic blocked
 (needs a firewall rule or the network off: owner's decision, OQ-26).
 
+## T-087: with Nuke's outbound traffic blocked (OQ-26, approved by the owner)
+
+A Windows Firewall rule "ST-ROTO offline test (block Nuke outbound)" (`tools/offline/firewall_nuke.ps1`, added
+through UAC) blocks every outbound connection of `Nuke17.1.exe`.
+
+| run | result | external connections |
+|---|---|---|
+| headless, empty script (`blocked_baseline.json`) | Nuke starts and exits normally (2.1 s) | 0 |
+| headless, ST-ROTO workflow (`blocked_st_roto_workflow.json`, `blocked_results_test_offline_no_network.json`) | Load model on CUDA, Track 2 objects, soft mattes, export, backup, package: passed, 0 Python network events | 0 |
+| **interactive GUI** Nuke, `tests/nuke/gui_track_slice.py` (`blocked_gui.json`, `blocked_gui_track_slice.json`) | passed: 48 frames tracked on CUDA in 24.9 s, Roto shapes, object panel, lock/undo/rename | 0 (71 loopback endpoints: Nuke and its local frame-server `python.exe` workers) |
+
+**Nuke 17.1 Non-commercial and ST-ROTO work completely without network access** on this machine (licence
+already activated). The start-up HTTPS calls seen above are not required. The GUI run's UI-responsiveness figures
+(max gap 1.6 s, 8 gaps > 100 ms over 1,356 ticks) were recorded but not compared or investigated here.
+
+**The owner chose to keep the rule** (2026-11-17, D-040): Nuke on this machine stays blocked from the network. To
+remove it: elevated `powershell -ExecutionPolicy Bypass -File tools\offline\firewall_nuke.ps1 -Action remove`.
+
 ## Conclusions
 
 1. ST-ROTO's own code makes no network access in the measured workflow (static + Python audit hook) and now
    switches off ONNX Runtime's default Windows telemetry (fixed in this task).
-2. "Fully local" for the whole stack also depends on the host: Nuke NC contacts an AWS server at every start.
-   Recorded as R-45; the user guide says so.
+2. "Fully local" for the whole stack also depends on the host: Nuke NC contacts an AWS server at every start,
+   but does not need it: with that traffic blocked, headless and GUI Nuke + ST-ROTO work (T-087). R-45 mitigated.
 
 ## Limitations
 

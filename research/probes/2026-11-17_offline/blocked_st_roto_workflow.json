@@ -1,0 +1,19 @@
+{
+ "command": [
+  "C:\\Program Files\\Nuke17.1v3\\Nuke17.1.exe",
+  "--nc",
+  "-t",
+  "D:\\ST-ROTO\\tests\\nuke\\run_nuke_tests.py",
+  "test_offline_no_network"
+ ],
+ "exit_code": 0,
+ "seconds": 13.3,
+ "polls": 228,
+ "interval_s": 0.05,
+ "processes": {
+  "31376": "Nuke17.1.exe"
+ },
+ "endpoints": [],
+ "external_remote_endpoints": [],
+ "limitations": "polling may miss connections shorter than the interval; ETW telemetry is not visible as a connection of the process"
+}

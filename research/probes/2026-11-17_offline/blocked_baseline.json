@@ -1,0 +1,41 @@
+{
+ "command": [
+  "C:\\Program Files\\Nuke17.1v3\\Nuke17.1.exe",
+  "--nc",
+  "-t",
+  "D:\\ST-ROTO\\research\\probes\\2026-11-17_offline\\empty_script.py"
+ ],
+ "exit_code": 0,
+ "seconds": 2.1,
+ "polls": 37,
+ "interval_s": 0.05,
+ "processes": {
+  "36852": "Nuke17.1.exe"
+ },
+ "endpoints": [
+  {
+   "pid": 36852,
+   "process": "Nuke17.1.exe",
+   "proto": "tcp",
+   "local": "127.0.0.1:63183",
+   "remote": "127.0.0.1:63182",
+   "status": "ESTABLISHED",
+   "first_s": 0.32,
+   "last_s": 0.38,
+   "loopback_or_unbound": true
+  },
+  {
+   "pid": 36852,
+   "process": "Nuke17.1.exe",
+   "proto": "tcp",
+   "local": "127.0.0.1:63182",
+   "remote": "127.0.0.1:63183",
+   "status": "ESTABLISHED",
+   "first_s": 0.32,
+   "last_s": 0.38,
+   "loopback_or_unbound": true
+  }
+ ],
+ "external_remote_endpoints": [],
+ "limitations": "polling may miss connections shorter than the interval; ETW telemetry is not visible as a connection of the process"
+}
