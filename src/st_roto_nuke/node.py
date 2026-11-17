@@ -165,6 +165,10 @@ def create(source=None, project_path: str = ""):
                   "after changes).")
     pk = _button(group, "stroto_package", "Package project", "n.on_package(nuke.thisNode())", new_line=False)
     pk.setTooltip("Portable zip: project, mattes, exports and a checksummed manifest (no model weights).")
+    sr = _button(group, "stroto_sysreport", "System report",
+                 "import st_roto_nuke.capabilities as c; c.show_report(nuke.thisNode())", new_line=False)
+    sr.setTooltip("What this machine and Nuke edition can do: GPU, memory, AI runtime, models, edition limits "
+                  "(render size, node budget, plug-ins), and why a feature is limited or unavailable.")
     group.addKnob(nuke.Text_Knob("stroto_status", "status", "idle"))
     with group:
         inp = nuke.nodes.Input(name="Input1")

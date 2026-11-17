@@ -370,3 +370,7 @@ Owner asked for both. Added the 'matte size' knob (full resolution default; fit 
 ## 2026-11-17 - D-041 default matte size
 
 Owner chose fit 1920x1080 as the Non-commercial default. The node now sets 'matte size' from the edition (NC: fit 1920x1080; others: full resolution); nodes made before the knob follow the same default. Nuke test on a UHD plate: default fit, hard mattes 1920x1080, IoU 0.995; matte, AI-off, ViTMatte and sequence tests still pass.
+
+## 2026-11-17 - T-091 hardware detection and capability report
+
+Owner asked for five features in a row (report, memory-aware model choice, easy large model, leases/keys UI, sharper-edge study). First: 'System report' (node button + ST-ROTO menu). Core rules in st_roto.capabilities (pure; local nvidia-smi and RAM probes; edition limits labelled measured/docs), Nuke facts in st_roto_nuke.capabilities. On this machine: 13 features, 7 fully available, 6 limited/unavailable with reasons. Model VRAM needs are not measured yet (filled by T-092). Not tested: the GUI dialog itself (nuke.message), AMD/Intel GPUs.

@@ -47,7 +47,8 @@ Restart Nuke. You should see **Nodes › ST-ROTO › ST_Roto** and the pane **ST
 12. **Motion blur:** set *motion blur* to `global` (and *samples*, *shutter*) to have Nuke blur the shapes along their tracked motion.
 13. **Back up now** snapshots the project into `<project>_backups/`. Automatic backups also run every 5 minutes while you work (only after changes) and when Nuke exits. If Nuke crashed or the project file is damaged, the status line says so the next time the project is opened; a damaged file is kept (`.damaged.<time>`) and the newest good backup is restored.
 14. **Package project** writes a portable zip (project, mattes, exports, checksummed manifest; no model weights) next to the project. It includes your saved Nuke script. On the other machine use **ST-ROTO › Unpack project package…** (main menu): checksums are verified, plates that are not found are asked for (any frame of them), and every plate is checked against a fingerprint of the original footage, so the same plates in a new place are accepted and different footage with the same names is refused. Opening the unpacked script relinks its Read and ST_Roto nodes.
-15. **ST-ROTO Objects** pane: press *Use selected ST_Roto node* (with the node selected) to list objects; rename, lock/unlock, delete, undo, redo.
+15. **System report** (node button, or main menu ST-ROTO › System report…): what this machine and Nuke edition can do - GPU and memory, AI runtime and models, the edition's limits (render size, node budget, plug-ins) - and why any feature is limited or unavailable. Include it when reporting a problem.
+16. **ST-ROTO Objects** pane: press *Use selected ST_Roto node* (with the node selected) to list objects; rename, lock/unlock, delete, undo, redo.
 
 ## Things to know
 

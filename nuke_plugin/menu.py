@@ -5,6 +5,7 @@ _m = nuke.menu("Nodes").addMenu("ST-ROTO")
 _m.addCommand("ST_Roto", "import st_roto_nuke.node as n; n.create_from_selection()")
 _f = nuke.menu("Nuke").addMenu("ST-ROTO")
 _f.addCommand("Unpack project package...", "import st_roto_nuke.packages as p; p.unpack_package_ui()")
+_f.addCommand("System report...", "import st_roto_nuke.capabilities as c; c.show_report()")
 
 try:
     import nukescripts

@@ -1334,6 +1334,37 @@ def test_plate_above_render_limit(res):
     return bool(ok)
 
 
+def test_system_report(res):
+    """T-091 / REQ-020, REQ-022: the node's 'System report' in real Nuke on this machine: edition, GPU, AI runtime
+    and models detected; edition limits reported as limited/unavailable with reasons; with 'disable AI' ticked the
+    AI features are reported unavailable with the reason; never raises."""
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import capabilities as ncap
+    from st_roto import capabilities as cap
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=1)
+    g = stnode.create(rd, os.path.join(tempfile.mkdtemp(), "rep.stroto"))
+    f, feats, text = ncap.report(g)
+    res["facts"] = {k: v for k, v in f.items() if k != "ram"}
+    res["features"] = {x["feature"]: x["status"] for x in feats}
+    res["text"] = text
+    st = res["features"]
+    ok = (f["edition"] == ("nc" if nuke.env.get("nc") else f["edition"]) and f["gpus"] and "cuda" in f["providers"]
+          and st.get("AI tracking (SAM 2.1)") == cap.AVAILABLE and st.get("GPU acceleration (CUDA)") == cap.AVAILABLE
+          and all(x["reason"] for x in feats))
+    if nuke.env.get("nc"):
+        ok &= (st.get("Python node access") == cap.LIMITED
+               and st.get("Rendering ST_Roto output above 1920x1080") == cap.UNAVAILABLE)
+    shown = ncap.show_report(g)                               # what the node button runs (prints headless)
+    res["status_after_button"] = g["stroto_status"].value()
+    ok &= shown.startswith("ST-ROTO system report") and res["status_after_button"].startswith("system report:")
+    g["stroto_ai_off"].setValue(True)
+    _, feats_off, _ = ncap.report(g)
+    ai = [x for x in feats_off if x["feature"].startswith("AI tracking")][0]
+    res["ai_off"] = ai
+    ok &= ai["status"] == cap.UNAVAILABLE and "disabled" in ai["reason"]
+    return bool(ok)
+
+
 NET_EVENTS = ("socket.__new__", "socket.bind", "socket.connect", "socket.sendto", "socket.sendmsg",
               "socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyaddr", "socket.getnameinfo",
               "urllib.Request", "http.client.connect", "http.client.send", "ftplib.connect", "smtplib.connect",
@@ -1394,7 +1425,8 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_colour_auto_follows_script, test_split_object_parts, test_cancel_and_resume_track,
          test_package_script_relink, test_feather_and_rotopaint, test_point_feather_roundtrip,
          test_vitmatte_mattes, test_box_prompt, test_reprompt_here, test_offline_no_network,
-         test_difficult_sequences, test_traditional_roto_without_ai, test_plate_above_render_limit)
+         test_difficult_sequences, test_traditional_roto_without_ai, test_plate_above_render_limit,
+         test_system_report)
 
 
 def main():
