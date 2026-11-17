@@ -210,3 +210,13 @@ def test_solo_projects_without_keys_are_unchanged(tmp_path):
     assert signing.verify_log(b) == {"signed": 0, "unsigned": b.conn.execute(
         "SELECT COUNT(*) FROM operations").fetchone()[0], "bad": []}
     a.close(); b.close()
+
+
+def test_key_dir_environment_override(monkeypatch, tmp_path):
+    """T-094: ST_ROTO_KEY_DIR replaces the D-038 default (tests never touch the real key folder; managed homes)."""
+    from st_roto import signing
+    monkeypatch.setenv("ST_ROTO_KEY_DIR", str(tmp_path))
+    assert signing.key_dir() == str(tmp_path)
+    assert signing.key_path("alice") == str(tmp_path / "alice.strotokey")
+    monkeypatch.delenv("ST_ROTO_KEY_DIR")
+    assert signing.key_dir().endswith(os.path.join(".st_roto", "keys"))

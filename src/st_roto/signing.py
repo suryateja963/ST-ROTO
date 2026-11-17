@@ -159,8 +159,9 @@ def load_key(path: str) -> bytes:
 
 def key_dir() -> str:
     """Where private keys live (D-038, owner-approved): %USERPROFILE%\\.st_roto\\keys (~/.st_roto/keys elsewhere).
-    Outside every project, so a key is never shared, packaged or synced with project data. Created on first use."""
-    return os.path.join(os.path.expanduser("~"), ".st_roto", "keys")
+    Outside every project, so a key is never shared, packaged or synced with project data. Created on first use.
+    The environment variable ST_ROTO_KEY_DIR overrides it (tests; studios with managed home folders)."""
+    return os.environ.get("ST_ROTO_KEY_DIR") or os.path.join(os.path.expanduser("~"), ".st_roto", "keys")
 
 
 def key_path(user: str, folder: str = None) -> str:

@@ -39,11 +39,25 @@ def project(path: str):
                 except Exception as e:                            # report, never block opening
                     report["backup_on_open"] = "failed: %s" % e
         store = ProjectStore(path)
-        _PROJECTS[key] = (store, CommandBus(store, author=os.environ.get("USERNAME") or "artist"))
+        author = os.environ.get("USERNAME") or "artist"
+        _PROJECTS[key] = (store, CommandBus(store, author=author, signer=_signer(author)))
         interval = float(os.environ.get("ST_ROTO_BACKUP_SECONDS", "300"))
         ab = persistence.AutoBackup(path, interval=interval).start() if interval > 0 else None
         _EXTRAS[key] = {"marker": marker, "autobackup": ab, "report": report}
     return _PROJECTS[key]
+
+
+def _signer(author):
+    """The author's Signer if their key file exists (T-094): every change they make is then signed (D-037). Keys
+    are created only by an explicit 'Set up signing key' (st_roto_nuke.collab.setup_key), never here."""
+    from st_roto import signing
+    p = signing.key_path(author)
+    if not os.path.exists(p):
+        return None
+    try:
+        return signing.Signer(author, signing.load_key(p))
+    except Exception:                                         # a damaged key file must not stop the project opening
+        return None
 
 
 def open_report(path: str) -> dict:

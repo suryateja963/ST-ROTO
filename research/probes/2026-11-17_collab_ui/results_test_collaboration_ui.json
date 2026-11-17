@@ -1,0 +1,39 @@
+{
+ "nuke": "17.1v3",
+ "nc": true,
+ "test_collaboration_ui": {
+  "me": "alice",
+  "key_before": "none",
+  "setup": [
+   "registered",
+   true
+  ],
+  "key_file": true,
+  "take_signed": true,
+  "held_after_take": "you",
+  "held_after_release": "",
+  "held_by_bob": "bob",
+  "alice_take": "object O is leased by bob",
+  "override_active": "bob was active 0 min ago: a supervisor may override only after 15 min without activity",
+  "held_idle": "bob (idle 20 min)",
+  "alice_override": "only a supervisor may override bob's lease",
+  "override_evidence": {
+   "holder": "bob",
+   "holder_acquired_utc": "2026-11-17T09:35:30Z",
+   "holder_last_heartbeat_utc": "2026-11-17T09:15:30Z",
+   "idle_seconds": 1200,
+   "threshold_seconds": 900,
+   "checked_utc": "2026-11-17T09:35:30Z"
+  },
+  "held_after_override": "carol (offline)",
+  "status_line": "you: alice (admin) \u00b7 key registered \u00b7 collaboration on (signed changes) \u00b7 idle/offline: bob",
+  "verify": {
+   "signed": 5,
+   "unsigned": 5,
+   "bad": []
+  },
+  "signer_after_reopen": true,
+  "passed": true
+ },
+ "failed": 0
+}

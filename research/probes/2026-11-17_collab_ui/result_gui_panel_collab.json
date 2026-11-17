@@ -1,0 +1,25 @@
+{
+ "nuke": "17.1v3",
+ "gui": true,
+ "columns": [
+  "name",
+  "origin",
+  "locked",
+  "held by",
+  "keys",
+  "frames",
+  "review"
+ ],
+ "take_ok": true,
+ "held_cell": "you",
+ "after_take_info": "you hold hero",
+ "setup_key_ok": true,
+ "after_key_info": "signing key created and registered",
+ "collab_line": "you: alice (admin) \u00b7 key registered \u00b7 collaboration on (signed changes)",
+ "release_ok": true,
+ "held_cell_after_release": "",
+ "presence": [
+  "alice"
+ ],
+ "passed": true
+}

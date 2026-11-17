@@ -1469,6 +1469,75 @@ def test_retrack_flagged_large(res):
                 and "disc (no REVIEW lost flags)" in res["large_status"] and disc_keys_after == disc_keys_before)
 
 
+def test_collaboration_ui(res):
+    """T-094 / REQ-170/171: the collaboration actions the object panel calls (st_roto_nuke.collab) in real Nuke, with a
+    throw-away key folder (ST_ROTO_KEY_DIR) and simulated co-workers bob (artist) and carol (supervisor) on the same
+    project: role bootstrap, key set-up (later changes signed, reopened sessions sign automatically), take/release,
+    a lease held by bob refuses alice, supervisor override refused while bob is active and allowed (with evidence)
+    after 15 min idle, non-supervisor override refused, history verifies."""
+    import datetime
+    from st_roto.commands import CommandBus as Bus
+    from st_roto import leases, signing
+    from st_roto_nuke import collab, session
+    keydir = tempfile.mkdtemp()
+    os.environ["ST_ROTO_KEY_DIR"] = keydir
+    os.environ["USERNAME"] = "alice"
+    proj = os.path.join(tempfile.mkdtemp(), "collab.stroto")
+    store, bus = session.project(proj)
+    bus.execute({"op": "create_shot", "row": {"id": "S", "name": "Read1", "width": 64, "height": 48}})
+    bus.execute({"op": "create_object", "row": {"id": "O", "shot_id": "S", "name": "hero"}})
+    res["me"], res["key_before"] = collab.me(proj), collab.key_state(proj)
+    collab.set_role(proj, "alice", "admin")
+    res["setup"] = collab.setup_key(proj)
+    res["key_file"] = os.path.exists(os.path.join(keydir, "alice.strotokey"))
+    collab.take(proj, "O")
+    last = store.conn.execute("SELECT signature FROM operations ORDER BY seq DESC LIMIT 1").fetchone()
+    res["take_signed"] = bool(last["signature"])
+    res["held_after_take"] = collab.lease_text(store.conn, "O", "alice")
+    collab.release(proj, "O")
+    res["held_after_release"] = collab.lease_text(store.conn, "O", "alice")
+    ok = (res["me"] == "alice" and res["key_before"] == "none" and res["setup"] == ("registered", True)
+          and res["key_file"] and res["take_signed"] and res["held_after_take"] == "you" and res["held_after_release"] == "")
+    collab.set_role(proj, "bob", "artist"); collab.set_role(proj, "carol", "supervisor")
+    bob, carol = Bus(store, author="bob"), Bus(store, author="carol")
+    leases.heartbeat(store, "bob", activity="painting")
+    leases.acquire(bob, "O")
+    res["held_by_bob"] = collab.lease_text(store.conn, "O", "alice")
+    try:
+        collab.take(proj, "O"); res["alice_take"] = "allowed"
+    except Exception as e:
+        res["alice_take"] = str(e)
+    try:
+        leases.override(carol, "O"); res["override_active"] = "allowed"
+    except Exception as e:
+        res["override_active"] = str(e)
+    past = datetime.datetime.utcnow() - datetime.timedelta(minutes=20)
+    leases.heartbeat(store, "bob", now=past)
+    res["held_idle"] = collab.lease_text(store.conn, "O", "alice")
+    try:
+        collab.override(proj, "O"); res["alice_override"] = "allowed"
+    except Exception as e:
+        res["alice_override"] = str(e)
+    leases.override(carol, "O")
+    payload = json.loads(store.conn.execute("SELECT payload FROM operations ORDER BY seq DESC LIMIT 1").fetchone()["payload"])
+    res["override_evidence"] = payload.get("evidence")
+    res["held_after_override"] = collab.lease_text(store.conn, "O", "alice")
+    res["status_line"] = collab.status_line(proj)
+    res["verify"] = signing.verify_log(store)
+    ok &= (res["held_by_bob"] == "bob" and "leased by bob" in res["alice_take"]
+           and "after 15 min" in res["override_active"] and res["held_idle"].startswith("bob (idle 20 min)")
+           and "only a supervisor" in res["alice_override"] and res["override_evidence"]
+           and res["override_evidence"]["holder"] == "bob"
+           and res["held_after_override"] == "carol (offline)"        # simulated carol sent no heartbeat
+           and "alice (admin)" in res["status_line"] and "key registered" in res["status_line"]
+           and "collaboration on" in res["status_line"] and res["verify"]["bad"] == [] and res["verify"]["signed"] >= 3)
+    session.close(proj)                                       # reopen: alice's key is picked up automatically
+    store2, bus2 = session.project(proj)
+    res["signer_after_reopen"] = bus2.signer is not None
+    ok &= res["signer_after_reopen"] and collab.key_state(proj) == "registered"
+    return bool(ok)
+
+
 NET_EVENTS = ("socket.__new__", "socket.bind", "socket.connect", "socket.sendto", "socket.sendmsg",
               "socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyaddr", "socket.getnameinfo",
               "urllib.Request", "http.client.connect", "http.client.send", "ftplib.connect", "smtplib.connect",
@@ -1530,7 +1599,8 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_package_script_relink, test_feather_and_rotopaint, test_point_feather_roundtrip,
          test_vitmatte_mattes, test_box_prompt, test_reprompt_here, test_offline_no_network,
          test_difficult_sequences, test_traditional_roto_without_ai, test_plate_above_render_limit,
-         test_system_report, test_memory_aware_model, test_retrack_flagged_large)
+         test_system_report, test_memory_aware_model, test_retrack_flagged_large,
+         test_collaboration_ui)
 
 
 def main():

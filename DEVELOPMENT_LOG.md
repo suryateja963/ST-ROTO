@@ -382,3 +382,7 @@ Measured Track GPU memory (total-used increase; Windows reports no per-process f
 ## 2026-11-17 - T-093 large model where it helps
 
 Added 're-track model' (used by every re-track) and 'Re-track flagged' (only objects with REVIEW lost flags). Nuke test on the synthetic reverse case: tiny loses frames 16-20 and 22; Re-track flagged with the large model leaves no lost frames (IoU 0.9935-0.9959 on them) and skips the cleanly tracked second object. One synthetic case; the real-footage gain of the large model is the T-080 SA-V figure. I first wrote a 'mean IoU over keyed frames' comparison, which is biased (tiny has fewer keyed frames); the results report lost frames and per-frame IoU instead.
+
+## 2026-11-17 - T-094 collaboration in the Nuke UI
+
+Leases, presence, roles and signing keys now in the object panel (held-by column, Take/Release/Override, Set up signing key, Set role, status line, 60 s heartbeat); logic in st_roto_nuke.collab (Qt-free), projects sign automatically when the author's key file exists; ST_ROTO_KEY_DIR for tests. Headless Nuke test with simulated co-workers exercises every rule (lease refusal, override refused while active and allowed after 15 min idle with evidence, non-supervisor refused, history verifies) and a GUI probe drives the real panel. My first assertion expected 'carol' as holder; the panel correctly shows 'carol (offline)' because the simulated carol never sent a heartbeat. Still a prototype for real teams: no network transport, and replication is not in the UI.

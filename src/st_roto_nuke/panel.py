@@ -15,10 +15,11 @@ except ImportError:                       # Nuke 13-15 ship PySide2
 import nuke
 
 from st_roto import views
+from . import collab
 from . import node as stnode
 from . import session
 
-COLUMNS = ["name", "origin", "locked", "keys", "frames", "review"]
+COLUMNS = ["name", "origin", "locked", "held by", "keys", "frames", "review"]
 
 
 class ObjectPanel(QtWidgets.QWidget):
@@ -45,9 +46,33 @@ class ObjectPanel(QtWidgets.QWidget):
                           ("Undo", self.undo), ("Redo", self.redo)):
             b = QtWidgets.QPushButton(label); b.clicked.connect(fn); btns.addWidget(b)
         lay.addLayout(btns)
+        # collaboration (T-094): leases, roles, signing key, presence
+        cb = QtWidgets.QHBoxLayout()
+        for label, fn, tip in (
+                ("Take", self.take, "Lease the selected object: only you can change it until you release it."),
+                ("Release", self.release, "Give your lease on the selected object back."),
+                ("Override", self.override, "Supervisors only: take the lease of someone idle or offline for 15 "
+                                            "minutes (D-035/D-036); the evidence is recorded."),
+                ("Set up signing key", self.setup_key, "Create your private key (in your user folder, never in the "
+                                                       "project) and register it: your changes are then signed."),
+                ("Set role...", self.set_role, "The project's first role must be you as admin; then admins assign "
+                                               "artist / supervisor / admin.")):
+            b = QtWidgets.QPushButton(label); b.setToolTip(tip); b.clicked.connect(fn); cb.addWidget(b)
+        lay.addLayout(cb)
+        self.collab_info = QtWidgets.QLabel("")
+        self.collab_info.setWordWrap(True)
+        lay.addWidget(self.collab_info)
         self.info = QtWidgets.QLabel("select an ST_Roto node and press 'Use selected ST_Roto node'")
         self.info.setWordWrap(True)
         lay.addWidget(self.info)
+        try:
+            from PySide6 import QtCore
+        except ImportError:
+            from PySide2 import QtCore
+        self.timer = QtCore.QTimer(self)                      # presence heartbeat while the panel is open
+        self.timer.setInterval(collab.ACTIVITY_SECONDS * 1000)
+        self.timer.timeout.connect(self._heartbeat)
+        self.timer.start()
 
     # -- model ------------------------------------------------------------------------------------
     def set_group(self, group):
@@ -78,6 +103,8 @@ class ObjectPanel(QtWidgets.QWidget):
         except Exception as e:
             self.info.setText(str(e)); return
         from st_roto import quality
+        path = self.group["stroto_project"].value()
+        me_ = bus.author
         self.rows = views.object_rows(store, shot) if shot else []
         self.table.setRowCount(len(self.rows))
         for i, r in enumerate(self.rows):
@@ -85,13 +112,19 @@ class ObjectPanel(QtWidgets.QWidget):
             flags = views.review_for_object(store, r["id"])
             r["review"] = flags
             review = quality.summary(flags)
-            for j, v in enumerate([r["name"], r["origin"], "yes" if r["locked"] else "", str(r["keys"]), frames, review]):
+            held = collab.lease_text(store.conn, r["id"], me_)
+            for j, v in enumerate([r["name"], r["origin"], "yes" if r["locked"] else "", held, str(r["keys"]), frames,
+                                   review]):
                 item = QtWidgets.QTableWidgetItem(v)
-                if j == 5 and flags:
+                if j == 6 and flags:
                     item.setToolTip("\n".join("frame %d [%s]: %s" % fr for fr in flags))
                 self.table.setItem(i, j, item)
         self.info.setText("%d objects · undo %s · redo %s" % (len(self.rows), "yes" if bus.can_undo() else "no",
                                                             "yes" if bus.can_redo() else "no"))
+        try:
+            self.collab_info.setText(collab.status_line(path))
+        except Exception as e:                                # noqa: BLE001
+            self.collab_info.setText("collaboration: %s" % e)
 
     def _selected(self):
         idx = self.table.currentRow()
@@ -135,6 +168,62 @@ class ObjectPanel(QtWidgets.QWidget):
 
     def undo(self):
         return self._do(lambda bus: bus.undo())
+
+    # -- collaboration (T-094) -------------------------------------------------------------------------
+    def _path(self):
+        if self.group is None:
+            raise ValueError("no ST_Roto node chosen")
+        return self.group["stroto_project"].value()
+
+    def _collab(self, fn, done):
+        try:
+            fn(self._path())
+            self.refresh()
+            self.info.setText(done)
+            return True
+        except Exception as e:                                # rule refusals come back as readable messages
+            self.info.setText("error: %s" % e)
+            return False
+
+    def take(self):
+        r = self._selected()
+        return self._collab(lambda p: collab.take(p, r["id"]), "you hold %s" % r["name"])
+
+    def release(self):
+        r = self._selected()
+        return self._collab(lambda p: collab.release(p, r["id"]), "released %s" % r["name"])
+
+    def override(self):
+        r = self._selected()
+        return self._collab(lambda p: collab.override(p, r["id"]), "took over %s (supervisor override)" % r["name"])
+
+    def setup_key(self):
+        out = {}
+
+        def fn(p):
+            out["state"], out["created"] = collab.setup_key(p)
+        ok = self._collab(fn, "")
+        if ok:
+            self.info.setText("signing key %s%s" % ("created and " if out["created"] else "", out["state"]))
+        return ok
+
+    def set_role(self, user=None, role_name=None):
+        if user is None:
+            user, ok = QtWidgets.QInputDialog.getText(self, "Set role", "user name", text=collab.me(self._path()))
+            if not ok:
+                return None
+            role_name, ok = QtWidgets.QInputDialog.getItem(self, "Set role", "role", list(collab.leases.ROLES), 0,
+                                                           False)
+            if not ok:
+                return None
+        return self._collab(lambda p: collab.set_role(p, user, role_name), "%s is now %s" % (user, role_name))
+
+    def _heartbeat(self):
+        try:
+            if self.group is not None and self.isVisible():
+                collab.heartbeat(self._path(), frame=int(nuke.frame()), activity="object panel")
+        except Exception:                                     # noqa: BLE001 - presence must never interrupt work
+            pass
 
     def redo(self):
         return self._do(lambda bus: bus.redo())
