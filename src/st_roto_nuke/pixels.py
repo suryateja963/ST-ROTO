@@ -41,6 +41,14 @@ class FrameUnavailable(Exception):
         self.frame, self.message = frame, message
 
 
+class FrameExcluded(FrameUnavailable):
+    """The artist excluded this frame from AI processing (T-097): skipped exactly like an unreadable frame (no key,
+    existing keys untouched, true time positions), reported as excluded."""
+
+    def __init__(self, frame):
+        FrameUnavailable.__init__(self, frame, "excluded by the artist")
+
+
 def configure_write(write_node, path: str):
     write_node["file"].setValue(path.replace("\\", "/"))
     write_node["proxy"].setValue(path.replace("\\", "/"))     # proxy mode refuses to render without one (T-086)

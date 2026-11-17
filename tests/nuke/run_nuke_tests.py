@@ -1538,6 +1538,77 @@ def test_collaboration_ui(res):
     return bool(ok)
 
 
+def test_propagation_controls(res):
+    """T-097 / REQ-091: Lock range, exclude frames and range-limited re-track. Track (tiny) -> lock 5-7, exclude
+    12-13, Re-track with the LARGE model (so changed frames get different points): locked and excluded keys stay
+    byte-identical, most others change, locked frames are listed as guides. Then re-track only 15-19 (tiny): every key
+    outside 15-19 identical, inside on target; one undo restores; Unlock range clears the lock."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    from st_roto import views
+    from st_roto.geometry import Anchor
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vh, vw, n = meta["h"], meta["w"], 30
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "prop.stroto")
+    g = stnode.create(rd, proj)
+    g["stroto_object"].setValue("target"); nuke.frame(0)
+    g["stroto_click"].setValue([meta["click_xy"][0], vh - meta["click_xy"][1]]); stnode.on_add_point(g, 1)
+    stnode.on_track(g, background=False)
+    store, bus = session.project(proj)
+    oid = store.objects(store.conn.execute("SELECT id FROM shots").fetchone()["id"])[0]["id"]
+    sid = views.main_shape(store, oid)["id"]
+    keys = lambda: {k["frame"]: k["points"] for k in store.keys(sid)}           # noqa: E731
+    k0 = keys()
+    # an artist key too (frame 25): artist keys and locked keys must coexist as guides (regression: int-key merge)
+    from st_roto.geometry import mask_to_points
+    gt25 = cv2.imread(VIDEO + "/gt_%04d.png" % 25, cv2.IMREAD_GRAYSCALE) > 127
+    bus.execute({"op": "set_key", "shape_id": sid, "frame": 25, "points": mask_to_points(gt25.astype(float) - 0.5,
+                 count=len(k0[25]))}, actor="artist")
+    stnode.resync(g, import_first=False)
+    k0 = keys()
+    g["stroto_range_from"].setValue(5); g["stroto_range_to"].setValue(7)
+    res["locked"] = stnode.on_lock_range(g, True)
+    g["stroto_exclude"].setValue("12-13")
+    g["stroto_retrack_model"].setValue("sam2.1-hiera-large")
+    stnode.on_retrack(g, background=False)
+    res["retrack_status"] = g["stroto_status"].value()
+    k1 = keys()
+    k10 = [k for k in store.keys(sid) if k["frame"] == 10][0]               # re-track record lives on its keys
+    res["guide_frames"] = json.loads(k10["generator"])["retrack"].get("guide_frames")
+    res["unchanged_after_large"] = sorted(f for f in k1 if k1[f] == k0.get(f))
+    ok = (res["locked"] == [5, 6, 7] and all(k1[f] == k0[f] for f in (5, 6, 7, 12, 13, 25))
+          and len(res["unchanged_after_large"]) <= 8 and res["guide_frames"] == [5, 6, 7]
+          and "excluded by you (not processed, keys unchanged): 12-13" in res["retrack_status"])
+    # range-limited re-track 15-19 with tiny
+    g["stroto_exclude"].setValue("")
+    g["stroto_retrack_model"].setValue("same as model")
+    g["stroto_range_mode"].setValue("from-to")
+    g["stroto_range_from"].setValue(15); g["stroto_range_to"].setValue(19)
+    stnode.on_retrack(g, background=False)
+    res["range_status"] = g["stroto_status"].value()
+    k2 = keys()
+    res["changed_by_range"] = sorted(f for f in k2 if k2[f] != k1.get(f))
+    ious = {}
+    for f in range(15, 20):
+        a = [Anchor(p=np.array(p[:2]), h_in=np.array(p[2:4]), h_out=np.array(p[4:]), corner=False) for p in k2[f]]
+        gt = cv2.imread(VIDEO + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE) > 127
+        ious[f] = round(iou(rasterize_spline(a, vh, vw), gt), 4)
+    res["range_iou"] = ious
+    ok &= (set(res["changed_by_range"]) <= set(range(15, 20)) and len(res["changed_by_range"]) >= 3
+           and min(ious.values()) > 0.98 and "frames 15-19 only (keys outside unchanged)" in res["range_status"])
+    bus.undo()
+    res["undo_restores"] = keys() == k1
+    g["stroto_range_from"].setValue(0); g["stroto_range_to"].setValue(29)
+    res["unlocked"] = stnode.on_lock_range(g, False)
+    ok &= res["undo_restores"] and res["unlocked"] == [] and "locked_frames" not in json.loads(
+        store.row("shapes", sid)["generator"])
+    return bool(ok)
+
+
 NET_EVENTS = ("socket.__new__", "socket.bind", "socket.connect", "socket.sendto", "socket.sendmsg",
               "socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyaddr", "socket.getnameinfo",
               "urllib.Request", "http.client.connect", "http.client.send", "ftplib.connect", "smtplib.connect",
@@ -1600,7 +1671,7 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_vitmatte_mattes, test_box_prompt, test_reprompt_here, test_offline_no_network,
          test_difficult_sequences, test_traditional_roto_without_ai, test_plate_above_render_limit,
          test_system_report, test_memory_aware_model, test_retrack_flagged_large,
-         test_collaboration_ui)
+         test_collaboration_ui, test_propagation_controls)
 
 
 def main():

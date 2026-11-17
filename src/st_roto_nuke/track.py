@@ -174,20 +174,35 @@ def track_object(get_rgb, frames, click_frame, click_xy, model="sam2.1-hiera-tin
 
 
 # ------------------------------------------------------------------------------------------------ re-track
-def retrack_plan(store, shape_id, frames, fix=None):
+def retrack_plan(store, shape_id, frames, fix=None, anchors=None):
     """What a re-track of one object (given by its MAIN shape) starts from. Raises ValueError (artist-readable) if
     there is nothing. The guide mask on an artist frame is the main shape's artist key united with the object's
     part shapes at that frame (non-collapsed).
     Fix prompts (T-081, "Re-prompt here"): {"frame", "points", "labels"} clicks/box on a frame the AI got wrong;
     kept in the shape generator ("fixes", one per frame, a new one replaces the old) and used as conditioning frames
-    by every later re-track. Priority on one frame: artist key > fix prompt > original prompt."""
+    by every later re-track. Priority on one frame: artist key > fix prompt > original prompt.
+    Guide frames (T-097): keys on frames the artist LOCKED (shape generator "locked_frames") and `anchors`
+    ({frame: points}, e.g. the keys just outside a range-limited re-track) condition the tracker exactly like artist
+    keys and are never in the result, so the AI cannot change them; they are listed apart ("guide_frames") so
+    provenance and reports still distinguish them from artist keys."""
     shape = store.row("shapes", shape_id)
     if shape is None:
         raise KeyError("no shape %s" % shape_id)
     pos = set(frames)
-    artist = {k["frame"]: k["points"] for k in store.keys(shape_id)
+    keys = {k["frame"]: k for k in store.keys(shape_id)}
+    artist = {f: k["points"] for f, k in keys.items()
               if k["origin"] in (m.ARTIST_CREATED, m.ARTIST_MODIFIED_AI, m.IMPORTED_NATIVE)}
     gen = json.loads(shape["generator"]) if shape["generator"] else {}
+    guides = {}
+    for f in gen.get("locked_frames", []):
+        if f in keys and f not in artist and keys[f]["points"] and not pieces.is_collapsed(keys[f]["points"]):
+            guides[int(f)] = keys[f]["points"]
+    for f, pts in (anchors or {}).items():
+        if f not in artist and pts:
+            guides.setdefault(int(f), pts)
+    merged = dict(guides)
+    merged.update(artist)                                     # artist keys win on a shared frame
+    artist = merged
     prompt = gen.get("prompts")
     fixes = {int(x["frame"]): x for x in gen.get("fixes", [])}
     if fix is not None:
@@ -203,17 +218,20 @@ def retrack_plan(store, shape_id, frames, fix=None):
             if k["frame"] in artist and not pieces.is_collapsed(k["points"]):
                 part_keys.setdefault(k["frame"], []).append(k["points"])
     return {"shape_id": shape_id, "object_id": shape["object_id"], "anchors": int(shape["point_count"]),
-            "artist": artist, "part_keys": part_keys, "prompt": prompt, "fixes": fixes, "cond": cond, "first": cond[0],
+            "artist": artist, "guide_frames": sorted(f for f in guides if f in artist and f not in
+                                                     {k for k, v in keys.items() if v["origin"] != m.AI_GENERATED}),
+            "part_keys": part_keys, "prompt": prompt, "fixes": fixes, "cond": cond, "first": cond[0],
             "gen": gen}
 
 
 def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam2.1-hiera-tiny", device="auto",
-                    job=None, colour_transform=colour.TRANSFORM_ID, parts=True, fixes=None):
+                    job=None, colour_transform=colour.TRANSFORM_ID, parts=True, fixes=None, anchors=None):
     """Re-track several objects (given by their MAIN shape ids) in ONE pass (T-067). Each uses every ARTIST key of
     its main shape (united with its parts on that frame) as a mask prompt, plus its original click prompts, and is
     tracked forward from its first conditioning frame and in reverse to the first frame of `frames` (master prompt
     section 11). Each frame is rendered/encoded once per sweep for all objects; per-object results equal
-    re-tracking each object alone. fixes: {main shape id: new fix prompt} (see retrack_plan).
+    re-tracking each object alone. fixes: {main shape id: new fix prompt} (see retrack_plan). anchors: {main shape
+    id: {frame: points}} guide keys that are not changed (range-limited re-track, T-097).
 
     Returns {"shapes": {main shape id: {"keys": {frame: points | None}, "parts": [{frame: points}], "reports",
     "generator"}}, "device", ...}; artist keys are not included (they are never overwritten)."""
@@ -221,7 +239,7 @@ def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam
     from st_roto.geometry import Anchor, rasterize_spline
     frames = sorted(frames)
     pos = {f: i for i, f in enumerate(frames)}
-    plans = [retrack_plan(store, sid, frames, (fixes or {}).get(sid)) for sid in shape_ids]
+    plans = [retrack_plan(store, sid, frames, (fixes or {}).get(sid), (anchors or {}).get(sid)) for sid in shape_ids]
     if not plans:
         raise ValueError("no objects to re-track")
     multi = Sam2MultiVideo(os.path.join(models_root(), model, "video"), device=device)
@@ -301,7 +319,9 @@ def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam
         res = p["seq"].result(sorted(p["decided"]))
         keys = {f: res["main"].get(f) for f in sorted(p["decided"])}
         gen_out = dict(p["gen"], retrack={"model": model, "colour": colour.transform_id(colour_transform),
-                                          "conditioning_frames": p["cond"], "artist_frames": sorted(p["artist"]),
+                                          "conditioning_frames": p["cond"],
+                                          "artist_frames": sorted(set(p["artist"]) - set(p["guide_frames"])),
+                                          "guide_frames": p["guide_frames"],
                                           "fix_frames": sorted(f for f in p["fixes"] if f not in p["artist"])})
         if p["fixes"]:
             gen_out["fixes"] = [p["fixes"][f] for f in sorted(p["fixes"])]

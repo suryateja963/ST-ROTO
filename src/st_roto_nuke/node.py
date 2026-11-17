@@ -34,6 +34,7 @@ from .track import apply_results, models_root, track_object, track_objects
 AUTO_MODEL = "auto (by free GPU memory)"
 MODELS = ["sam2.1-hiera-tiny", "sam2.1-hiera-large", AUTO_MODEL]
 SAME_MODEL = "same as model"
+RANGE_MODES = ["whole shot", "from-to"]
 RETRACK_MODELS = [SAME_MODEL, "sam2.1-hiera-large", AUTO_MODEL]
 MATTE_SIZES = ["full resolution", "fit 1920x1080"]
 
@@ -129,6 +130,21 @@ def create(source=None, project_path: str = ""):
                    "lost frames; T-080) and ~1.4x slower; it needs ~7.1 GB of free GPU memory (T-092).")
     rm_.clearFlag(nuke.STARTLINE)
     group.addKnob(rm_)
+    # propagation controls (T-097, REQ-091)
+    rr = nuke.Enumeration_Knob("stroto_range_mode", "re-track range", RANGE_MODES)
+    rr.setTooltip("whole shot: Re-track works on every frame. from-to: only frames 'from'..'to' are re-tracked; the "
+                  "keys just outside the range guide it and stay unchanged, so the range joins smoothly.")
+    group.addKnob(rr)
+    for name, label in (("stroto_range_from", "from"), ("stroto_range_to", "to")):
+        k = nuke.Int_Knob(name, label); k.clearFlag(nuke.STARTLINE); group.addKnob(k)
+    lk = _button(group, "stroto_lock_range", "Lock range", "n.on_lock_range(nuke.thisNode(), True)", new_line=False)
+    lk.setTooltip("Locks the keys of the object named above on frames 'from'..'to': the AI never changes them and "
+                  "every re-track uses them as guides. Undoable.")
+    _button(group, "stroto_unlock_range", "Unlock range", "n.on_lock_range(nuke.thisNode(), False)", new_line=False)
+    ex_ = nuke.String_Knob("stroto_exclude", "exclude frames")
+    ex_.setTooltip("Frames the AI must not process or change in Track and Re-track, e.g. '12-14, 30' (flash frames, "
+                   "cuts, frames you will roto by hand). Existing keys there stay as they are.")
+    group.addKnob(ex_)
     rp = _button(group, "stroto_reprompt", "Re-prompt here", "n.on_reprompt_here(nuke.thisNode())")
     rp.setTooltip("For a frame the review flags (or your eye) say is wrong: drag the box around the object on THIS "
                   "frame, press Re-prompt here. The object named above is re-tracked in both directions with this "
@@ -219,7 +235,8 @@ AI_KNOBS = ("stroto_click", "stroto_add_inc", "stroto_add_exc", "stroto_clear", 
             "stroto_set_box", "stroto_clear_box", "stroto_points", "stroto_points_info", "stroto_click_frame",
             "stroto_model", "stroto_device", "stroto_anchors", "stroto_load", "stroto_preview", "stroto_track",
             "stroto_resume", "stroto_retrack", "stroto_retrack_all", "stroto_reprompt", "stroto_reprompt_point",
-            "stroto_retrack_flagged", "stroto_retrack_model")
+            "stroto_retrack_flagged", "stroto_retrack_model", "stroto_range_mode", "stroto_range_from",
+            "stroto_range_to", "stroto_lock_range", "stroto_unlock_range", "stroto_exclude")
 AI_ENV = "ST_ROTO_AI"
 
 
@@ -419,6 +436,56 @@ def _is_oom(err):
     return bool(rt is not None and rt.is_out_of_memory(err))
 
 
+def _excluded(group):
+    """Frames the artist excluded from AI processing (knob 'exclude frames', T-097). Raises ValueError."""
+    from st_roto import frames as _frames
+    return _frames.parse(group["stroto_exclude"].value()) if "stroto_exclude" in group.knobs() else []
+
+
+def _range(group, first, last):
+    """(lo, hi) of a range-limited re-track, or (first, last) for the whole shot. Raises ValueError."""
+    if "stroto_range_mode" not in group.knobs() or group["stroto_range_mode"].value() != "from-to":
+        return first, last
+    lo, hi = int(group["stroto_range_from"].value()), int(group["stroto_range_to"].value())
+    if lo > hi:
+        lo, hi = hi, lo
+    lo, hi = max(lo, first), min(hi, last)
+    if lo > hi:
+        raise ValueError("the re-track range is outside the shot (%d-%d)" % (first, last))
+    return lo, hi
+
+
+def on_lock_range(group, lock: bool = True):
+    """Lock (or unlock) the named object's keys on frames 'from'..'to' (T-097, REQ-11-14): stored in the main shape's
+    generator ("locked_frames", one undoable op); locked keys guide every re-track and the AI never changes them."""
+    from st_roto import views as _views
+    try:
+        store, bus = _open_project(group, group["stroto_project"].value())
+        src = _inner(group, "src", None)
+        shot = store.conn.execute("SELECT id FROM shots WHERE name = ?", (src.name(),)).fetchone()
+        name = _object_name(group)
+        obj = [o for o in (store.objects(shot["id"]) if shot else []) if o["name"] == name]
+        if not obj:
+            raise ValueError("no object named %r" % name)
+        main = _views.main_shape(store, obj[0]["id"])
+        lo, hi = int(group["stroto_range_from"].value()), int(group["stroto_range_to"].value())
+        lo, hi = min(lo, hi), max(lo, hi)
+        gen = json.loads(main["generator"]) if main["generator"] else {}
+        cur = set(gen.get("locked_frames", []))
+        new = (cur | set(range(lo, hi + 1))) if lock else (cur - set(range(lo, hi + 1)))
+        if new:
+            gen["locked_frames"] = sorted(new)
+        else:
+            gen.pop("locked_frames", None)
+        bus.execute({"op": "update_shape", "id": main["id"], "fields": {"generator": json.dumps(gen, sort_keys=True)}})
+        _status(group, "%s frames %d-%d of %s; locked now: %s" % ("locked" if lock else "unlocked", lo, hi, name,
+                                                                 _ranges(sorted(new)) or "none"))
+        return sorted(new)
+    except (ValueError, NodeBudgetError) as e:
+        _status(group, "error: %s" % e)
+        return None
+
+
 def _anchors(group):
     v = group["stroto_anchors"].value() if "stroto_anchors" in group.knobs() else "16"     # old nodes: v0 count
     return "auto" if v == "auto" else int(v)
@@ -446,6 +513,8 @@ def _renderer(ctx, background):
     ctx.setdefault("refitted", {})
 
     def get_rgb(frame):
+        if frame in ctx.get("excluded", ()):
+            raise pixels.FrameExcluded(frame)
         if background:
             img = nuke.executeInMainThreadWithResult(_render_or_error, (ctx, frame))
             if isinstance(img, Exception):
@@ -528,6 +597,10 @@ def _sequence_note(ctx, missing):
         note += ("; this Nuke edition renders at most %dx%d, so the AI saw frames reduced to %dx%d (from %dx%d); "
                  "shapes are full resolution, accuracy slightly lower" % (cap["limit"] + cap["box"]
                                                                           + (ctx["width"], ctx["height"])))
+    excl = sorted(set(missing or ()) & set(ctx.get("excluded", ())))
+    missing = sorted(set(missing or ()) - set(excl))
+    if excl:
+        note += "; excluded by you (not processed, keys unchanged): %s" % _ranges(excl)
     if missing:
         note += "; %d unreadable frame(s) skipped (no key): %s" % (len(missing), _ranges(sorted(missing)))
     ref = ctx.get("refitted") or {}
@@ -723,6 +796,10 @@ def on_track(group, background: bool = True, resume: bool = False):
         frames = list(range(start, ctx["last"] + 1))
         discard_checkpoint(ck)                              # a new run replaces any interrupted one
     start = frames[0]
+    try:
+        ctx["excluded"] = set(_excluded(group))
+    except ValueError as e:
+        _status(group, "error: exclude frames: %s" % e); return None
     get_rgb = _renderer(ctx, background)
     ctx["model"], ctx["device"], ctx["model_note"] = plan_model(ctx["model"], ctx["device"])
 
@@ -819,9 +896,26 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
         if shot is None:
             raise ValueError("nothing tracked or imported yet for %s" % src.name())
         import_edits(store, bus, shot["id"], curves, height, int(nuke.frame()))       # capture latest artist edits
-        frames = list(range(int(src.firstFrame()), int(src.lastFrame()) + 1))
+        first, last = int(src.firstFrame()), int(src.lastFrame())
+        frames = list(range(first, last + 1))
+        lo, hi = _range(group, first, last)
         width = int(src.width())
-        targets, skipped = _retrack_targets(store, shot["id"], _object_name(group), frames, every_object, retrack_plan)
+        anchors = {}
+        if (lo, hi) != (first, last):                       # T-097: range-limited re-track
+            from st_roto import views as _views
+            frames = list(range(lo, hi + 1))
+            for o in store.objects(shot["id"]):
+                main = _views.main_shape(store, o["id"])
+                if main is None:
+                    continue
+                ks = {k["frame"]: k["points"] for k in store.keys(main["id"])}
+                a = {f: ks[f] for f in (lo - 1, hi + 1) if first <= f <= last and ks.get(f)}
+                if a:
+                    anchors[main["id"]] = a
+            extra = sorted(set(f for a in anchors.values() for f in a))
+            frames = sorted(set(frames) | set(extra))
+        plan_fn = lambda st, sid, fr: retrack_plan(st, sid, fr, anchors=anchors.get(sid))   # noqa: E731
+        targets, skipped = _retrack_targets(store, shot["id"], _object_name(group), frames, every_object, plan_fn)
         if flagged_only:
             from st_roto import quality, views
             keep = []
@@ -843,7 +937,8 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
                                  "instead)" % (fix["frame"], targets[0][0]))
             fixes = {sid: fix}
         ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name()), "width": width, "height": height,
-               "group": group}
+               "group": group, "excluded": set(_excluded(group)), "range": (lo, hi) if anchors or (lo, hi) != (first, last)
+               else None}
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None
     get_rgb = _renderer(ctx, background)
@@ -862,13 +957,13 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
         try:
             try:
                 return retrack_objects(get_rgb, ro, sids, frames, width, height, model=model, device=device,
-                                       job=job, colour_transform=ctransform, fixes=fixes)
+                                       job=job, colour_transform=ctransform, fixes=fixes, anchors=anchors)
             except Exception as e:                          # noqa: BLE001
                 if device == "cpu" or not _is_oom(e):
                     raise
                 _release_gpu_sessions()                     # T-092: GPU out of memory -> whole re-track on the CPU
                 res = retrack_objects(get_rgb, ro, sids, frames, width, height, model=model, device="cpu",
-                                      job=job, colour_transform=ctransform, fixes=fixes)
+                                      job=job, colour_transform=ctransform, fixes=fixes, anchors=anchors)
                 res["oom_fallback"] = "the GPU ran out of memory; re-tracked on the CPU"
                 return res
         finally:
@@ -883,6 +978,8 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
             parts.append("%s: %d AI keys changed, %d artist keys kept" % (name, counts[sid], kept)
                          + _review_text(store, oid))
         msg = "re-tracked %s; model %s, device %s" % (" | ".join(parts), model, job.result["device"])
+        if ctx.get("range"):
+            msg += "; frames %d-%d only (keys outside unchanged)" % ctx["range"]
         msg += _sequence_note(ctx, job.result.get("missing_frames"))
         for extra in (model_note, job.result.get("oom_fallback")):
             if extra:

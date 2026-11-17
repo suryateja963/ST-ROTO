@@ -1,0 +1,43 @@
+{
+ "nuke": "17.1v3",
+ "nc": true,
+ "test_propagation_controls": {
+  "locked": [
+   5,
+   6,
+   7
+  ],
+  "retrack_status": "re-tracked target: 26 AI keys changed, 0 artist keys kept; REVIEW check 23-25; model sam2.1-hiera-large, device cuda; excluded by you (not processed, keys unchanged): 12-13",
+  "guide_frames": [
+   5,
+   6,
+   7
+  ],
+  "unchanged_after_large": [
+   5,
+   6,
+   7,
+   12,
+   13
+  ],
+  "range_status": "re-tracked target: 5 AI keys changed, 0 artist keys kept; REVIEW check 23-25; model sam2.1-hiera-tiny, device cuda; frames 15-19 only (keys outside unchanged)",
+  "changed_by_range": [
+   15,
+   16,
+   17,
+   18,
+   19
+  ],
+  "range_iou": {
+   "15": 0.9949,
+   "16": 0.9927,
+   "17": 0.9958,
+   "18": 0.9958,
+   "19": 0.9957
+  },
+  "undo_restores": true,
+  "unlocked": [],
+  "passed": true
+ },
+ "failed": 0
+}
