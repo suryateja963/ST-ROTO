@@ -21,7 +21,7 @@ SETTINGS = {
     "stroto_model": "choice", "stroto_device": "choice", "stroto_anchors": "choice",
     "stroto_retrack_model": "choice", "stroto_colour": "choice", "stroto_ai_off": "bool",
     "stroto_edges": "choice", "stroto_soft": "bool", "stroto_band": "int", "stroto_radius": "int",
-    "stroto_matte_size": "choice", "stroto_rgb_mode": "choice", "stroto_offset": "int", "stroto_edge_blur": "float",
+    "stroto_matte_size": "choice", "stroto_rgb_mode": "choice", "stroto_spill": "choice", "stroto_offset": "int", "stroto_edge_blur": "float",
     "stroto_core_edge": "int", "stroto_stereo": "bool",
     "stroto_ch_stats": "str", "stroto_ch_motion": "str", "stroto_ch_motion_back": "str",
     "stroto_ch_motion_conv": "choice", "stroto_ch_crypto": "str",

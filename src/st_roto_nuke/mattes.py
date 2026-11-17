@@ -56,7 +56,7 @@ def _vitmatte_crop(vm, guide, mask, inner=6, outer=20, margin=8):
 def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, radius=8, eps=1e-4,
                   objects=None, compression="zip", job=None, colour_transform=colour.TRANSFORM_ID, method=None,
                   models_root=None, device="auto", out_size=None, rgb_mode=None, offset_px=0, blur_px=0.0,
-                  core_edge_px=0):
+                  core_edge_px=0, spill=None):
     """Write `<out_dir>/<shot>_mattes.####.exr` for `frames`. objects: object ids (default: every object of the
     shot). out_size: (width, height) box the EXRs must fit in (OQ-28: e.g. 1920x1080); mattes are computed at the
     shot's full resolution and area-averaged down into the largest box with the shot's proportions; None = full
@@ -92,12 +92,17 @@ def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, r
         raise ValueError("no objects with shapes to render")
     base = exr.layer_name(shot["name"]) + "_mattes"
     size = fit_size(w, h, out_size)
-    if rgb_mode not in (None, "none", "premultiplied", "straight"):
-        raise ValueError("unknown RGB mode %r" % rgb_mode)
-    rgb_mode = None if rgb_mode == "none" else rgb_mode
+    rgb_mode = None if rgb_mode in (None, "none") else rgb_mode
+    if rgb_mode is not None:
+        matte.rgb_mode_parts(rgb_mode)                        # raises for unknown modes
+    if spill not in (None, "none", "auto", "green", "blue"):
+        raise ValueError("unknown spill setting %r" % spill)
+    spill = None if spill in (None, "none") else spill
     settings = {"pass": PASS_ID, "soft": bool(soft), "method": method, "band": band, "radius": radius, "eps": eps,
                 "offset_px": int(offset_px), "blur_px": float(blur_px), "core_edge_px": int(core_edge_px),
-                "alpha_convention": rgb_mode or "alpha only",
+                "alpha_convention": matte.rgb_mode_parts(rgb_mode)[0] if rgb_mode else "alpha only",
+                "edge_colour": ("decontaminated" if matte.rgb_mode_parts(rgb_mode)[1] else "plate") if rgb_mode else None,
+                "spill": spill if rgb_mode else None,
                 "roles": {o["name"]: (o.get("role") or "add") for o in objs},
                 "size": list(size), "shot_size": [w, h],
                 "model": "vitmatte-small-composition-1k (D-032)" if vm else None,
@@ -146,7 +151,7 @@ def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, r
             extra["core_matte"], extra["edge_matte"] = matte.core_edge(combined, core_edge_px)
         rgb = None
         if rgb_mode:
-            rgb = (matte.foreground_rgb(plate, combined, rgb_mode) if plate is not None
+            rgb = (matte.foreground_rgb(plate, combined, rgb_mode, spill) if plate is not None
                    else np.zeros((h, w, 3), np.float32))     # no plate on this frame: black, listed in plate_missing
         if size != (w, h):
             import cv2

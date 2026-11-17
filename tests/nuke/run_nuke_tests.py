@@ -2511,6 +2511,86 @@ def test_model_versions(res):
     return bool(ok)
 
 
+def test_edge_colour_and_chatter(res):
+    """T-115 (REQ-101): on a real track of the synthetic shot - 'Reduce chatter' lowers the frame-to-frame jitter of
+    the AI keys without losing accuracy vs truth (mean IoU, temporal error), keeps artist keys, and is one undo step;
+    'Render mattes' with RGB 'premultiplied, decontaminated' and spill 'auto' records both in the EXR header, keeps
+    solid-foreground pixels = plate x alpha and changes soft-edge colours."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto import chatter, exr, metrics, model as m, views
+    from st_roto.stereo import mask_from_keys
+    from st_roto_nuke import session
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vw, vh, n = meta["w"], meta["h"], 20
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "ch.stroto")
+    g = stnode.create(rd, proj)
+
+    def gt(f):
+        return cv2.imread(VIDEO + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE) > 127
+    ys, xs = np.nonzero(gt(0))
+    g["stroto_object"].setValue("target")
+    nuke.frame(0)
+    g["stroto_box"].setValue([xs.min() - 4.0, vh - ys.max() - 5.0, xs.max() + 5.0, vh - ys.min() + 4.0])
+    stnode.on_set_box(g)
+    job = stnode.on_track(g, background=False)
+    if job is None or job.status != "done":
+        res["error"] = job.error if job else "no job"; return False
+    store, bus = session.project(proj)
+    shot = store.conn.execute("SELECT id FROM shots").fetchone()["id"]
+    obj = {o["name"]: o for o in store.objects(shot)}["target"]
+    sid = views.main_shape(store, obj["id"])["id"]
+
+    def state():
+        ks = {k["frame"]: k["points"] for k in store.keys(sid)}
+        masks = [mask_from_keys([ks[f]], vh, vw) for f in range(n)]
+        ious = [iou(masks[f], gt(f)) for f in range(n)]
+        return ks, ious, metrics.temporal_error([x.astype(np.float32) for x in masks],
+                                               [gt(f).astype(np.float32) for f in range(n)])
+    k0, iou0, te0 = state()
+    # an artist key on frame 10 must survive untouched
+    bus.execute({"op": "set_key", "shape_id": sid, "frame": 10, "points": k0[10]}, actor=m.ACTOR_ARTIST)
+    rep = stnode.on_reduce_chatter(g)
+    res["status"] = g["stroto_status"].value()
+    if rep is None:
+        return False
+    k1, iou1, te1 = state()
+    res["jitter"] = [round(chatter.jitter(k0), 4), round(chatter.jitter(k1), 4)]
+    res["mean_iou"] = [round(float(np.mean(iou0)), 4), round(float(np.mean(iou1)), 4)]
+    res["min_iou"] = [round(min(iou0), 4), round(min(iou1), 4)]
+    res["temporal_error"] = [round(te0, 5), round(te1, 5)]
+    ok = res["jitter"][1] < res["jitter"][0] and res["mean_iou"][1] >= res["mean_iou"][0] - 0.002
+    ok &= k1[10] == k0[10]                                                     # artist key kept
+    bus.undo()
+    k2, _, _ = state()
+    ok &= all(np.allclose(k2[f], k0[f]) for f in k0)                            # one undo step
+    # decontaminated + despilled RGB in the mattes
+    g["stroto_rgb_mode"].setValue("premultiplied, decontaminated")
+    g["stroto_spill"].setValue("auto")
+    jm = stnode.on_render_mattes(g, background=False)
+    res["matte_status"] = g["stroto_status"].value()
+    if jm is None or jm.status != "done":
+        res["matte_error"] = jm.error if jm else "no job"; return False
+    f = jm.result["files"][5]
+    st = json.loads(exr.read_header(f)["st_roto"])
+    res["header"] = {k: st.get(k) for k in ("alpha_convention", "edge_colour", "spill")}
+    ok &= res["header"] == {"alpha_convention": "premultiplied", "edge_colour": "decontaminated", "spill": "auto"}
+    ch = exr.read_channels(f)
+    a = ch["A"]
+    rgb = np.stack([ch["R"], ch["G"], ch["B"]], -1)
+    plate = cv2.imread(VIDEO + "/frame_0005.png")[:, :, ::-1].astype(np.float32) / 255.0
+    lin = np.where(plate <= 0.04045, plate / 12.92, ((plate + 0.055) / 1.055) ** 2.4)     # Nuke reads PNG as sRGB
+    solid, edge = a >= 0.999, (a > 0.05) & (a < 0.95)
+    res["solid_vs_plate_x_alpha"] = float(np.abs(rgb[solid] - lin[solid]).max())
+    res["edge_mean_change_vs_plate_x_alpha"] = float(np.abs(rgb[edge] - lin[edge] * a[edge][:, None]).mean())
+    res["edge_pixels"] = int(edge.sum())
+    ok &= res["solid_vs_plate_x_alpha"] < 2e-3 and res["edge_pixels"] > 100 and \
+        res["edge_mean_change_vs_plate_x_alpha"] > 1e-3
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
@@ -2523,7 +2603,7 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_collaboration_ui, test_propagation_controls, test_roles_and_merge,
          test_matte_outputs, test_prompt_from_mask, test_model_manager,
          test_delivery_package, test_stereo_views, test_extra_channels, test_review_overlay_and_presets,
-         test_node_family, test_alembic_export, test_model_versions)
+         test_node_family, test_alembic_export, test_model_versions, test_edge_colour_and_chatter)
 
 
 def main():

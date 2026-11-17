@@ -1,0 +1,82 @@
+{
+ "clean (no wobble)": {
+  "before": {
+   "mean_iou": 0.99981,
+   "min_iou": 0.99959,
+   "temporal_error": 5.3e-05,
+   "jitter_px": 0.2992
+  },
+  "radius 2": {
+   "mean_iou": 0.9998,
+   "min_iou": 0.99946,
+   "temporal_error": 5.4e-05,
+   "jitter_px": 0.1346
+  },
+  "radius 3": {
+   "mean_iou": 0.99979,
+   "min_iou": 0.99959,
+   "temporal_error": 5.7e-05,
+   "jitter_px": 0.1017
+  }
+ },
+ "wobble sigma 0.5 px": {
+  "before": {
+   "mean_iou": 0.98898,
+   "min_iou": 0.98559,
+   "temporal_error": 0.00294,
+   "jitter_px": 1.1861
+  },
+  "radius 2": {
+   "mean_iou": 0.99179,
+   "min_iou": 0.98766,
+   "temporal_error": 0.002094,
+   "jitter_px": 0.4672
+  },
+  "radius 3": {
+   "mean_iou": 0.99313,
+   "min_iou": 0.98758,
+   "temporal_error": 0.001723,
+   "jitter_px": 0.2835
+  }
+ },
+ "wobble sigma 1.0 px": {
+  "before": {
+   "mean_iou": 0.97806,
+   "min_iou": 0.97181,
+   "temporal_error": 0.005636,
+   "jitter_px": 2.1132
+  },
+  "radius 2": {
+   "mean_iou": 0.98379,
+   "min_iou": 0.97595,
+   "temporal_error": 0.003897,
+   "jitter_px": 0.8446
+  },
+  "radius 3": {
+   "mean_iou": 0.98651,
+   "min_iou": 0.97588,
+   "temporal_error": 0.00312,
+   "jitter_px": 0.4981
+  }
+ },
+ "wobble sigma 2.0 px": {
+  "before": {
+   "mean_iou": 0.95694,
+   "min_iou": 0.94547,
+   "temporal_error": 0.010407,
+   "jitter_px": 4.3704
+  },
+  "radius 2": {
+   "mean_iou": 0.96841,
+   "min_iou": 0.95342,
+   "temporal_error": 0.006903,
+   "jitter_px": 1.7062
+  },
+  "radius 3": {
+   "mean_iou": 0.97381,
+   "min_iou": 0.95161,
+   "temporal_error": 0.005399,
+   "jitter_px": 1.0148
+  }
+ }
+}

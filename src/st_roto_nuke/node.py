@@ -140,6 +140,19 @@ def create(source=None, project_path: str = ""):
     rf.setTooltip("Re-tracks only the objects whose review flags say the AI LOST them (REVIEW lost ...), with the "
                   "'re-track model' - e.g. track everything quickly with the tiny model, then fix the hard objects "
                   "with the large one.")
+    rc = _button(group, "stroto_chatter", "Reduce chatter", "n.on_reduce_chatter(nuke.thisNode())")
+    rc.setTooltip("Smooths the jitter of the named object's AI keys from frame to frame (each point's path is "
+                  "fitted with a local quadratic over +-'frames' frames: real motion stays, frame-to-frame noise "
+                  "goes). Your own keys and locked frames are never changed but steer the result. One undo step.")
+    rca = _button(group, "stroto_chatter_all", "Reduce chatter (all)", "n.on_reduce_chatter(nuke.thisNode(), True)",
+                  new_line=False)
+    rca.setTooltip("Reduce chatter for every unlocked object of the shot (one undo step).")
+    crk = nuke.Int_Knob("stroto_chatter_radius", "frames")
+    crk.setValue(2)
+    crk.setTooltip("Half-window of the smoothing in frames (2 = fit over 5 frames). Larger = smoother, but fast "
+                   "changes of direction are rounded.")
+    crk.clearFlag(nuke.STARTLINE)
+    group.addKnob(crk)
     rm_ = nuke.Enumeration_Knob("stroto_retrack_model", "re-track model", RETRACK_MODELS)
     rm_.setTooltip("Model for Re-track, Re-track all, Re-track flagged and Re-prompt here. 'same as model' uses the "
                    "model above. sam2.1-hiera-large was more accurate on real footage (mean IoU +0.045, mostly fewer "
@@ -211,11 +224,21 @@ def create(source=None, project_path: str = ""):
     band.setTooltip("Half-width in pixels of the zone that may become soft.")
     rad = nuke.Int_Knob("stroto_radius", "radius"); rad.setValue(8); rad.clearFlag(nuke.STARTLINE); group.addKnob(rad)
     rad.setTooltip("Guided-filter window radius in pixels.")
-    rgbk = nuke.Enumeration_Knob("stroto_rgb_mode", "RGB in mattes", ["none", "premultiplied", "straight"])
+    from st_roto.matte import RGB_MODES
+    rgbk = nuke.Enumeration_Knob("stroto_rgb_mode", "RGB in mattes", ["none"] + list(RGB_MODES))
     rgbk.setTooltip("none: EXRs hold mattes only. premultiplied: the plate's scene-linear RGB x combined alpha in "
-                    "R, G, B (ready to merge 'over'). straight: the plate RGB unmultiplied (edge colours are NOT "
-                    "decontaminated). The convention is written into each EXR header.")
+                    "R, G, B (ready to merge 'over'). straight: unmultiplied. '..., decontaminated' (T-115): the colour "
+                    "of soft-edge pixels (hair, motion blur) is recovered without the old background (measured: "
+                    "fringe on a new background 42x lower on a green screen, 3x on a natural background); otherwise "
+                    "edges keep the plate colour, old background included. The convention is written into each EXR "
+                    "header.")
     group.addKnob(rgbk)
+    spk = nuke.Enumeration_Knob("stroto_spill", "spill", ["none", "auto", "green", "blue"])
+    spk.setTooltip("Spill correction of the foreground colour in the mattes' RGB: the screen colour's channel is "
+                   "limited by the average of the other two. auto = judged from the background. Genuinely green "
+                   "(blue) foreground colours are reduced too. Mattes only; alpha is never changed.")
+    spk.clearFlag(nuke.STARTLINE)
+    group.addKnob(spk)
     ofk = nuke.Int_Knob("stroto_offset", "edge offset"); ofk.clearFlag(nuke.STARTLINE)
     ofk.setTooltip("Grow (+) or shrink (-) every matte by this many pixels (dilate / erode). Mattes only: shapes "
                    "do not change.")
@@ -1839,6 +1862,63 @@ def _track_stereo(job, ctx, frames, get_rgb, background, device, all_views):
     return res
 
 
+def on_reduce_chatter(group, every_object: bool = False, radius: int = None):
+    """T-115 (REQ-101 chatter reduction): smooth the AI keys of the named object (or every unlocked object) with
+    st_roto.chatter; artist keys, locked frames and collapsed part keys are kept and anchor the fit. One undoable
+    batch, written as AI (the command bus refuses locked content). Returns {object: (jitter before, after, keys)}."""
+    from st_roto import chatter, model as m
+    from st_roto.pieces import is_collapsed
+    try:
+        store, bus, src, project, shot = _shot_for(group)
+        if shot is None:
+            raise ValueError("nothing tracked yet for %s" % _shot_name(group))
+        roto = _inner(group, "roto", "STROTO_shapes")
+        import_edits(store, bus, shot["id"], roto["curves"], int(src.height()), int(nuke.frame()))
+        r = int(radius if radius is not None else (group["stroto_chatter_radius"].value()
+                                                   if "stroto_chatter_radius" in group.knobs() else 2))
+        if r < 1:
+            raise ValueError("'frames' must be at least 1")
+        objs = store.objects(shot["id"])
+        if not every_object:
+            objs = [o for o in objs if o["name"] == _object_name(group)]
+            if not objs:
+                raise ValueError("no object named %r (set 'object name')" % _object_name(group))
+        objs = [o for o in objs if not o["locked"]]
+        if not objs:
+            raise ValueError("the object is locked")
+        ops, report = [], {}
+        for o in objs:
+            before_all, after_all, changed = [], [], 0
+            for s in store.shapes(o["id"]):
+                if s["locked"]:
+                    continue
+                rows = store.keys(s["id"])
+                keys = {k["frame"]: k["points"] for k in rows}
+                gens = {k["frame"]: k["generator"] for k in rows}
+                fixed = {k["frame"] for k in rows if k["origin"] != m.AI_GENERATED}
+                gen = json.loads(s["generator"] or "{}") if s.get("generator") else {}
+                fixed |= set(int(f) for f in gen.get("locked_frames", []))
+                skip = {f for f, p in keys.items() if not p or is_collapsed(p)}
+                sm = chatter.smooth_keys(keys, fixed=fixed, radius=r, skip=skip)
+                before_all.append(chatter.jitter({f: p for f, p in keys.items() if f not in skip}))
+                merged = dict(keys); merged.update(sm)
+                after_all.append(chatter.jitter({f: p for f, p in merged.items() if f not in skip}))
+                for f, pts in sorted(sm.items()):
+                    ops.append({"op": "set_key", "shape_id": s["id"], "frame": f, "points": pts,
+                                "generator": gens.get(f)})
+                    changed += 1
+            report[o["name"]] = (round(max(before_all or [0.0]), 3), round(max(after_all or [0.0]), 3), changed)
+        if not ops:
+            raise ValueError("nothing to smooth (no AI keys in runs of 4 or more frames)")
+        bus.execute({"op": "batch", "ops": ops}, actor=m.ACTOR_AI)
+        _sync(group, store, shot["id"], roto["curves"], int(src.height()))
+    except (ValueError, NodeBudgetError) as e:
+        _status(group, "error: %s" % e); return None
+    _status(group, "chatter reduced (+-%d frames, one undo step): %s" % (r, " | ".join(
+        "%s: jitter %.3f -> %.3f px, %d keys" % (n, b, a, c) for n, (b, a, c) in report.items())))
+    return report
+
+
 def on_reprompt_here(group, background: bool = True):
     """T-081: the box (+ optionally the point handle) on the CURRENT frame becomes a fix prompt of the current object,
     which is then re-tracked in both directions (one undo step; the fix is stored with the shape)."""
@@ -2032,6 +2112,7 @@ def on_render_mattes(group, background: bool = True):
         out_size = (1920, 1080) if size_choice == "fit 1920x1080" else None
         knobs = group.knobs()
         extras = {"rgb_mode": group["stroto_rgb_mode"].value() if "stroto_rgb_mode" in knobs else None,
+                  "spill": group["stroto_spill"].value() if "stroto_spill" in knobs else None,
                   "offset_px": int(group["stroto_offset"].value()) if "stroto_offset" in knobs else 0,
                   "blur_px": float(group["stroto_edge_blur"].value()) if "stroto_edge_blur" in knobs else 0.0,
                   "core_edge_px": int(group["stroto_core_edge"].value()) if "stroto_core_edge" in knobs else 0}
@@ -2103,7 +2184,9 @@ def on_render_mattes(group, background: bool = True):
         st_ = r["settings"]
         bits = []
         if st_.get("alpha_convention") not in (None, "alpha only"):
-            bits.append("RGB %s" % st_["alpha_convention"])
+            bits.append("RGB %s%s%s" % (st_["alpha_convention"],
+                                        ", edges decontaminated" if st_.get("edge_colour") == "decontaminated" else "",
+                                        (", despill %s" % st_["spill"]) if st_.get("spill") else ""))
         if st_.get("offset_px"):
             bits.append("offset %+d px" % st_["offset_px"])
         if st_.get("blur_px"):

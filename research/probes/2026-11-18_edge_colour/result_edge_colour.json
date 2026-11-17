@@ -1,0 +1,60 @@
+{
+ "band_pixels": 13416,
+ "green screen": {
+  "straight (before)": {
+   "fg_error": 0.148,
+   "fringe": 0.0583
+  },
+  "decontaminated": {
+   "fg_error": 0.0037,
+   "fringe": 0.0014
+  },
+  "decontaminated, alpha 2px too big": {
+   "fg_error": 0.0938,
+   "fringe": 0.037
+  },
+  "straight, alpha 2px too big": {
+   "fg_error": 0.148,
+   "fringe": 0.0583
+  }
+ },
+ "natural": {
+  "straight (before)": {
+   "fg_error": 0.1335,
+   "fringe": 0.0526
+  },
+  "decontaminated": {
+   "fg_error": 0.0414,
+   "fringe": 0.0163
+  },
+  "decontaminated, alpha 2px too big": {
+   "fg_error": 0.1023,
+   "fringe": 0.0403
+  },
+  "straight, alpha 2px too big": {
+   "fg_error": 0.1335,
+   "fringe": 0.0526
+  }
+ },
+ "spill colour detected": "green",
+ "spill": {
+  "no correction": {
+   "fg_error": 0.0728,
+   "fringe": 0.0287,
+   "fg_error_inside": 0.0117,
+   "green_excess_inside": 0.0347
+  },
+  "despill average": {
+   "fg_error": 0.024,
+   "fringe": 0.0095,
+   "fg_error_inside": 0.008,
+   "green_excess_inside": 0.0223
+  },
+  "despill max": {
+   "fg_error": 0.0728,
+   "fringe": 0.0287,
+   "fg_error_inside": 0.0117,
+   "green_excess_inside": 0.0347
+  }
+ }
+}

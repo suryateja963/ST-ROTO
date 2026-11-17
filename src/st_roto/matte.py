@@ -216,12 +216,110 @@ def core_edge(alpha, width: int):
     return core, np.clip(a - core, 0.0, 1.0)
 
 
-def foreground_rgb(rgb, alpha, mode: str):
-    """Foreground colour for a matte (REQ-12-01..04): 'premultiplied' = plate x alpha, 'straight' = plate (colour
-    not multiplied; NO decontamination of edge colours yet). The convention is written into the file, never implied."""
+RGB_MODES = ("premultiplied", "straight", "premultiplied, decontaminated", "straight, decontaminated")
+
+
+def rgb_mode_parts(mode: str):
+    """'premultiplied, decontaminated' -> ('premultiplied', True). Raises ValueError for unknown modes."""
+    if mode not in RGB_MODES:
+        raise ValueError("unknown RGB mode %r" % mode)
+    conv, _, extra = mode.partition(",")
+    return conv.strip(), extra.strip() == "decontaminated"
+
+
+def foreground_rgb(rgb, alpha, mode: str, spill: str = None):
+    """Foreground colour for a matte (REQ-12-01..04, T-099; T-115): 'premultiplied' = colour x alpha, 'straight' =
+    colour unmultiplied. '..., decontaminated': the colour of soft-edge pixels is recovered from the compositing
+    equation (`decontaminate`), else it is the plate's (which still contains the old background). spill: None,
+    'auto' (screen colour judged from the background), 'green' or 'blue' -> `despill` of the foreground colour.
+    The convention is written into the file, never implied."""
+    conv, decont = rgb_mode_parts(mode)
     rgb = np.asarray(rgb, np.float32)
-    if mode == "premultiplied":
-        return rgb * np.asarray(alpha, np.float32)[..., None]
-    if mode == "straight":
-        return rgb
-    raise ValueError("unknown RGB mode %r" % mode)
+    a = np.asarray(alpha, np.float32)
+    fg = decontaminate(rgb, a) if decont else rgb
+    if spill and spill != "none":
+        colour = spill_colour_of(rgb, a) if spill == "auto" else spill
+        if colour:
+            fg = despill(fg, colour)
+    return fg * a[..., None] if conv == "premultiplied" else fg
+
+
+# ------------------------------------------------------------------------------------------------ edge colour (T-115)
+def _push_fill(rgb, weight, sigmas=(2.0, 6.0, 18.0, 54.0)):
+    """Normalised convolution: fill every pixel with the weighted local mean of the pixels where `weight` > 0,
+    using the smallest blur that reaches it (coarser blurs only fill what finer ones could not)."""
+    import cv2
+    rgb = np.asarray(rgb, np.float32)
+    w = np.asarray(weight, np.float32)
+    out = np.zeros_like(rgb)
+    have = np.zeros(w.shape, np.float32)
+    for s in sigmas:
+        num = cv2.GaussianBlur(rgb * w[..., None], (0, 0), s)
+        den = cv2.GaussianBlur(w, (0, 0), s)
+        ok = (den > 1e-3) & (have < 0.5)
+        out[ok] = num[ok] / den[ok][:, None]
+        have[ok] = 1.0
+    if not (have > 0.5).all():                                 # nothing reachable: global mean of the source
+        m = (rgb * w[..., None]).reshape(-1, rgb.shape[2]).sum(0) / max(float(w.sum()), 1e-6)
+        out[have < 0.5] = m
+    return out
+
+
+def estimate_layers(rgb, alpha, lo=0.02, hi=0.98):
+    """(foreground estimate, background estimate) colours everywhere: the plate's colour pushed out from pixels that
+    are surely foreground (alpha >= hi) / surely background (alpha <= lo)."""
+    a = np.asarray(alpha, np.float32)
+    return _push_fill(rgb, (a >= hi).astype(np.float32)), _push_fill(rgb, (a <= lo).astype(np.float32))
+
+
+def decontaminate(rgb, alpha, lo=0.02, hi=0.98, solve_from=0.05, solve_full=0.3):
+    """Edge decontamination / edge colour recovery (REQ-12, T-115): the foreground colour F of soft-edge pixels from
+    the compositing equation I = a F + (1 - a) B, with B estimated from the nearby background; where alpha is small
+    the solve is unstable, so F blends towards the colour pushed out from the solid foreground. Pixels with alpha
+    >= hi keep the plate colour; F is not defined where alpha = 0 (the solid-foreground estimate is used there).
+    Returns straight (un-premultiplied) foreground RGB."""
+    I = np.asarray(rgb, np.float32)
+    a = np.clip(np.asarray(alpha, np.float32), 0.0, 1.0)
+    F_hat, B_hat = estimate_layers(I, a, lo, hi)
+    safe = np.maximum(a, 1e-3)[..., None]
+    F_solve = (I - (1.0 - a)[..., None] * B_hat) / safe
+    top = max(float(I.max()), 1.0) * 2.0
+    F_solve = np.clip(F_solve, 0.0, top)
+    w = np.clip((a - solve_from) / (solve_full - solve_from), 0.0, 1.0)[..., None]
+    F = w * F_solve + (1.0 - w) * F_hat
+    solid = (a >= hi)[..., None]
+    return np.where(solid, I, F).astype(np.float32)
+
+
+SPILL_CHANNELS = {"green": 1, "blue": 2}
+
+
+def despill(rgb, colour: str = "green", limit: str = "average", amount: float = 1.0):
+    """Spill correction (REQ-12, T-115): the screen colour's channel is limited by the other two ('average' = (R+B)/2
+    for green, (R+G)/2 for blue; 'max' = the larger of them - gentler). `amount` 0..1 blends the correction. Applied
+    to foreground colour only (never to alpha). Note: genuinely green (or blue) foreground colours are reduced too -
+    the classic limitation of channel-limit despill."""
+    if colour not in SPILL_CHANNELS:
+        raise ValueError("spill colour must be one of %s" % ", ".join(SPILL_CHANNELS))
+    c = np.array(rgb, np.float32, copy=True)
+    k = SPILL_CHANNELS[colour]
+    o = [i for i in range(3) if i != k]
+    lim = 0.5 * (c[..., o[0]] + c[..., o[1]]) if limit == "average" else np.maximum(c[..., o[0]], c[..., o[1]])
+    fixed = np.minimum(c[..., k], lim)
+    c[..., k] = c[..., k] + float(amount) * (fixed - c[..., k])
+    return c
+
+
+def spill_colour_of(rgb, alpha, lo=0.02):
+    """'green' or 'blue': the screen colour judged from the background pixels (alpha <= lo), or None if the
+    background is not dominated by either."""
+    a = np.asarray(alpha, np.float32)
+    bg = np.asarray(rgb, np.float32)[a <= lo]
+    if bg.size == 0:
+        return None
+    m = bg.reshape(-1, bg.shape[-1])[:, :3].mean(0)
+    if m[1] > 1.2 * max(m[0], m[2]):
+        return "green"
+    if m[2] > 1.2 * max(m[0], m[1]):
+        return "blue"
+    return None
