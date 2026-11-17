@@ -54,6 +54,8 @@ def test_v1_project_migrates_to_current(tmp_path):
               "user_keys"):                                                 # v6-v9 tables
         s.conn.execute("DROP TABLE %s" % t)
     s.conn.execute("ALTER TABLE objects DROP COLUMN role")                  # v10 column
+    for c in ("view", "pair"):                                              # v11 columns (stereo, T-109)
+        s.conn.execute("ALTER TABLE objects DROP COLUMN %s" % c)
     s.conn.execute("PRAGMA user_version = 1"); s.close()        # a genuine v1 file
     s2 = ProjectStore(p)
     assert s2.schema_version() == SCHEMA_VERSION

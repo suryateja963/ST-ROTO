@@ -1,0 +1,610 @@
+{
+ "disparity": {
+  "0": {
+   "dx": -29.995395091492675,
+   "dy": -0.010497026985325703,
+   "error": 7.891539439697226e-07,
+   "ambiguity": 0.0013,
+   "true_dx": -30.0
+  },
+  "1": {
+   "dx": -30.057916701220094,
+   "dy": 0.04226111435408003,
+   "error": 1.0808190381794702e-05,
+   "ambiguity": 0.0217,
+   "true_dx": -30.426
+  },
+  "2": {
+   "dx": -30.99230314697467,
+   "dy": -0.0018606116582657926,
+   "error": 7.819591587576724e-07,
+   "ambiguity": 0.2305,
+   "true_dx": -30.851
+  },
+  "3": {
+   "dx": -30.992364112036867,
+   "dy": 0.0026416434959443654,
+   "error": 8.3412066942401e-07,
+   "ambiguity": 0.2283,
+   "true_dx": -31.277
+  },
+  "4": {
+   "dx": -31.928751737480866,
+   "dy": -0.04635839171207817,
+   "error": 1.3251805285108276e-05,
+   "ambiguity": 0.0279,
+   "true_dx": -31.702
+  },
+  "5": {
+   "dx": -32.002731191273774,
+   "dy": 0.0022580574738005226,
+   "error": 6.641039931309933e-07,
+   "ambiguity": 0.001,
+   "true_dx": -32.128
+  },
+  "6": {
+   "dx": -33.00880498932571,
+   "dy": -0.003129050091879422,
+   "error": 6.309012405836256e-07,
+   "ambiguity": 0.2091,
+   "true_dx": -32.553
+  },
+  "7": {
+   "dx": -33.0145960855092,
+   "dy": -0.005851668962673747,
+   "error": 5.806951435260999e-07,
+   "ambiguity": 0.1992,
+   "true_dx": -32.979
+  },
+  "8": {
+   "dx": -33.14175077183482,
+   "dy": 0.045730352493292686,
+   "error": 2.5099896447500214e-05,
+   "ambiguity": 0.1693,
+   "true_dx": -33.404
+  },
+  "9": {
+   "dx": -33.89435416894143,
+   "dy": -0.0355039818667482,
+   "error": 1.757169775373768e-05,
+   "ambiguity": 0.0293,
+   "true_dx": -33.83
+  },
+  "10": {
+   "dx": -34.001952442038814,
+   "dy": 0.006860374433482748,
+   "error": 7.511652597713692e-07,
+   "ambiguity": 0.001,
+   "true_dx": -34.255
+  },
+  "11": {
+   "dx": -34.99706097395668,
+   "dy": 0.014003722299895324,
+   "error": 8.218935363402124e-07,
+   "ambiguity": 0.2337,
+   "true_dx": -34.681
+  },
+  "12": {
+   "dx": -34.992276508754,
+   "dy": 0.014130046132667941,
+   "error": 8.062066285674518e-07,
+   "ambiguity": 0.2401,
+   "true_dx": -35.106
+  },
+  "13": {
+   "dx": -35.99130072862443,
+   "dy": 0.015291458709217028,
+   "error": 8.861532592163712e-07,
+   "ambiguity": 0.0021,
+   "true_dx": -35.532
+  },
+  "14": {
+   "dx": -35.99256230723361,
+   "dy": 0.011629327523951665,
+   "error": 9.977561603591312e-07,
+   "ambiguity": 0.0024,
+   "true_dx": -35.957
+  },
+  "15": {
+   "dx": -35.99433474285733,
+   "dy": 0.010964223824110867,
+   "error": 1.0034575552708702e-06,
+   "ambiguity": 0.0025,
+   "true_dx": -36.383
+  },
+  "16": {
+   "dx": -36.99638851017003,
+   "dy": 0.006620546732521452,
+   "error": 1.088110593627789e-06,
+   "ambiguity": 0.2279,
+   "true_dx": -36.809
+  },
+  "17": {
+   "dx": -36.99442778715049,
+   "dy": 0.00014131783021278764,
+   "error": 1.1656796914394363e-06,
+   "ambiguity": 0.2183,
+   "true_dx": -37.234
+  },
+  "18": {
+   "dx": -37.988472021006146,
+   "dy": -0.005267712636397464,
+   "error": 1.1991472774752765e-06,
+   "ambiguity": 0.0027,
+   "true_dx": -37.66
+  },
+  "19": {
+   "dx": -37.98581993933202,
+   "dy": -0.0076883368574067095,
+   "error": 1.1096301477664383e-06,
+   "ambiguity": 0.0024,
+   "true_dx": -38.085
+  },
+  "20": {
+   "dx": -38.98052596445135,
+   "dy": -0.011127706366480247,
+   "error": 1.0255423603666713e-06,
+   "ambiguity": 0.1853,
+   "true_dx": -38.511
+  },
+  "21": {
+   "dx": -39.01965817983684,
+   "dy": -0.0010192049358448874,
+   "error": 7.051598004181869e-06,
+   "ambiguity": 0.2124,
+   "true_dx": -38.936
+  },
+  "22": {
+   "dx": -39.03701555902764,
+   "dy": -0.0009726086680429439,
+   "error": 9.611095265427139e-06,
+   "ambiguity": 0.2365,
+   "true_dx": -39.362
+  },
+  "23": {
+   "dx": -40.390775326285414,
+   "dy": -0.000944357694588581,
+   "error": 0.0005415160558186471,
+   "ambiguity": 0.6741,
+   "true_dx": -39.787
+  },
+  "24": {
+   "dx": -41.0,
+   "dy": 0.011755877780647251,
+   "error": 0.0005556531832553446,
+   "ambiguity": 0.8869,
+   "true_dx": -40.213
+  },
+  "25": {
+   "dx": -41.196525221863375,
+   "dy": 0.020384385268624877,
+   "error": 0.00016774646064732224,
+   "ambiguity": 0.3707,
+   "true_dx": -40.638
+  },
+  "26": {
+   "dx": -41.008766634018635,
+   "dy": 0.019511978407940535,
+   "error": 2.9845029985153815e-06,
+   "ambiguity": 0.2256,
+   "true_dx": -41.064
+  },
+  "27": {
+   "dx": -41.00483298961136,
+   "dy": 0.019985631421418782,
+   "error": 2.914074912041542e-06,
+   "ambiguity": 0.2307,
+   "true_dx": -41.489
+  },
+  "28": {
+   "dx": -41.989915286037544,
+   "dy": 0.01667270582473531,
+   "error": 2.71372550741944e-06,
+   "ambiguity": 0.0069,
+   "true_dx": -41.915
+  },
+  "29": {
+   "dx": -41.97332666985209,
+   "dy": 0.01469966480307538,
+   "error": 2.4676860448380467e-06,
+   "ambiguity": 0.0033,
+   "true_dx": -42.34
+  },
+  "30": {
+   "dx": -42.95277049853321,
+   "dy": 0.011764128019397298,
+   "error": 1.7105086271840264e-06,
+   "ambiguity": 0.199,
+   "true_dx": -42.766
+  },
+  "31": {
+   "dx": -42.93972792375731,
+   "dy": 0.014346377187622645,
+   "error": 2.091953774652211e-06,
+   "ambiguity": 0.1777,
+   "true_dx": -43.191
+  },
+  "32": {
+   "dx": -43.9423297626404,
+   "dy": 0.01678174454312952,
+   "error": 2.3243703708430985e-06,
+   "ambiguity": 0.0036,
+   "true_dx": -43.617
+  },
+  "33": {
+   "dx": -43.96691922374889,
+   "dy": 0.019683376144943743,
+   "error": 1.8789758087223163e-06,
+   "ambiguity": 0.0023,
+   "true_dx": -44.043
+  },
+  "34": {
+   "dx": -44.00267762511125,
+   "dy": 0.020692586513927257,
+   "error": 1.5715587551312638e-06,
+   "ambiguity": 0.0024,
+   "true_dx": -44.468
+  },
+  "35": {
+   "dx": -45.026457629836166,
+   "dy": 0.01291473392543224,
+   "error": 1.6827083300086088e-06,
+   "ambiguity": 0.1824,
+   "true_dx": -44.894
+  },
+  "36": {
+   "dx": -45.04026055940535,
+   "dy": 0.0031031273457447508,
+   "error": 1.6909433497858117e-06,
+   "ambiguity": 0.1971,
+   "true_dx": -45.319
+  },
+  "37": {
+   "dx": -46.045348307901584,
+   "dy": -0.0051788079994458695,
+   "error": 1.6585158846282866e-06,
+   "ambiguity": 0.0041,
+   "true_dx": -45.745
+  },
+  "38": {
+   "dx": -46.13963472306465,
+   "dy": -0.051307472324516976,
+   "error": 2.7408568712417036e-05,
+   "ambiguity": 0.0643,
+   "true_dx": -46.17
+  },
+  "39": {
+   "dx": -46.95850379210824,
+   "dy": -0.005704605446965173,
+   "error": 8.112217074085493e-06,
+   "ambiguity": 0.2221,
+   "true_dx": -46.596
+  },
+  "40": {
+   "dx": -47.00954158841013,
+   "dy": -0.010111606796488419,
+   "error": 2.265807097501238e-06,
+   "ambiguity": 0.2284,
+   "true_dx": -47.021
+  },
+  "41": {
+   "dx": -47.00109520060781,
+   "dy": -0.006425187874774065,
+   "error": 1.9292556316941045e-06,
+   "ambiguity": 0.2443,
+   "true_dx": -47.447
+  },
+  "42": {
+   "dx": -47.9915980989325,
+   "dy": -0.001778323986715436,
+   "error": 1.9044701957682264e-06,
+   "ambiguity": 0.0027,
+   "true_dx": -47.872
+  },
+  "43": {
+   "dx": -48.087349424744374,
+   "dy": 0.0013729248401492997,
+   "error": 1.795442403818015e-05,
+   "ambiguity": 0.0239,
+   "true_dx": -48.298
+  },
+  "44": {
+   "dx": -48.977127717867916,
+   "dy": 0.0009291814249580754,
+   "error": 1.4647567923020688e-06,
+   "ambiguity": 0.1836,
+   "true_dx": -48.723
+  },
+  "45": {
+   "dx": -48.973934523611454,
+   "dy": 0.004753687934553865,
+   "error": 1.4897544815539732e-06,
+   "ambiguity": 0.181,
+   "true_dx": -49.149
+  },
+  "46": {
+   "dx": -49.813669723693444,
+   "dy": 0.052324592131506996,
+   "error": 3.57235549017787e-05,
+   "ambiguity": 0.0522,
+   "true_dx": -49.574
+  },
+  "47": {
+   "dx": -49.9932298134409,
+   "dy": -0.0008177719999931212,
+   "error": 1.7759996353561291e-06,
+   "ambiguity": 0.0023,
+   "true_dx": -50.0
+  }
+ },
+ "transfer": {
+  "0": {
+   "box_iou_vs_right_gt": 0.9999,
+   "click_inside_right_gt": true
+  },
+  "20": {
+   "box_iou_vs_right_gt": 0.9998,
+   "click_inside_right_gt": true
+  },
+  "47": {
+   "box_iou_vs_right_gt": 0.9999,
+   "click_inside_right_gt": true
+  }
+ },
+ "disparity_abs_error": {
+  "mean": 0.25149307018704614,
+  "max": 0.7872340425531945,
+  "max_frame": 24
+ },
+ "disparity_seconds_mean": 0.10500641663869222,
+ "clean": {
+  "flags": [],
+  "offset": [
+   0.0,
+   0.0
+  ],
+  "disparity": -41.49125260347978
+ },
+ "clean_residuals": {
+  "max_top_px": 4.998201779926177,
+  "max_bottom_px": 2.4662281527345726,
+  "object_height_px": [
+   251.14669194787257,
+   335.3740734246612
+  ],
+  "max_area_ratio": 1.0865636563276346,
+  "max_dx_step_px": 1.9202129862580932
+ },
+ "injected": {
+  "vertical_12px": {
+   "caught": 4,
+   "of": 4,
+   "detail": [
+    {
+     "frame": 5,
+     "caught": true,
+     "new_flags": [
+      [
+       5,
+       "views disagree vertically (top +12.0 px, bottom +12.0 px against the shot's usual offset)"
+      ]
+     ]
+    },
+    {
+     "frame": 12,
+     "caught": true,
+     "new_flags": [
+      [
+       12,
+       "views disagree vertically (top +12.0 px, bottom +12.0 px against the shot's usual offset)"
+      ]
+     ]
+    },
+    {
+     "frame": 25,
+     "caught": true,
+     "new_flags": [
+      [
+       25,
+       "views disagree vertically (top +12.0 px, bottom +11.9 px against the shot's usual offset)"
+      ]
+     ]
+    },
+    {
+     "frame": 40,
+     "caught": true,
+     "new_flags": [
+      [
+       40,
+       "views disagree vertically (top +12.0 px, bottom +12.0 px against the shot's usual offset)"
+      ]
+     ]
+    }
+   ]
+  },
+  "scaled_1.5": {
+   "caught": 4,
+   "of": 4,
+   "detail": [
+    {
+     "frame": 5,
+     "caught": true,
+     "new_flags": [
+      [
+       5,
+       "views disagree vertically (top -67.3 px, bottom +67.4 px against the shot's usual offset); size differs 125% between the views"
+      ]
+     ]
+    },
+    {
+     "frame": 12,
+     "caught": true,
+     "new_flags": [
+      [
+       12,
+       "views disagree vertically (top -78.8 px, bottom +77.8 px against the shot's usual offset); size differs 125% between the views"
+      ]
+     ]
+    },
+    {
+     "frame": 25,
+     "caught": true,
+     "new_flags": [
+      [
+       25,
+       "views disagree vertically (top -76.5 px, bottom +74.9 px against the shot's usual offset); size differs 121% between the views"
+      ]
+     ]
+    },
+    {
+     "frame": 40,
+     "caught": true,
+     "new_flags": [
+      [
+       40,
+       "views disagree vertically (top -68.3 px, bottom +68.1 px against the shot's usual offset); size differs 125% between the views"
+      ]
+     ]
+    }
+   ]
+  },
+  "wrong_object": {
+   "caught": 4,
+   "of": 4,
+   "detail": [
+    {
+     "frame": 5,
+     "caught": true,
+     "new_flags": [
+      [
+       5,
+       "views disagree vertically (top +153.1 px, bottom +52.9 px against the shot's usual offset); size differs 219% between the views; disparity jumps 628.0 px against both neighbouring frames"
+      ]
+     ]
+    },
+    {
+     "frame": 12,
+     "caught": true,
+     "new_flags": [
+      [
+       12,
+       "views disagree vertically (top +72.6 px, bottom -66.8 px against the shot's usual offset); size differs 207% between the views; disparity jumps 445.0 px against both neighbouring frames"
+      ]
+     ]
+    },
+    {
+     "frame": 25,
+     "caught": true,
+     "new_flags": [
+      [
+       25,
+       "views disagree vertically (top +203.6 px, bottom +72.3 px against the shot's usual offset); size differs 94% between the views; disparity jumps 109.9 px against both neighbouring frames"
+      ]
+     ]
+    },
+    {
+     "frame": 40,
+     "caught": true,
+     "new_flags": [
+      [
+       40,
+       "views disagree vertically (top +339.6 px, bottom +236.4 px against the shot's usual offset); size differs 116% between the views; disparity jumps 287.0 px against both neighbouring frames"
+      ]
+     ]
+    }
+   ]
+  },
+  "horizontal_25px": {
+   "caught": 4,
+   "of": 4,
+   "detail": [
+    {
+     "frame": 5,
+     "caught": true,
+     "new_flags": [
+      [
+       5,
+       "disparity jumps 24.0 px against both neighbouring frames"
+      ]
+     ]
+    },
+    {
+     "frame": 12,
+     "caught": true,
+     "new_flags": [
+      [
+       12,
+       "disparity jumps 24.0 px against both neighbouring frames"
+      ]
+     ]
+    },
+    {
+     "frame": 25,
+     "caught": true,
+     "new_flags": [
+      [
+       25,
+       "disparity jumps 24.7 px against both neighbouring frames"
+      ]
+     ]
+    },
+    {
+     "frame": 40,
+     "caught": true,
+     "new_flags": [
+      [
+       40,
+       "disparity jumps 25.0 px against both neighbouring frames"
+      ]
+     ]
+    }
+   ]
+  },
+  "missing": {
+   "caught": 4,
+   "of": 4,
+   "detail": [
+    {
+     "frame": 5,
+     "caught": true,
+     "new_flags": [
+      [
+       5,
+       "object in the left view only"
+      ]
+     ]
+    },
+    {
+     "frame": 12,
+     "caught": true,
+     "new_flags": [
+      [
+       12,
+       "object in the left view only"
+      ]
+     ]
+    },
+    {
+     "frame": 25,
+     "caught": true,
+     "new_flags": [
+      [
+       25,
+       "object in the left view only"
+      ]
+     ]
+    },
+    {
+     "frame": 40,
+     "caught": true,
+     "new_flags": [
+      [
+       40,
+       "object in the left view only"
+      ]
+     ]
+    }
+   ]
+  }
+ }
+}

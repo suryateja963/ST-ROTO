@@ -40,7 +40,7 @@ def export_shot(store, shot_id: str) -> dict:
                            "point_feather": [{"frame": f, "data": d} for f, d in sorted(store.feathers(s["id"]).items())]})
         objs.append({"id": o["id"], "name": o["name"], "parent_id": o["parent_id"], "origin": o["origin"],
                      "locked": bool(o["locked"]), "color": o["color"], "role": o.get("role") or "add",
-                     "shapes": shapes})
+                     "view": o.get("view"), "pair": o.get("pair"), "shapes": shapes})
     return {"format": FORMAT, "version": VERSION, "coordinates": COORDINATES,
             "shot": {k: shot[k] for k in ("id", "name", "source_path", "width", "height", "first_frame", "last_frame")},
             "objects": objs}
@@ -72,6 +72,9 @@ def import_shot(bus, data: dict, shot_id: str) -> dict:
                 continue
             row = {"id": ids[o["id"]], "shot_id": shot_id, "name": o["name"], "color": o.get("color"),
                    "parent_id": ids.get(o["parent_id"]), "role": o.get("role") or "add"}
+            for f in ("view", "pair"):                      # T-109 (absent in files written before it)
+                if o.get(f):
+                    row[f] = o[f]
             ops.append({"op": "create_object", "row": row})
             for s in o["shapes"]:
                 sid = ids[s["id"]] = m.new_id()

@@ -1,0 +1,40 @@
+{
+ "per_view_render": {
+  "left_vs_left_png": 0.2871320843696594,
+  "left_vs_right_png": 0.8425394892692566,
+  "right_vs_left_png": 0.8471889495849609,
+  "right_vs_right_png": 0.2871320843696594
+ },
+ "same_path_written_twice_ok": [
+  [
+   720,
+   1280,
+   3
+  ],
+  [
+   720,
+   1280,
+   3
+  ]
+ ],
+ "set_doc": "self.set(time, attributeIndexOrName, value, view) -> None\nSet the value of an attribute. The time parameter is optional: if it's present, a new key is created at that time with the specified value; if it's not present, a constant value is set for the attribute. The attribute to set may be identified by its name or index. The view parameter is optional.",
+ "getValue_doc": "self.getValue(time, indexOrName, view) -> float\nEvaluates the anim curve of an attribute at a particular time and returns the value.\ntime is the time for which to evaluate the attribute; indexOrName is either the index of the attribute to evaluate, or its name; and view is the optional view name.",
+ "restrict_A_set_name_value": [
+  "{a osw x41200000 osf 0 str 1 spx x44800000 spy x44428000 sf x40000000 sb 1 nv x40000000 view2 x40000000 ltn 0 ltm 0}}",
+  "{a osw x41200000 osf 0 str 1 spx x44800000 spy x44428000 sf x40000000 sb 1 nv x40000000 view2 x40000000 ltn 0 ltm 0}}}}}"
+ ],
+ "restrict_B_set_time_name_value": [
+  "{a osw x41200000 osf 0 str 1 spx x44800000 spy x44428000 sf x40000000 sb 1 nv x40000000 view2 x40000000 ltn 0 ltm 0}}}}}"
+ ],
+ "alpha_left": {
+  "A(100-300)": 40000.0,
+  "C(400-600)": 40000.0,
+  "B(700-900)": 0.0
+ },
+ "alpha_right": {
+  "A(100-300)": 0.0,
+  "C(400-600)": 40000.0,
+  "B(700-900)": 40000.0
+ },
+ "serialise_A": "{curvegroup A 512 bezier\n  {{cc\n    {f 8192}\n    {p\n     {}\n     {x42c80000 x43480000 1}\n     {}\n     {}\n     {x43960000 x43480000 1}\n     {}\n     {}\n     {x43960000 x43c80000 1}\n     {}\n     {}\n     {x42c80000 x43c80000 1}\n     {}}}\n   {cc\n    {f 8192}\n    {p\n     {}\n     {}\n     {}\n     {}\n     {}\n     {}\n     {}\n     {}\n     {}\n     {}\n     {}\n     {}}}}\n  {tx 1 0}\n  {a osw x41200000 osf 0 str "
+}

@@ -1,0 +1,13 @@
+{
+ "mode": "save",
+ "saved": [
+  "alpha.tif",
+  "alpha_left.tif",
+  "alpha_right.tif",
+  "log.txt",
+  "persist.nknc",
+  "px_left.tif",
+  "px_right.tif",
+  "px_same.tif"
+ ]
+}

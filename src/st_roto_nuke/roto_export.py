@@ -260,7 +260,67 @@ def sync_shot(store, shot_id: str, curves_knob, height: float) -> dict:
         else:
             report["conflicts"].append(item.name)                                  # unknown or edited: keep
     report["roles_applied"] = apply_roles(store, shot_id, curves_knob)
+    report["views_applied"], report["views_missing"] = apply_views(store, shot_id, curves_knob)
     return report
+
+
+# Shape views (T-109, measured in research/probes/2026-11-17_stereo): attribute 'nv' = number of views the shape
+# renders in, 'view1'..'view<nv>' = 1-based indices into the script's views (default: every view). Setting nv=1,
+# view1=k shows the shape in view k only; it survives save + reopen.
+NV_ATTR = "nv"
+
+
+def _script_views():
+    try:
+        import nuke
+        return list(nuke.views())
+    except Exception:                                         # noqa: BLE001
+        return []
+
+
+def shape_view(item, script_views=None):
+    """The one view a Roto shape is limited to, or None (several / every view)."""
+    vs = _script_views() if script_views is None else script_views
+    try:
+        a = item.getAttributes()
+        if len(vs) > 1 and int(round(a.getValue(0, NV_ATTR))) == 1:
+            k = int(round(a.getValue(0, "view1")))
+            return vs[k - 1] if 1 <= k <= len(vs) else None
+    except (AttributeError, ValueError):
+        pass
+    return None
+
+
+def apply_views(store, shot_id: str, curves_knob, script_views=None):
+    """Limit each ST-ROTO shape to its object's view (objects.view); objects without a view render in every view.
+    Returns (changed, [object views this script does not have: those shapes are shown in every view])."""
+    vs = _script_views() if script_views is None else script_views
+    if len(vs) < 2:
+        return False, []
+    obj = {o["id"]: o for o in store.objects(shot_id)}
+    tag_view = {host_tag(s["id"]): obj[s["object_id"]].get("view") for s in views.shot_shapes(store, shot_id)}
+    missing, changed = set(), False
+    for it in curves_knob.rootLayer:
+        mt = TAG_RE.search(getattr(it, "name", "") or "")
+        if not mt or mt.group(1) not in tag_view:
+            continue
+        v = tag_view[mt.group(1)]
+        if v and v not in vs:
+            missing.add(v); v = None
+        want = [vs.index(v) + 1] if v else list(range(1, len(vs) + 1))
+        try:
+            a = it.getAttributes()
+        except AttributeError:
+            continue
+        have = [int(round(a.getValue(0, "view%d" % (i + 1)))) for i in range(int(round(a.getValue(0, NV_ATTR))))]
+        if have != want:
+            a.set(NV_ATTR, len(want))
+            for i, k in enumerate(want):
+                a.set("view%d" % (i + 1), k)
+            changed = True
+    if changed:
+        curves_knob.changed()
+    return changed, sorted(missing)
 
 
 PREVIEW_LABEL = "STROTO_preview"
@@ -335,7 +395,11 @@ def import_edits(store, bus, shot_id: str, curves_knob, height: float, static_fr
             oid, sid = m.new_id(), m.new_id()
             n = len(next(iter(host.values())))
             fx, fy, ff = read_feather(item, static_frame)
-            ops = [{"op": "create_object", "row": {"id": oid, "shot_id": shot_id, "name": name}},
+            row = {"id": oid, "shot_id": shot_id, "name": name}
+            sv = shape_view(item)                           # T-109: drawn for one view only -> that view's object
+            if sv:
+                row.update(view=sv, pair=name)
+            ops = [{"op": "create_object", "row": row},
                    {"op": "create_shape", "row": {"id": sid, "object_id": oid, "name": name, "point_count": n,
                                                   "feather_x": fx, "feather_y": fy, "feather_falloff": ff}}]
             ops += [{"op": "set_key", "shape_id": sid, "frame": f, "points": host[f]} for f in sorted(host)]

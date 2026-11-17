@@ -159,6 +159,21 @@ def create(source=None, project_path: str = ""):
     ex_.setTooltip("Frames the AI must not process or change in Track and Re-track, e.g. '12-14, 30' (flash frames, "
                    "cuts, frames you will roto by hand). Existing keys there stay as they are.")
     group.addKnob(ex_)
+    # stereo / multi-view (T-109, REQ-115)
+    sv = nuke.Boolean_Knob("stroto_stereo", "track every view (stereo)")
+    sv.setTooltip("For scripts with several views (stereo): Track tracks each prompted object in EVERY view, "
+                  "independently. Prompts are given in the 'prompt view'; ST-ROTO finds the object in the other "
+                  "views (disparity search on the prompt frame) and prompts them with a box + your clicks moved "
+                  "there. Each view gets its own object (<name>_<view>), shown only in that view; a stereo check "
+                  "flags frames where the views disagree (vertical offset, size, disparity jump, object in one view "
+                  "only).")
+    group.addKnob(sv)
+    pv = nuke.String_Knob("stroto_prompt_view", "prompt view")
+    pv.setTooltip("The view your prompts (point, box) are placed in. Empty = the script's hero view (or its first "
+                  "view). Without 'track every view', Track works in this view only and its objects are shown only "
+                  "in this view.")
+    pv.clearFlag(nuke.STARTLINE)
+    group.addKnob(pv)
     rp = _button(group, "stroto_reprompt", "Re-prompt here", "n.on_reprompt_here(nuke.thisNode())")
     rp.setTooltip("For a frame the review flags (or your eye) say is wrong: drag the box around the object on THIS "
                   "frame, press Re-prompt here. The object named above is re-tracked in both directions with this "
@@ -279,7 +294,7 @@ AI_KNOBS = ("stroto_click", "stroto_add_inc", "stroto_add_exc", "stroto_clear", 
             "stroto_resume", "stroto_retrack", "stroto_retrack_all", "stroto_reprompt", "stroto_reprompt_point",
             "stroto_retrack_flagged", "stroto_retrack_model", "stroto_range_mode", "stroto_range_from",
             "stroto_range_to", "stroto_lock_range", "stroto_unlock_range", "stroto_exclude",
-            "stroto_prompt_from", "stroto_prompt_source", "stroto_prompt_use")
+            "stroto_prompt_from", "stroto_prompt_source", "stroto_prompt_use", "stroto_stereo", "stroto_prompt_view")
 AI_ENV = "ST_ROTO_AI"
 
 
@@ -433,7 +448,7 @@ def _context(group, need_prompts: bool = True):
     return {"src": src, "write": write, "roto": roto, "objects": objects, "current": mine[0] if mine else None,
             "first": first, "last": last, "width": int(src.width()), "height": int(src.height()),
             "model": group["stroto_model"].value(), "device": group["stroto_device"].value(), "model_note": "",
-            "colour": _colour(group), "anchors": _anchors(group),
+            "colour": _colour(group), "anchors": _anchors(group), "view": prompt_view(group),
             "project": group["stroto_project"].value(), "object": current,
             "pixel_path": pixels.temp_pixel_path(group.name()), "group": group}
 
@@ -679,23 +694,55 @@ def _object_name(group):
     return group["stroto_object"].value().strip() or "object"
 
 
-def _renderer(ctx, background):
+def script_views():
+    """The script's views in order (T-109); ['main'] when Nuke cannot say."""
+    try:
+        return list(nuke.views()) or ["main"]
+    except Exception:                                         # noqa: BLE001
+        return ["main"]
+
+
+def prompt_view(group):
+    """The view prompts are placed in and single-view work renders (T-109): the node's 'prompt view', else the
+    script's hero view, else its first view. None in a single-view script. Raises ValueError for an unknown view."""
+    vs = script_views()
+    if len(vs) < 2:
+        return None
+    v = group["stroto_prompt_view"].value().strip() if "stroto_prompt_view" in group.knobs() else ""
+    if v:
+        if v not in vs:
+            raise ValueError("prompt view %r is not a view of this script (%s)" % (v, ", ".join(vs)))
+        return v
+    try:
+        hero = nuke.root()["hero_view"].value()
+    except Exception:                                         # noqa: BLE001
+        hero = ""
+    return hero if hero in vs else vs[0]
+
+
+def stereo_on(group):
+    """True when the node tracks every view (its checkbox, and the script has several views)."""
+    return bool("stroto_stereo" in group.knobs() and group["stroto_stereo"].value() and len(script_views()) > 1)
+
+
+def _renderer(ctx, background, view=None):
     """get_rgb(frame) for jobs. Frames of another size (proxy mode, mixed-resolution sequences) are brought to the
     shot format and listed in ctx["refitted"] {frame: (w, h)}; unreadable frames raise pixels.FrameUnavailable
     (in background mode Nuke's main-thread call returns the exception object, so it is re-raised here). If the Nuke
     edition refuses to render the plate's size (Non-commercial: 1920 x 1080), frames are rendered reduced into the
     allowed box and scaled back to the shot size; ctx["capped"] records it (T-089)."""
     ctx.setdefault("refitted", {})
+    view = view or ctx.get("view")                  # T-109: the view to render (None: single-view script)
 
     def get_rgb(frame):
         if frame in ctx.get("excluded", ()):
             raise pixels.FrameExcluded(frame)
         if background:
-            img = nuke.executeInMainThreadWithResult(_render_or_error, (ctx, frame))
+            img = nuke.executeInMainThreadWithResult(_render_or_error, (ctx, frame, view))
             if isinstance(img, Exception):
                 raise img
         else:
-            img = _render_capped(ctx, frame)
+            img = _render_capped(ctx, frame, view)
         if img.shape[:2] != (ctx["height"], ctx["width"]):
             ctx["refitted"][frame] = (img.shape[1], img.shape[0])
             img = pixels.fit_to_format(img, ctx["width"], ctx["height"])
@@ -703,27 +750,27 @@ def _renderer(ctx, background):
     return get_rgb
 
 
-def _render_or_error(ctx, frame):
+def _render_or_error(ctx, frame, view=None):
     """Main-thread side of get_rgb: exceptions in executeInMainThread callbacks are swallowed, so return them."""
     try:
-        return _render_capped(ctx, frame)
+        return _render_capped(ctx, frame, view)
     except Exception as e:                                    # noqa: BLE001 - handed back to the worker thread
         return e
 
 
-def _render_capped(ctx, frame):
+def _render_capped(ctx, frame, view=None):
     """Main thread. Plain render; on the edition's resolution limit switch this job to a reduced render through the
     node's STROTO_pixel_fit Reformat (enabled only around each render, so saved scripts keep it off)."""
     if not ctx.get("capped"):
         try:
-            return pixels.render_frame(ctx["write"], frame, ctx["pixel_path"])
+            return pixels.render_frame(ctx["write"], frame, ctx["pixel_path"], view)
         except pixels.ResolutionCapped as e:
             ctx["capped"] = _setup_fit(ctx, e)
     cap = ctx["capped"]
     fit = cap["node"]
     fit["disable"].setValue(False)
     try:
-        img = pixels.render_frame(ctx["write"], frame, ctx["pixel_path"])
+        img = pixels.render_frame(ctx["write"], frame, ctx["pixel_path"], view)
     finally:
         fit["disable"].setValue(True)
     if img.shape[:2] == (cap["box"][1], cap["box"][0]):
@@ -856,7 +903,7 @@ def on_prompt_from_mask(group):
             if removed:
                 note = "; the shape %r was only a prompt and was removed from the Roto" % removed
         elif kind == "mask node":
-            mask = _mask_from_node(source, frame, h, w)
+            mask = _mask_from_node(source, frame, h, w, prompt_view(group))
         else:
             mask = _mask_from_file(source, frame, h, w)
         text = prompts.set_from_mask(group["stroto_points"].value(), frame, mask, obj=name)
@@ -900,7 +947,7 @@ def _mask_from_roto_shape(group, source, frame, h, w):
     return mask, removed
 
 
-def _mask_from_node(source, frame, h, w):
+def _mask_from_node(source, frame, h, w, view=None):
     """Alpha (> 0.5) of the node named `source` at `frame`, rendered through a temporary Write, fitted to the shot
     size like a default Reformat if it differs."""
     import cv2
@@ -917,7 +964,10 @@ def _mask_from_node(source, frame, h, w):
         wr["file_type"].setValue("tiff"); wr["datatype"].setValue("32 bit float")
         wr["compression"].setValue("none"); wr["channels"].setValue("alpha")
         try:
-            nuke.execute(wr, frame, frame)
+            if view:                                     # several views: name one (T-109)
+                nuke.execute(wr, frame, frame, 1, views=[view])
+            else:
+                nuke.execute(wr, frame, frame)
         except RuntimeError as e:
             raise ValueError("could not render %r on frame %d: %s" % (source, frame, str(e).splitlines()[0]))
     finally:
@@ -1077,11 +1127,24 @@ def on_track(group, background: bool = True, resume: bool = False):
         _status(group, "error: %s" % e); return None
     store, _ = _open_project(group, ctx["project"])
     shot = store.conn.execute("SELECT id FROM shots WHERE name = ?", (ctx["src"].name(),)).fetchone()
-    existing = {o["name"] for o in store.objects(shot["id"])} if shot else set()
+    rows = store.objects(shot["id"]) if shot else []
+    # an object counts as tracked under its own name and under its stereo pair key (T-109: target -> target_left)
+    existing = {o["name"] for o in rows} | {o["pair"] for o in rows if o.get("pair")}
     skipped_note = ""
+    # T-109: stereo = every view tracked independently (one object per view); not checkpointed (no Resume yet)
+    stereo = stereo_on(group) and not resume
+    all_views = script_views()
+    if stereo:
+        from st_roto.stereo import view_object_name
+
+        def names_of(o):
+            return [view_object_name(o["name"], v) for v in all_views]
+    else:
+        def names_of(o):
+            return [o["name"]]
     if not resume:
-        already = [o["name"] for o in ctx["objects"] if o["name"] in existing]
-        ctx["objects"] = [o for o in ctx["objects"] if o["name"] not in existing]
+        already = [o["name"] for o in ctx["objects"] if any(n in existing for n in names_of(o))]
+        ctx["objects"] = [o for o in ctx["objects"] if o["name"] not in already]
         if not ctx["objects"]:
             _status(group, "error: already tracked: %s - use Re-track, or delete the object first (or rename it and "
                            "prompt again)" % ", ".join(already))
@@ -1100,6 +1163,8 @@ def on_track(group, background: bool = True, resume: bool = False):
 
     def work(job):
         def run(device, again):
+            if stereo:
+                return _track_stereo(job, ctx, frames, get_rgb, background, device, all_views)
             return track_objects(get_rgb, frames, ctx["objects"], model=ctx["model"], device=device, job=job,
                                  colour_transform=ctx["colour"], anchors=ctx["anchors"],
                                  parts=ctx.get("parts", True), checkpoint_dir=ck, resume=again)
@@ -1110,6 +1175,10 @@ def on_track(group, background: bool = True, resume: bool = False):
                 raise
             # T-092: the GPU ran out of memory mid-run: free it and continue on the CPU from the last checkpoint
             _release_gpu_sessions()
+            if stereo:                                      # not checkpointed: the whole stereo run on the CPU
+                res = run("cpu", False)
+                res["oom_fallback"] = "the GPU ran out of memory; the stereo run was redone on the CPU"
+                return res
             m = read_checkpoint(ck)
             res = run("cpu", m is not None)
             res["oom_fallback"] = ("the GPU ran out of memory; continued on the CPU from frame %s"
@@ -1122,6 +1191,10 @@ def on_track(group, background: bool = True, resume: bool = False):
         shot_id = _ensure_shot(store, bus, ctx)
         export_preview(ctx["roto"]["curves"], {}, ctx["height"])          # remove the temporary preview
         import_edits(store, bus, shot_id, ctx["roto"]["curves"], ctx["height"], start)   # capture artist work first
+        if not stereo and ctx.get("view"):
+            # T-109: several views but one tracked: the shapes are right for that view only, so they show only there
+            for r in result["objects"]:
+                r.setdefault("view", ctx["view"]); r.setdefault("pair", r["name"])
         ids = apply_results(bus, shot_id, result["objects"])
         rep = sync_shot(store, shot_id, ctx["roto"]["curves"], ctx["height"])
         parts = []
@@ -1134,6 +1207,10 @@ def on_track(group, background: bool = True, resume: bool = False):
                 len(r["absent_frames"])) + _review_text(store, oid))
         msg = "done%s: %s; device %s%s%s" % (" (resumed)" if resume else "", " | ".join(parts), result["device"],
                                               skipped_note, _sequence_note(ctx, result.get("missing_frames")))
+        if result.get("transfers"):
+            msg += "; stereo (prompt view %s): %s" % (ctx["view"], ", ".join(
+                "%s in %s %s" % (n, v, ("found at disparity %+.1f px" % t["dx"]) if isinstance(t, dict) else t)
+                for (n, v), t in sorted(result["transfers"].items())))
         for extra in (ctx.get("model_note"), result.get("oom_fallback")):
             if extra:
                 msg += "; " + extra
@@ -1150,6 +1227,54 @@ def on_track(group, background: bool = True, resume: bool = False):
         return (" - 'Resume track' continues from frame %s" % m["next_frame"]) if m else ""
 
     return _run(group, "track", work, apply, background, stop_hint=hint)
+
+
+def _track_stereo(job, ctx, frames, get_rgb, background, device, all_views):
+    """T-109: track every prompted object in the prompt view, then find each object in every other view on its
+    prompt frame (st_roto.stereo.estimate_disparity on the prompt-view result) and track it there independently,
+    prompted with a box + the artist's clicks moved by that disparity. Results are named <name>_<view> and carry
+    view + pair. Returns track_objects()-like {"objects", "device", ..., "transfers": {(name, view): info}}."""
+    from st_roto import stereo as st
+    hero = ctx["view"]
+    w, h = ctx["width"], ctx["height"]
+    kw = dict(model=ctx["model"], device=device, job=job, colour_transform=ctx["colour"], anchors=ctx["anchors"],
+              parts=ctx.get("parts", True))
+    res = track_objects(get_rgb, frames, ctx["objects"], **kw)
+    out = [dict(r, name=st.view_object_name(o["name"], hero), view=hero, pair=o["name"])
+           for o, r in zip(ctx["objects"], res["objects"])]
+    missing = set(res.get("missing_frames") or ())
+    transfers = {}
+    for v in [x for x in all_views if x != hero]:
+        if job is not None:
+            job.check()                                     # cancelled -> jobs.Cancelled
+        get_v = _renderer(ctx, background, v)
+        derived = []
+        for o, r in zip(ctx["objects"], res["objects"]):
+            f = o["frame"]
+            keys = [r["keys"].get(f)] + [p.get(f) for p in r.get("parts", [])]
+            mask = st.mask_from_keys([k for k in keys if k], h, w)
+            box = st.mask_box(mask)
+            if box is None:
+                transfers[(o["name"], v)] = "not tracked: the AI found nothing in %s on frame %d" % (hero, f); continue
+            try:
+                d = st.estimate_disparity(get_rgb(f), get_v(f), mask)
+            except (ValueError, pixels.FrameUnavailable) as e:
+                transfers[(o["name"], v)] = "not tracked: %s" % e; continue
+            p = st.transfer_prompt(o, d["dx"], d["dy"], box, w, h)
+            if p is None:
+                transfers[(o["name"], v)] = "not tracked: outside the %s view" % v; continue
+            transfers[(o["name"], v)] = d
+            derived.append(p)
+        if not derived:
+            continue
+        rv = track_objects(get_v, frames, derived, **kw)
+        out += [dict(r, name=st.view_object_name(p["name"], v), view=v, pair=p["name"])
+                for p, r in zip(derived, rv["objects"])]
+        missing |= set(rv.get("missing_frames") or ())
+        if rv.get("device_fallback"):
+            res["device_fallback"], res["device_reason"] = True, rv.get("device_reason")
+    res["objects"], res["transfers"], res["missing_frames"] = out, transfers, sorted(missing)
+    return res
 
 
 def on_reprompt_here(group, background: bool = True):
@@ -1239,8 +1364,17 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
                else None}
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None
-    get_rgb = _renderer(ctx, background)
-    sids = [sid for _, _, sid in targets]
+    try:
+        ctx["view"] = prompt_view(group)
+    except ValueError as e:
+        _status(group, "error: %s" % e); return None
+    # T-109: every object is re-tracked on ITS view's pixels (objects without a view: the prompt view)
+    vs_ = script_views()
+    by_view = {}
+    for _, oid, sid in targets:
+        v = store.row("objects", oid).get("view") if len(vs_) > 1 else None
+        by_view.setdefault(v if v in vs_ else ctx["view"], []).append(sid)
+    renderers = {v: _renderer(ctx, background, v) for v in by_view}
     choice = group["stroto_retrack_model"].value() if "stroto_retrack_model" in group.knobs() else SAME_MODEL
     if choice == SAME_MODEL:
         choice = group["stroto_model"].value()
@@ -1252,16 +1386,26 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
 
     def work(job):
         ro = store_ro(project)          # worker thread: its own connection (SQLite objects are thread-bound)
+
+        def run(dev):
+            res = None
+            for v, sids in by_view.items():                  # one pass per view (T-109)
+                r = retrack_objects(renderers[v], ro, sids, frames, width, height, model=model, device=dev,
+                                    job=job, colour_transform=ctransform, fixes=fixes, anchors=anchors)
+                if res is None:
+                    res = r
+                else:
+                    res["shapes"].update(r["shapes"])
+                    res["missing_frames"] = sorted(set(res["missing_frames"]) | set(r["missing_frames"]))
+            return res
         try:
             try:
-                return retrack_objects(get_rgb, ro, sids, frames, width, height, model=model, device=device,
-                                       job=job, colour_transform=ctransform, fixes=fixes, anchors=anchors)
+                return run(device)
             except Exception as e:                          # noqa: BLE001
                 if device == "cpu" or not _is_oom(e):
                     raise
                 _release_gpu_sessions()                     # T-092: GPU out of memory -> whole re-track on the CPU
-                res = retrack_objects(get_rgb, ro, sids, frames, width, height, model=model, device="cpu",
-                                      job=job, colour_transform=ctransform, fixes=fixes, anchors=anchors)
+                res = run("cpu")
                 res["oom_fallback"] = "the GPU ran out of memory; re-tracked on the CPU"
                 return res
         finally:
@@ -1334,20 +1478,50 @@ def on_render_mattes(group, background: bool = True):
                "width": int(src.width()), "height": int(src.height()), "group": group}
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None
-    get_rgb = _renderer(ctx, background)
+    # T-109: several views -> one matte sequence per view (<matte dir>/<view>/), each with that view's objects and
+    # the objects shown in every view, refined on that view's plate
+    vs_ = script_views()
+    passes = {None: None}
+    if len(vs_) > 1:
+        try:
+            ctx["view"] = prompt_view(group)
+        except ValueError as e:
+            _status(group, "error: %s" % e); return None
+        objs = store.objects(shot["id"])
+        every = [o["id"] for o in objs if o.get("view") not in vs_]
+        passes = {}
+        for v in vs_:
+            ids = [o["id"] for o in objs if o.get("view") == v] + every
+            if ids and (every or any(o.get("view") == v for o in objs)):
+                passes[v] = ids
+        if not passes:
+            _status(group, "error: no objects to render"); return None
+    renderers = {v: _renderer(ctx, background, v) for v in passes}
 
     def work(job):
         ro = store_ro(project)          # worker thread: its own connection
         try:
-            return render_mattes(get_rgb, ro, shot["id"], frames, out_dir, soft=soft, method=method,
-                                 models_root=_vitmatte_root() if method == "vitmatte" else None, device=dev, band=band, radius=radius, out_size=out_size,
-                                 **extras,
-                                 job=job, colour_transform=ctransform)
+            out = {}
+            for v, ids in passes.items():
+                out[v] = render_mattes(renderers[v], ro, shot["id"], frames,
+                                       out_dir if v is None else os.path.join(out_dir, v), soft=soft, method=method,
+                                       models_root=_vitmatte_root() if method == "vitmatte" else None, device=dev,
+                                       band=band, radius=radius, out_size=out_size, objects=ids, **extras,
+                                       job=job, colour_transform=ctransform)
+            if None in out:                                  # single view: the result as before
+                return out[None]
+            first = out[ctx["view"]] if ctx.get("view") in out else next(iter(out.values()))
+            return dict(first, views=out)                   # several views: prompt view's result + every view's
         finally:
             ro.close()
 
     def apply(job):
-        r = job.result
+        per = job.result.get("views") or {None: job.result}
+        msgs = [("" if v is None else "%s view: " % v) + _describe(r) for v, r in per.items()]
+        job.applied = "; ".join(msgs) if len(msgs) == 1 else " || ".join(msgs)
+        group["stroto_status"].setValue(job.applied)
+
+    def _describe(r):
         msg = "mattes: %d frames %dx%d -> %s (layers: %s; %s edges, %.1f s)" % (
             len(r["files"]), r["size"][0], r["size"][1], r["pattern"], ", ".join(sorted(r["layers"].values())),
             {"guided": "guided-filter", "vitmatte": "ViTMatte-S", "hard": "hard"}[method], r["seconds"])
@@ -1377,8 +1551,7 @@ def on_render_mattes(group, background: bool = True):
         if bits:
             msg += "; " + ", ".join(bits)
         msg += _sequence_note(ctx, None)
-        job.applied = msg
-        group["stroto_status"].setValue(msg)
+        return msg
 
     return _run(group, "mattes", work, apply, background)
 

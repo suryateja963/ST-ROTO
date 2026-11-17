@@ -1982,6 +1982,118 @@ def test_offline_no_network(res):
     return bool(ok and not seen and runtime.TELEMETRY_DISABLED)
 
 
+STEREO = ROOT + "/research/probes/2026-11-17_stereo/out/stereo"
+
+
+def test_stereo_views(res):
+    """T-109 (REQ-115) on the synthetic stereo shot (research/probes/2026-11-17_stereo, exact truth per view):
+    a box prompt in the left view, 'track every view' -> target_left + target_right (each tracked on its own view's
+    pixels, right prompt found by the disparity search), IoU vs each view's truth; Nuke's own render of the Roto
+    per view shows each shape only in its view; mattes per view; Re-track of the right object; a plain (one view)
+    Track in the stereo script, which failed before T-109 ('cannot be executed for multiple views')."""
+    if not os.path.exists(STEREO + "/meta.json"):
+        res["skipped"] = "stereo frames not generated (make_synthetic_stereo.py)"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto import exr, stereo, views
+    from st_roto_nuke import session
+    meta = json.load(open(STEREO + "/meta.json"))
+    vw, vh, n = meta["w"], meta["h"], 20                         # frames 14-19: the view-dependent occluder
+    nuke.root()["views"].fromScript("left #ff0000\nright #00ff00")
+    nuke.root()["format"].setValue("HD_720")
+    res["views"] = nuke.views()
+    rd = nuke.nodes.Read(file=STEREO + "/%V/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "stereo.stroto")
+    g = stnode.create(rd, proj)
+
+    def gt(view, f):
+        return cv2.imread(STEREO + "/%s/gt_%04d.png" % (view, f), cv2.IMREAD_GRAYSCALE) > 127
+
+    def set_box(name, mask):
+        ys, xs = np.nonzero(mask)
+        x0, y0, x1, y1 = xs.min() - 4.0, ys.min() - 4.0, xs.max() + 5.0, ys.max() + 5.0
+        g["stroto_object"].setValue(name)
+        g["stroto_box"].setValue([x0, vh - y1, x1, vh - y0])
+        stnode.on_set_box(g)
+
+    nuke.frame(0)
+    set_box("target", gt("left", 0))
+    g["stroto_stereo"].setValue(True)
+    job = stnode.on_track(g, background=False)
+    res["track_status"] = g["stroto_status"].value()
+    if job is None or job.status != "done":
+        res["error"] = job.error if job else "no job"; return False
+    store, bus = session.project(proj)
+    shot = store.conn.execute("SELECT id FROM shots").fetchone()["id"]
+    objs = {o["name"]: o for o in store.objects(shot)}
+    res["objects"] = {k: (o["view"], o["pair"]) for k, o in objs.items()}
+    ok = res["objects"] == {"target_left": ("left", "target"), "target_right": ("right", "target")}
+    t = job.result["transfers"][("target", "right")]
+    res["disparity_frame0"] = t if not isinstance(t, dict) else {k: round(v, 3) for k, v in t.items()}
+    ok &= isinstance(t, dict) and abs(t["dx"] + 30) < 1.5 and abs(t["dy"]) < 1.0      # truth: -30 px, 0 px
+
+    def ious(oid, view):
+        sid = views.main_shape(store, oid)["id"]
+        return {k["frame"]: round(iou(stereo.mask_from_keys([k["points"]], vh, vw), gt(view, k["frame"])), 4)
+                for k in store.keys(sid)}
+    q = {v: ious(objs["target_" + v]["id"], v) for v in ("left", "right")}
+    res["iou"] = {v: {"min": min(x.values()), "mean": round(float(np.mean(list(x.values()))), 4), "frames": len(x)}
+                  for v, x in q.items()}
+    ok &= all(r["frames"] == n and r["min"] > 0.97 for r in res["iou"].values())
+    res["stereo_flags"] = [f for f in views.review_for_object(store, objs["target_right"]["id"]) if "stereo" in f[2]]
+    res["review_text"] = stnode._review_text(store, objs["target_right"]["id"])
+    # Nuke's own render per view: each shape only in its own view
+    wr = nuke.nodes.Write(inputs=[g])
+    alpha_path = OUT + "/stereo_alpha.tif"
+    wr["file"].setValue(alpha_path); wr["file_type"].setValue("tiff"); wr["datatype"].setValue("32 bit float")
+    wr["channels"].setValue("rgba")
+    render = {}
+    for v in ("left", "right"):
+        nuke.execute(wr, 10, 10, 1, views=[v])
+        a = cv2.imread(alpha_path, cv2.IMREAD_UNCHANGED)[:, :, 3] > 0.5
+        render[v] = {"vs_own_truth": round(iou(a, gt(v, 10)), 4),
+                     "vs_other_truth": round(iou(a, gt("right" if v == "left" else "left", 10)), 4)}
+    res["roto_render_frame10"] = render
+    ok &= all(r["vs_own_truth"] > 0.97 and r["vs_own_truth"] - r["vs_other_truth"] > 0.1 for r in render.values())
+    # mattes: one sequence per view
+    g["stroto_matte_dir"].setValue(os.path.join(tempfile.mkdtemp(), "mattes").replace("\\", "/"))
+    jm = stnode.on_render_mattes(g, background=False)
+    res["matte_status"] = g["stroto_status"].value()
+    if jm is None or jm.status != "done":
+        res["matte_error"] = jm.error if jm else "no job"; return False
+    mv = jm.result["views"]
+    res["matte_patterns"] = {v: r["pattern"] for v, r in mv.items()}
+    mi = {}
+    for v, r in mv.items():
+        ch = exr.read_channels(r["files"][10])
+        mi[v] = round(iou(ch["A"] > 0.5, gt(v, 10)), 4)
+    res["matte_iou_frame10"] = mi
+    ok &= sorted(mv) == ["left", "right"] and all(x > 0.97 for x in mi.values())
+    # Re-track the right object: renders the right view
+    g["stroto_object"].setValue("target_right")
+    jr = stnode.on_retrack(g, background=False)
+    res["retrack_status"] = g["stroto_status"].value()
+    ok &= jr is not None and jr.status == "done"
+    q2 = ious(objs["target_right"]["id"], "right")
+    res["retrack_right_iou_min"] = min(q2.values())
+    ok &= min(q2.values()) > 0.97
+    # one-view Track in the stereo script (failed before T-109): the distractor disc in the left view
+    g["stroto_stereo"].setValue(False)
+    dx, dy = 1050, 560
+    disc = np.zeros((vh, vw), np.uint8); cv2.circle(disc, (dx, dy), 85, 1, -1)
+    set_box("disc", disc > 0)
+    jd = stnode.on_track(g, background=False)
+    res["mono_status"] = g["stroto_status"].value()
+    ok &= jd is not None and jd.status == "done"
+    after = {o["name"]: o for o in store.objects(shot)}
+    d = after.get("disc")
+    res["mono_object_view"] = d and d["view"]
+    res["objects_after_mono"] = sorted(after)
+    ok &= d is not None and d["view"] == "left"
+    ok &= sorted(after) == ["disc", "target_left", "target_right"]          # 'target' not tracked a second time
+    ok &= "skipped target (already tracked" in res["mono_status"]
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
@@ -1993,7 +2105,7 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_system_report, test_memory_aware_model, test_retrack_flagged_large,
          test_collaboration_ui, test_propagation_controls, test_roles_and_merge,
          test_matte_outputs, test_prompt_from_mask, test_model_manager,
-         test_delivery_package)
+         test_delivery_package, test_stereo_views)
 
 
 def main():

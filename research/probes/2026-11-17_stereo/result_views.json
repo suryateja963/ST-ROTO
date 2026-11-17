@@ -1,0 +1,179 @@
+{
+ "views_before": [
+  "main"
+ ],
+ "root_views_knob": "main #ffffff",
+ "views_after": [
+  "left",
+  "right"
+ ],
+ "root_knobs_with_view": [
+  "defaultViewerLUT",
+  "viewerLut",
+  "views",
+  "hero_view",
+  "views_button",
+  "views_colours"
+ ],
+ "read_size": [
+  1280,
+  720
+ ],
+ "per_view_render": "ERROR: RuntimeError: px cannot be executed for multiple views.",
+ "roto_node_knobs_with_view": [
+  "toolbar_single_view",
+  "toolbar_source_view",
+  "view",
+  "source_view"
+ ],
+ "shape_attribute_names": "['__class__', '__contains__', '__delattr__', '__dir__', '__doc__', '__eq__', '__format__', '__ge__', '__getattribute__', '__getstate__', '__gt__', '__hash__', '__init__', '__init_subclass__', '__le__', '__len__', '__lt__', '__ne__', '__new__', '__reduce__', '__reduce_ex__', '__repr__', '__setattr__', '__sizeof__', '__str__', '__subclasshook__', 'add', 'addKey', 'getCurve', 'getKeyTime', 'getName', 'getNumberOfKeys', 'getValue', 'kAlphaAttribute', 'kAlphaOverlayAttribute', 'kBlendingModeAttribute', 'kBlueAttribute', 'kBlueOverlayAttribute', 'kBrushSizeAttribute', 'kBrushSpacingAttribute', 'kBrushTypeAttribute', 'kBuildUpAttribute', 'kDynamicHardnessAttribute', 'kDynamicSizeAttribute', 'kDynamicTransparencyAttribute', 'kEffectParameter1Attribute', 'kEffectParameter2Attribute', 'kEffectParameter3Attribute', 'kFeatherFallOffAttribute', 'kFeatherOnAttribute', 'kFeatherTypeAttribute', 'kFeatherXAttribute', 'kFeatherYAttribute', 'kGreenAttribute', 'kGreenOverlayAttribute', 'kHardnessAttribute', 'kInvertedAttribute', 'kLifeTimeMAttribute', 'kLifeTimeNAttribute', 'kLifeTimeTypeAttribute', 'kMotionBlurAttribute', 'kMotionBlurOnAttribute', 'kMotionBlurShutterAttribute', 'kMotionBlurShutterOffsetAttribute', 'kMotionBlurShutterOffsetTypeAttribute', 'kNumberOfViewsAttribute', 'kOpacityAttribute', 'kPlanarTrackLayerAttribute', 'kRedAttribute', 'kRedOverlayAttribute', 'kSourceAttribute', 'kSourcePivotPointXAttribute', 'kSourcePivotPointYAttribute', 'kSourceRotateAttribute', 'kSourceScaleXAttribute', 'kSourceScaleYAttribute', 'kSourceSkewOrderAttribute', 'kSourceSkewXAttribute', 'kSourceSkewYAttribute', 'kSourceTimeOffsetAttribute', 'kSourceTimeOffsetTypeAttribute', 'kSourceTranslateRoundAttribute', 'kSourceTranslateXAttribute', 'kSourceTranslateYAttribute', 'kTensionAttribute', 'kViewAttribute', 'kVisibleAttribute', 'kWriteOnEndAttribute', 'kWriteOnStartAttribute', 'remove', 'removeAll', 'removeKey', 'removeKeys', 'reset', 'set', 'setCurve', 'setKey', 'setName']",
+ "shape_dir": [
+  "append",
+  "clone",
+  "evaluate",
+  "getAttributes",
+  "getFlag",
+  "getTransform",
+  "getVisible",
+  "insert",
+  "locked",
+  "name",
+  "remove",
+  "serialise",
+  "setFlag",
+  "setVisible"
+ ],
+ "attr_dir": [
+  "add",
+  "addKey",
+  "getCurve",
+  "getKeyTime",
+  "getName",
+  "getNumberOfKeys",
+  "getValue",
+  "kAlphaAttribute",
+  "kAlphaOverlayAttribute",
+  "kBlendingModeAttribute",
+  "kBlueAttribute",
+  "kBlueOverlayAttribute",
+  "kBrushSizeAttribute",
+  "kBrushSpacingAttribute",
+  "kBrushTypeAttribute",
+  "kBuildUpAttribute",
+  "kDynamicHardnessAttribute",
+  "kDynamicSizeAttribute",
+  "kDynamicTransparencyAttribute",
+  "kEffectParameter1Attribute",
+  "kEffectParameter2Attribute",
+  "kEffectParameter3Attribute",
+  "kFeatherFallOffAttribute",
+  "kFeatherOnAttribute",
+  "kFeatherTypeAttribute",
+  "kFeatherXAttribute",
+  "kFeatherYAttribute",
+  "kGreenAttribute",
+  "kGreenOverlayAttribute",
+  "kHardnessAttribute",
+  "kInvertedAttribute",
+  "kLifeTimeMAttribute",
+  "kLifeTimeNAttribute",
+  "kLifeTimeTypeAttribute",
+  "kMotionBlurAttribute",
+  "kMotionBlurOnAttribute",
+  "kMotionBlurShutterAttribute",
+  "kMotionBlurShutterOffsetAttribute",
+  "kMotionBlurShutterOffsetTypeAttribute",
+  "kNumberOfViewsAttribute",
+  "kOpacityAttribute",
+  "kPlanarTrackLayerAttribute",
+  "kRedAttribute",
+  "kRedOverlayAttribute",
+  "kSourceAttribute",
+  "kSourcePivotPointXAttribute",
+  "kSourcePivotPointYAttribute",
+  "kSourceRotateAttribute",
+  "kSourceScaleXAttribute",
+  "kSourceScaleYAttribute",
+  "kSourceSkewOrderAttribute",
+  "kSourceSkewXAttribute",
+  "kSourceSkewYAttribute",
+  "kSourceTimeOffsetAttribute",
+  "kSourceTimeOffsetTypeAttribute",
+  "kSourceTranslateRoundAttribute",
+  "kSourceTranslateXAttribute",
+  "kSourceTranslateYAttribute",
+  "kTensionAttribute",
+  "kViewAttribute",
+  "kVisibleAttribute",
+  "kWriteOnEndAttribute",
+  "kWriteOnStartAttribute",
+  "remove",
+  "removeAll",
+  "removeKey",
+  "removeKeys",
+  "reset",
+  "set",
+  "setCurve",
+  "setKey",
+  "setName"
+ ],
+ "shape_attribute_values": {},
+ "view_attr_candidates": {
+  "view": 0.0,
+  "views": 0.0,
+  "vw": 0.0,
+  "viewsKnob": 0.0,
+  "shapeViews": 0.0
+ },
+ "curves_toScript_head": "AddMode 0 0 1 0 {{v x3f99999a}\n  {f 0}\n  {n\n   {layer Root\n    {f 0}\n    {t x44800000 x44428000}\n    {a pt1x 0 pt1y 0 pt2x 0 pt2y 0 pt3x 0 pt3y 0 pt4x 0 pt4y 0 ptex00 0 ptex01 0 ptex02 0 ptex03 0 ptex10 0 ptex11 0 ptex12 0 ptex13 0 ptex20 0 ptex21 0 ptex22 0 ptex23 0 ptex30 0 ptex31 0 ptex32 0 ptex33 0 ptof1x 0 ptof1y 0 ptof2x 0 ptof2y 0 ptof3x 0 ptof3y 0 ptof4x 0 ptof4y 0 pterr 0 ptrefset 0 ptmot x40800000 ptref 0}\n    {curvegroup A 512 bezier\n     {{cc\n       {f 8192}\n       {p\n        {}\n        {x42c80000 x43480000 1}\n        {}\n        {}\n        {x43960000 x43480000 1}\n        {}\n        {}\n        {x43960000 x43c80000 1}\n        {}\n        {}\n        {x42c80000 x43c80000 1}\n        {}}}\n      {cc\n       {f 8192}\n       {p\n        {}\n        {}\n        {}\n        {}\n        {}\n        {}\n        {}\n        {}\n        {}\n        {}\n        {}\n        {}}}}\n     {tx 1 0}\n     {a osw x41200000 osf 0 str 1 spx x44800000 spy x44428000 sf x40000000 sb 1 nv x40000000 view2 x40000000}}\n    {curvegroup B 512 bezier\n     {{cc\n       {f 8192}\n       {p\n        {}\n        {x442f0000 x43480000 1}\n        {}\n        {}\n        {x44610000 x43480000 1}\n        {}\n        {}\n        {x44610000 x43c80000 1}\n        {}\n        {}\n        {x442f0000 x43c80000 1}\n        {}}}\n      {cc\n       {f 8192}\n       {p\n        {}\n        {}\n        {}\n        {}\n        {}\n        {}\n        {}\n        {}\n        {}\n        {}\n        {}\n        {}}}}\n     {tx 0 0}\n     {a osw x41200000 osf 0 str 1",
+ "view_consts": [
+  "nv",
+  "view"
+ ],
+ "alpha_both_views_before": {
+  "left": {
+   "left_half": 40000.0,
+   "right_half": 40000.0
+  },
+  "right": {
+   "left_half": 40000.0,
+   "right_half": 40000.0
+  }
+ },
+ "restrict": {
+  "A": [
+   1.0,
+   1.0,
+   2.0
+  ],
+  "B": [
+   1.0,
+   2.0,
+   2.0
+  ]
+ },
+ "restricted_script": [
+  "     {a osw x41200000 osf 0 str 1 spx x44800000 spy x44428000 sf x40000000 sb 1 nv x40000000 view2 x40000000}}",
+  "     {a osw x41200000 osf 0 str 1 spx x44800000 spy x44428000 sf x40000000 sb 1 nv x40000000 view2 x40000000 ltn 0 ltm 0}}}}}"
+ ],
+ "alpha_after_restrict": {
+  "left": {
+   "left_half": 40000.0,
+   "right_half": 40000.0
+  },
+  "right": {
+   "left_half": 40000.0,
+   "right_half": 40000.0
+  }
+ },
+ "_unused": {
+  "left": {
+   "left_half": 40000.0,
+   "right_half": 40000.0
+  },
+  "right": {
+   "left_half": 40000.0,
+   "right_half": 40000.0
+  }
+ }
+}

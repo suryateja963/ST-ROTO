@@ -13,9 +13,15 @@ import json
 import os
 import sqlite3
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 _MIGRATIONS = {
+    11: [
+        # Stereo / multi-view (T-109, REQ-115): the Nuke view an object belongs to (NULL = every view) and the
+        # correspondence key shared by the same subject's objects in different views.
+        """ALTER TABLE objects ADD COLUMN view TEXT""",
+        """ALTER TABLE objects ADD COLUMN pair TEXT""",
+    ],
     10: [
         # Object roles in the combined matte (T-098): add / holdout / garbage.
         """ALTER TABLE objects ADD COLUMN role TEXT NOT NULL DEFAULT 'add'""",

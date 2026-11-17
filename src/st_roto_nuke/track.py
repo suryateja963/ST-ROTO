@@ -452,7 +452,11 @@ def result_ops(shot_id, object_name, result, anchors=ANCHORS):
     diagnostics (diagnostics belong to the main shape)."""
     oid, sid = m.new_id(), m.new_id()
     count = result.get("anchors") or anchors
-    ops = [{"op": "create_object", "row": {"id": oid, "shot_id": shot_id, "name": object_name}},
+    row = {"id": oid, "shot_id": shot_id, "name": object_name}
+    for f in ("view", "pair"):                               # T-109: the view tracked and the stereo pair key
+        if result.get(f):
+            row[f] = result[f]
+    ops = [{"op": "create_object", "row": row},
            {"op": "create_shape", "row": {"id": sid, "object_id": oid, "name": object_name, "point_count": count,
                                           "generator": result["generator"]}}]
     ops += [{"op": "set_key", "shape_id": sid, "frame": f, "points": result["keys"][f], "generator": result["generator"]}

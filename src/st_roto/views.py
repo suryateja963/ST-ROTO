@@ -24,6 +24,8 @@ def review_for_object(store, object_id: str) -> list:
         keyed = [k["frame"] for k in store.keys(s["id"])]
         reps = store.reports(s["id"])
         out += review_frames(reps, keyed, areas if reps else None)
+    from .stereo import review_for_object as stereo_review          # T-109: corresponding objects in other views
+    out += stereo_review(store, object_id)
     return sorted(out)
 
 

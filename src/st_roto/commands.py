@@ -139,7 +139,7 @@ def _restore_subtree(conn, op, actor):
     return {"op": "delete_subtree", "object_id": snap["objects"][0]["id"]}
 
 
-_OBJECT_FIELDS = ("name", "locked", "color", "parent_id", "role")
+_OBJECT_FIELDS = ("name", "locked", "color", "parent_id", "role", "view", "pair")
 _SHOT_FIELDS = ("name", "source_path", "source_fingerprint", "width", "height", "first_frame", "last_frame")
 
 

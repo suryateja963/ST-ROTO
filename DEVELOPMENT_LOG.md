@@ -450,3 +450,15 @@ Published docs/BENCHMARK_METHODOLOGY.md (version 1) before any comparative test,
 ## 2026-11-17 - T-108 delivery packages
 
 Built st_roto.delivery and the node's Delivery package button: outputs, project settings, models used, processing / provenance / quality reports, dependencies, checksummed manifest with verify(). Unit tests (my first expectation said an artist key on an AI shape is 'artist_created'; the product correctly records 'artist_modified_ai') and a Nuke test end to end.
+
+## 2026-11-17 - T-109 stereo / multi-view (REQ-115)
+
+Measured Nuke's stereo mechanics in NC first: one Read with %V serves both views; a Write renders one view with `nuke.execute(..., views=[v])`; a Write WITHOUT a named view fails in a two-view script ("cannot be executed for multiple views"). ST-ROTO's pixel path did exactly that, so no AI action could run in any stereo script (DEF-010, fixed: every render now names a view). A Roto shape is limited to one view with its attributes nv / view1 (measured with Nuke's own render; survives save + reopen).
+
+Built: schema v11 (`objects.view`, `objects.pair`), `st_roto.stereo` (disparity search, prompt transfer, consistency check, mask helpers), node knobs *track every view (stereo)* and *prompt view*, stereo Track (prompt view first, then each other view prompted with a box + clicks moved by the measured disparity and tracked on its own pixels), per-view Roto shapes, per-view re-track and mattes, JSON round trip of view/pair, hand-drawn single-view shapes imported with their view. Stereo flags join the review flags (status, Objects pane, timeline, delivery reports). Decision D-044 (proposed data model).
+
+Measured on a new synthetic stereo shot with exact truth per view (research/probes/2026-11-17_stereo/RESULTS.md): disparity 0.25 px mean error; transferred box IoU 0.9998; consistency check 0 false flags on correct shapes and 20/20 injected errors caught (my first vertical tolerance, 4 % of height, missed 2 of 4 - lowered to 2 % from the measured residuals). In Nuke: IoU 0.991-0.994 in both views, disparity -30.0 px (truth -30), each shape renders only in its view, mattes 0.999+.
+
+**Mistake found by the new test:** after a stereo Track, a plain Track re-tracked the prompt `target` as a third object (the "already tracked" check compared names only). Fixed (pair key counts) and asserted in the test. Also my own slip: a stray `cat` in a shell command blocked on input and had to be stopped; the edit it carried was redone with the Edit tool.
+
+Not done (on the board): stereo Track is not checkpointed / resumable (T-119); camera data for multi-camera and non-rectified rigs (T-120). Thresholds are provisional (synthetic data only).

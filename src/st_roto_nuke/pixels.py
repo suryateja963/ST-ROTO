@@ -58,16 +58,21 @@ def configure_write(write_node, path: str):
     write_node["channels"].setValue("rgb")
 
 
-def render_frame(write_node, frame: int, path: str):
+def render_frame(write_node, frame: int, path: str, view: str = None):
     """Render `frame` through `write_node` (temporarily enabled) and return HxWx3 float32 linear RGB at the size
-    Nuke produced (see `fit_to_format`). Raises FrameUnavailable when Nuke cannot read the frame."""
+    Nuke produced (see `fit_to_format`). Raises FrameUnavailable when Nuke cannot read the frame.
+    view: the script view to render (T-109). In a script with several views Nuke refuses to execute a Write whose
+    file has no %V for all views ("cannot be executed for multiple views", measured), so callers always name one."""
     import nuke
     import cv2                                    # from the bundled site folder (pip OpenCV has TIFF, not EXR)
     if write_node["proxy"].value() != write_node["file"].value():          # nodes created before T-086
         write_node["proxy"].setValue(write_node["file"].value())
     write_node["disable"].setValue(False)
     try:
-        nuke.execute(write_node, frame, frame)
+        if view:
+            nuke.execute(write_node, frame, frame, 1, views=[view])
+        else:
+            nuke.execute(write_node, frame, frame)
     except RuntimeError as e:
         text = str(e)
         if "maximum resolution allowed" in text.lower():
