@@ -1,0 +1,38 @@
+{
+ "gui": true,
+ "timeline_rows": [
+  "hero"
+ ],
+ "device_pixel_ratio": 1.25,
+ "image_size": [
+  848,
+  45
+ ],
+ "widget_size": [
+  678,
+  36
+ ],
+ "colour_ai_f0": [
+  150,
+  150,
+  150
+ ],
+ "colour_artist_f4": [
+  255,
+  150,
+  40
+ ],
+ "colour_locked_f6_edge": [
+  60,
+  110,
+  220
+ ],
+ "colour_flag_f8": [
+  230,
+  40,
+  40
+ ],
+ "frame_after_click": 7,
+ "selected_row": 0,
+ "passed": true
+}

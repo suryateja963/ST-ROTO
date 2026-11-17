@@ -122,3 +122,31 @@ def rename_ops(store, object_id: str, new_name: str) -> list:
         if m:
             ops.append({"op": "update_shape", "id": s["id"], "fields": {"name": new_name + (m.group(1) or "")}})
     return ops
+
+
+def timeline(store, shot_id: str) -> list:
+    """Per object, what the timeline in the Objects pane draws (T-102, REQ-120): [{"id", "name", "role", "keys":
+    {frame: "artist" | "ai"}, "flags": {frame: "lost" | "check"}, "locked": [frames]}] in object order. Keys of
+    every shape of the object count (a frame with any artist key is 'artist'); collapsed part keys are ignored."""
+    import json as _json
+    from . import model as m
+    from .pieces import is_collapsed
+    out = []
+    for o in store.objects(shot_id):
+        keys, locked = {}, set()
+        for s in store.shapes(o["id"]):
+            gen = _json.loads(s["generator"]) if s.get("generator") else {}
+            locked.update(int(f) for f in gen.get("locked_frames", []))
+            for k in store.keys(s["id"]):
+                if not k["points"] or is_collapsed(k["points"]):
+                    continue
+                kind = "ai" if k["origin"] == m.AI_GENERATED else "artist"
+                if keys.get(k["frame"]) != "artist":
+                    keys[k["frame"]] = kind
+        flags = {}
+        for f, level, _why in review_for_object(store, o["id"]):
+            if flags.get(f) != "lost":
+                flags[f] = level
+        out.append({"id": o["id"], "name": o["name"], "role": o.get("role") or "add", "keys": keys,
+                    "flags": flags, "locked": sorted(locked)})
+    return out
