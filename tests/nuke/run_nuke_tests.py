@@ -1207,6 +1207,77 @@ def test_difficult_sequences(res):
     return bool(ok)
 
 
+def test_traditional_roto_without_ai(res):
+    """T-088 / REQ-010 (master prompt section 3): a whole shot done with AI unavailable and switched off. ONNX
+    Runtime is made unimportable (as on a machine without the AI runtime); AI buttons refuse with a clear message
+    (no runtime, then 'disable AI' ticked, which also hides them); a hand-drawn animated shape in the node's Roto is
+    saved to the project WITHOUT any prior Track (before T-088 it was silently not recorded), then guided-filter
+    and hard mattes, ViTMatte refused, JSON/SVG export, RotoPaint copy, backup and package all work, and no AI
+    module is ever imported."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    sys.modules["onnxruntime"] = None                         # 'not installed': any import raises ImportError
+    import st_roto_nuke.node as stnode
+    from st_roto import exr
+    from st_roto_nuke import session
+    from st_roto_nuke.roto_export import build_shape
+    from st_roto.geometry import mask_to_points
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vh, n = meta["h"], 3
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    tmp = tempfile.mkdtemp()
+    proj = os.path.join(tmp, "manual.stroto")
+    g = stnode.create(rd, proj)
+    g["stroto_click"].setValue([meta["click_xy"][0], vh - meta["click_xy"][1]]); stnode.on_add_point(g, 1)
+    res["track_without_runtime"] = (stnode.on_track(g, background=False), g["stroto_status"].value())
+    ok = res["track_without_runtime"][0] is None and "not installed" in res["track_without_runtime"][1]
+    g["stroto_ai_off"].setValue(True)
+    stnode.apply_ai_visibility(g)                             # what the knobChanged callback does in the GUI
+    res["ai_knobs_visible"] = [k for k in stnode.AI_KNOBS if g[k].visible()]
+    res["preview_when_off"] = (stnode.on_preview(g, background=False), g["stroto_status"].value())
+    ok &= (res["ai_knobs_visible"] == [] and res["preview_when_off"][0] is None
+           and "disabled on this node" in res["preview_when_off"][1])
+    # the artist draws an animated shape by hand in the node's Roto (here: from the truth masks), then saves it
+    curves = stnode._INNER[g.fullName()]["roto"]["curves"]
+    gt = {f: cv2.imread(VIDEO + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE) > 127 for f in range(n)}
+    keys = {f: mask_to_points(gt[f].astype(float) - 0.5, count=16) for f in range(n)}
+    curves.rootLayer.append(build_shape(curves, "hero", keys, vh))
+    stnode.on_import_edits(g)
+    res["save_status"] = g["stroto_status"].value()
+    store, bus = session.project(proj)
+    shot = store.conn.execute("SELECT id FROM shots").fetchone()
+    objs = store.objects(shot["id"]) if shot else []
+    sid = store.shapes(objs[0]["id"])[0]["id"] if objs else None
+    res["saved"] = {"objects": [o["name"] for o in objs],
+                    "keys": sorted(k["frame"] for k in store.keys(sid)) if sid else [],
+                    "origins": sorted({k["origin"] for k in store.keys(sid)}) if sid else []}
+    ok &= res["saved"] == {"objects": ["hero"], "keys": [0, 1, 2], "origins": ["artist_created"]}
+    for edges in ("guided filter", "hard"):
+        g["stroto_edges"].setValue(edges)
+        jm = stnode.on_render_mattes(g, background=False)
+        a = exr.read_channels(jm.result["files"][1])["A"] if jm is not None and jm.status == "done" else None
+        res["mattes_" + edges] = (g["stroto_status"].value()[:120],
+                                  None if a is None else round(iou(a > 0.5, gt[1]), 4))
+        ok &= a is not None and iou(a > 0.5, gt[1]) > 0.97
+    g["stroto_edges"].setValue("ViTMatte-S (optional AI)")
+    res["vitmatte_when_off"] = (stnode.on_render_mattes(g, background=False), g["stroto_status"].value())
+    ok &= res["vitmatte_when_off"][0] is None and "need AI" in res["vitmatte_when_off"][1]
+    out = stnode.on_export_shapes(g)
+    rp = stnode.on_copy_to_rotopaint(g)
+    bk = stnode.on_backup(g)
+    zp = stnode.on_package(g, os.path.join(tmp, "manual_pkg.zip"))
+    res["export_ok"], res["rotopaint_ok"] = out is not None and os.path.exists(out["json"]), rp is not None
+    res["backup_ok"], res["package_ok"] = bk is not None, zp is not None and os.path.exists(zp)
+    ok &= res["export_ok"] and res["rotopaint_ok"] and res["backup_ok"] and res["package_ok"]
+    # the empty st_roto_ai package itself is imported by the runtime probe of the first refused Track; no AI code
+    # (runtime, tracker, matting) and no AI library may ever be loaded
+    res["ai_modules_loaded"] = sorted(m for m in sys.modules if sys.modules[m] is not None and (
+        m.split(".")[0] in ("onnxruntime", "torch", "transformers") or (m.startswith("st_roto_ai.") and m != "st_roto_ai")))
+    ok &= res["ai_modules_loaded"] == []
+    return bool(ok)
+
+
 NET_EVENTS = ("socket.__new__", "socket.bind", "socket.connect", "socket.sendto", "socket.sendmsg",
               "socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyaddr", "socket.getnameinfo",
               "urllib.Request", "http.client.connect", "http.client.send", "ftplib.connect", "smtplib.connect",
@@ -1267,7 +1338,7 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_colour_auto_follows_script, test_split_object_parts, test_cancel_and_resume_track,
          test_package_script_relink, test_feather_and_rotopaint, test_point_feather_roundtrip,
          test_vitmatte_mattes, test_box_prompt, test_reprompt_here, test_offline_no_network,
-         test_difficult_sequences)
+         test_difficult_sequences, test_traditional_roto_without_ai)
 
 
 def main():

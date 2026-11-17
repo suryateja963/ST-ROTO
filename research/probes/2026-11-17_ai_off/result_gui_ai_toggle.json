@@ -1,0 +1,10 @@
+{
+ "nuke": "17.1v3",
+ "gui": true,
+ "before_visible_count": 22,
+ "knobChanged_stored": true,
+ "after_tick_visible_ai_knobs": [],
+ "after_untick_visible_count": 22,
+ "ai_knob_count": 22,
+ "passed": true
+}

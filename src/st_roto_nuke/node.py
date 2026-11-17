@@ -75,6 +75,12 @@ def create(source=None, project_path: str = ""):
     group.addKnob(nuke.Text_Knob("stroto_points_info", "", "no points"))
     group.addKnob(nuke.Int_Knob("stroto_click_frame", "click frame (if no points)"))
     group.addKnob(nuke.Text_Knob("stroto_div2", "AI"))
+    off = nuke.Boolean_Knob("stroto_ai_off", "disable AI (traditional roto only)")
+    off.setTooltip("Master prompt section 3: switches every AI feature of this node off and hides its AI controls. "
+                   "Draw and edit shapes in the node's Roto as usual, then 'Save Roto edits to project'; mattes "
+                   "(guided filter / hard), export, RotoPaint copy, backups and packages keep working. A studio can "
+                   "switch AI off for a whole Nuke session with the environment variable ST_ROTO_AI=off.")
+    group.addKnob(off)
     group.addKnob(nuke.Enumeration_Knob("stroto_model", "model", MODELS))
     group.addKnob(nuke.Enumeration_Knob("stroto_device", "device", DEVICES))
     pc = nuke.Enumeration_Knob("stroto_anchors", "points", POINT_COUNTS)
@@ -153,8 +159,69 @@ def create(source=None, project_path: str = ""):
         pixels.configure_write(w, pixels.temp_pixel_path(group.name()))
         w["disable"].setValue(True)
     _add_motionblur_links(group)
+    group["knobChanged"].setValue(KNOB_CHANGED)
+    group["onCreate"].setValue(ON_CREATE)
     _INNER[group.fullName()] = {"write": w, "roto": roto, "src": source}
+    apply_ai_visibility(group)
     return group
+
+
+# ------------------------------------------------------------------------------------------------ AI off (REQ-010)
+# Callbacks stored in the script: they must not fail where ST-ROTO is not installed, and must not touch
+# nuke.thisNode() for unrelated knobs (Non-commercial: 10 Python node objects per session).
+KNOB_CHANGED = ("k = nuke.thisKnob()\n"
+                "if k is not None and k.name() == 'stroto_ai_off':\n"
+                "    try:\n"
+                "        import st_roto_nuke.node as n; n.apply_ai_visibility(nuke.thisNode())\n"
+                "    except Exception:\n"
+                "        pass\n")
+ON_CREATE = ("try:\n"
+             "    import st_roto_nuke.node as n; n.apply_ai_visibility(nuke.thisNode())\n"
+             "except Exception:\n"
+             "    pass\n")
+AI_KNOBS = ("stroto_click", "stroto_add_inc", "stroto_add_exc", "stroto_clear", "stroto_clear_all", "stroto_box",
+            "stroto_set_box", "stroto_clear_box", "stroto_points", "stroto_points_info", "stroto_click_frame",
+            "stroto_model", "stroto_device", "stroto_anchors", "stroto_load", "stroto_preview", "stroto_track",
+            "stroto_resume", "stroto_retrack", "stroto_retrack_all", "stroto_reprompt", "stroto_reprompt_point")
+AI_ENV = "ST_ROTO_AI"
+
+
+def ai_disabled_reason(group):
+    """Why AI is off for this node (session-wide environment variable or the node's checkbox), or None."""
+    v = os.environ.get(AI_ENV, "").strip().lower()
+    if v in ("0", "off", "false", "no", "disabled"):
+        return "AI is switched off for this Nuke session (%s=%s)" % (AI_ENV, os.environ.get(AI_ENV))
+    if "stroto_ai_off" in group.knobs() and group["stroto_ai_off"].value():
+        return "AI is disabled on this node ('disable AI' is ticked)"
+    return None
+
+
+def ai_runtime_problem():
+    """None if the AI runtime can load, else an artist-readable reason. Imports st_roto_ai.runtime (which switches
+    ONNX Runtime telemetry off at import), never onnxruntime directly."""
+    try:
+        from st_roto_ai import runtime  # noqa: F401
+    except Exception as e:                                    # noqa: BLE001 - any failure means: no AI here
+        return "the AI runtime (ONNX Runtime) is not installed or cannot load (%s: %s)" % (type(e).__name__, e)
+    return None
+
+
+def _refuse_ai(group):
+    """True (and a status message) if an AI action must not run: AI switched off, or no AI runtime."""
+    why = ai_disabled_reason(group) or ai_runtime_problem()
+    if why:
+        _status(group, "error: %s. ST-ROTO still works as a traditional roto tool: draw and edit shapes in this "
+                       "node's Roto, then 'Save Roto edits to project'." % why)
+        return True
+    return False
+
+
+def apply_ai_visibility(group):
+    off = ai_disabled_reason(group) is not None
+    for name in AI_KNOBS:
+        if name in group.knobs():
+            group[name].setVisible(not off)
+    return off
 
 
 MOTIONBLUR_LINKS = (("stroto_mb_mode", "motion blur", "motionblur_mode"),
@@ -424,6 +491,8 @@ def on_clear_points(group, every_object: bool = False):
 
 def on_load_model(group):
     """Create the GPU sessions now, synchronously and visibly (the GIL-bound pause, R-40)."""
+    if _refuse_ai(group):
+        return None
     from st_roto_ai.sam2 import preload_video
     model, device = group["stroto_model"].value(), group["stroto_device"].value()
     group["stroto_status"].setValue("loading %s (Nuke may pause briefly)..." % model)
@@ -447,6 +516,8 @@ def on_cancel(group):
 
 def on_preview(group, background: bool = True):
     """Segment the current object on its prompt frame and show it as a temporary shape (not saved, not undoable)."""
+    if _refuse_ai(group):
+        return None
     try:
         ctx = _context(group)
         o = ctx["current"]
@@ -474,6 +545,8 @@ def on_track(group, background: bool = True, resume: bool = False):
     """Track every prompted object forward from its prompt frame in one pass; store (AI provenance, one undo step)
     and sync into the Roto node. The run is checkpointed (T-048): after Cancel, a failure or a crash,
     `resume=True` ('Resume track') continues it from the checkpoint with identical results."""
+    if _refuse_ai(group):
+        return None
     from .track import discard_checkpoint, read_checkpoint
     try:
         ctx = _context(group, need_prompts=not resume)
@@ -552,6 +625,8 @@ def on_track(group, background: bool = True, resume: bool = False):
 def on_reprompt_here(group, background: bool = True):
     """T-081: the box (+ optionally the point handle) on the CURRENT frame becomes a fix prompt of the current object,
     which is then re-tracked in both directions (one undo step; the fix is stored with the shape)."""
+    if _refuse_ai(group):
+        return None
     if "stroto_box" not in group.knobs():
         _status(group, "error: this node was made before box prompts; create a new ST_Roto node"); return None
     x, y, r, t = [float(v) for v in group["stroto_box"].value()]
@@ -570,6 +645,8 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
     """Re-track the object named in 'object name' (or every unlocked object of the shot, in one pass) using its
     artist keys and prompts as guides (forward + reverse). All results are ONE undo step. fix: a new fix prompt for
     the current object (on_reprompt_here)."""
+    if _refuse_ai(group):
+        return None
     from .track import apply_retracks, retrack_objects, retrack_plan
     try:
         src = _inner(group, "src", None)
@@ -658,6 +735,9 @@ def on_render_mattes(group, background: bool = True):
             group["stroto_edges"].value() if "stroto_edges" in group.knobs() else "", "guided" if soft else "hard")
         if not soft:
             method = "hard"                                  # old scripts / tests that switch soft edges off
+        if method == "vitmatte" and (ai_disabled_reason(group) or ai_runtime_problem()):
+            raise ValueError("ViTMatte-S edges need AI: %s; choose 'guided filter' or 'hard'"
+                             % (ai_disabled_reason(group) or ai_runtime_problem()))
         dev = group["stroto_device"].value()
         band, radius = max(1, int(group["stroto_band"].value())), max(1, int(group["stroto_radius"].value()))
         ctransform = _colour(group)
@@ -855,9 +935,15 @@ def resync(group, import_first: bool = True):
     src = _inner(group, "src", None)
     shot = store.conn.execute("SELECT id FROM shots WHERE name = ?", (src.name(),)).fetchone()
     empty = {"written": [], "updated": [], "removed": [], "unchanged": [], "conflicts": [], "import": None}
-    if shot is None:
-        return empty
     curves = _inner(group, "roto", "STROTO_shapes")["curves"]
+    if shot is None:
+        # traditional roto (REQ-010): shapes drawn before any AI run create the shot, otherwise they would never be
+        # recorded (found in T-088)
+        if not (import_first and any(True for _ in curves.rootLayer)):
+            return empty
+        ctx = {"src": src, "width": int(src.width()), "height": int(src.height()),
+               "first": int(src.firstFrame()), "last": int(src.lastFrame())}
+        shot = {"id": _ensure_shot(store, bus, ctx)}
     imp = import_edits(store, bus, shot["id"], curves, _height(group), int(nuke.frame())) if import_first else None
     rep = sync_shot(store, shot["id"], curves, _height(group))
     rep["import"] = imp
@@ -908,6 +994,8 @@ def _ensure_shot(store, bus, ctx):
 
 
 def on_resume_track(group, background: bool = True):
+    if _refuse_ai(group):
+        return None
     return on_track(group, background, resume=True)
 
 
