@@ -15,6 +15,7 @@ from st_roto import model as m
 from st_roto import pieces, views
 from st_roto.geometry import mask_to_points  # noqa: F401  (kept for callers)
 from . import colour
+from .pixels import FrameUnavailable
 
 ANCHORS = 16
 
@@ -83,8 +84,10 @@ def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="a
                      "seq": pieces.Sequencer(count=anchors, parts=parts), "absent": [], "reports": {}, "last": None})
     first = min(r["start"] for r in runs)
     begin = first
+    missing = []
     if saved:
         begin = saved["next_idx"]
+        missing = list(saved.get("missing") or [])
         for r, st in zip(runs, saved["runs"]):
             r["trk"].load_state(os.path.join(checkpoint_dir, "obj%d" % runs.index(r)), st["trk"])
             r["seq"] = pieces.sequencer_from_state(st["seq"])
@@ -94,7 +97,7 @@ def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="a
     n = len(frames) - first
 
     def save(next_idx):
-        _write_checkpoint(checkpoint_dir, definition, next_idx, runs)
+        _write_checkpoint(checkpoint_dir, definition, next_idx, runs, missing)
 
     idx = begin
     try:
@@ -102,7 +105,16 @@ def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="a
             frame = frames[idx]
             if job:
                 job.check(); job.report((idx - first) / float(n), "frame %d (%d/%d)" % (frame, idx - first + 1, n))
-            enc = multi.encode(colour.to_model_input(get_rgb(frame), colour_transform))
+            try:
+                rgb = get_rgb(frame)
+            except FrameUnavailable as e:
+                starts = [r["name"] for r in runs if r["start"] == idx]
+                if starts:
+                    raise ValueError("the prompt frame %d of %s cannot be read (%s): prompt on a frame that exists"
+                                     % (frame, ", ".join(starts), e.message))
+                missing.append(frame)                       # T-086: no key; memory keeps true time positions
+                continue
+            enc = multi.encode(colour.to_model_input(rgb, colour_transform))
             for r in runs:
                 p = idx - r["start"]
                 if p < 0:
@@ -139,7 +151,8 @@ def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="a
                         "absent_frames": r["absent"], "holes": seq["holes"], "reports": r["reports"],
                         "generator": gen})
     rep = multi.report
-    return {"objects": results, "device": rep.active, "device_fallback": rep.fallback, "device_reason": rep.reason}
+    return {"objects": results, "device": rep.active, "device_fallback": rep.fallback, "device_reason": rep.reason,
+            "missing_frames": sorted(missing)}
 
 
 def track_object(get_rgb, frames, click_frame, click_xy, model="sam2.1-hiera-tiny", device="auto",
@@ -240,8 +253,14 @@ def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam
                 return                                      # no object: keep the chain at the last real frame
         p["last"] = f
 
+    missing = set()
     try:
         for f in sorted(set(c for p in plans for c in p["cond"])):     # conditioning frames first, in time order
+            try:
+                enc(f)
+            except FrameUnavailable as e:
+                raise ValueError("frame %d guides the re-track (prompt, fix or your key) but cannot be read (%s)"
+                                 % (f, e.message))
             for p in plans:
                 if f not in p["cond"]:
                     continue
@@ -264,14 +283,17 @@ def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam
                 if job:
                     job.check(); job.report(done / total, "frame %d (%d/%d)" % (f, done + 1, int(total)))
                 done += 1
-                for p in plans:
-                    if (f < p["first"]) != reverse:
-                        continue
-                    if reverse and pos[f] == pos[p["first"]] - 1:
-                        # the reverse pass continues the point correspondence from the first conditioning frame,
-                        # not from the last frame of the forward pass
-                        p["last"] = p["first"]
-                    step(p, f, reverse)
+                try:
+                    for p in plans:
+                        if (f < p["first"]) != reverse:
+                            continue
+                        if reverse and pos[f] == pos[p["first"]] - 1:
+                            # the reverse pass continues the point correspondence from the first conditioning
+                            # frame, not from the last frame of the forward pass
+                            p["last"] = p["first"]
+                        step(p, f, reverse)         # enc(f) runs before any tracker state changes
+                except FrameUnavailable:
+                    missing.add(f)                  # T-086: skipped, no key; memory keeps true time positions
     finally:
         multi.close()                                       # remove spilled per-frame state (T-065)
     shapes = {}
@@ -286,7 +308,8 @@ def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam
         shapes[p["shape_id"]] = {"keys": keys, "parts": res["parts"], "holes": res["holes"], "reports": p["reports"],
                                  "generator": json.dumps(gen_out, sort_keys=True)}
     rep = multi.report
-    return {"shapes": shapes, "device": rep.active, "device_fallback": rep.fallback, "device_reason": rep.reason}
+    return {"shapes": shapes, "device": rep.active, "device_fallback": rep.fallback, "device_reason": rep.reason,
+            "missing_frames": sorted(missing)}
 
 
 def retrack_object(get_rgb, store, shape_id, frames, width, height, model="sam2.1-hiera-tiny", device="auto",
@@ -466,7 +489,7 @@ def _part_key_ops(shape_id, keys, generator, skip=()):
     return ops
 
 
-def _write_checkpoint(directory, definition, next_idx, runs):
+def _write_checkpoint(directory, definition, next_idx, runs, missing=()):
     """Incremental, crash-safe: per-object tensors first (immutable files, written once), meta.json LAST via an
     atomic replace, so a checkpoint interrupted half-way leaves the previous one valid."""
     import datetime
@@ -478,7 +501,8 @@ def _write_checkpoint(directory, definition, next_idx, runs):
                        "reports": [[f, s, q] for f, (s, q) in sorted(r["reports"].items())]})
     meta = {"format": "st_roto.track_checkpoint", "version": 1, "definition": definition, "next_idx": next_idx,
             "next_frame": definition["frames"][next_idx] if next_idx < len(definition["frames"]) else None,
-            "saved_utc": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z", "runs": states}
+            "saved_utc": datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z", "runs": states,
+            "missing": sorted(missing)}
     tmp = os.path.join(directory, "meta.json.part")
     with open(tmp, "w", encoding="utf-8") as fh:
         json.dump(meta, fh)

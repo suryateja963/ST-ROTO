@@ -293,11 +293,54 @@ def _object_name(group):
 
 
 def _renderer(ctx, background):
+    """get_rgb(frame) for jobs. Frames of another size (proxy mode, mixed-resolution sequences) are brought to the
+    shot format and listed in ctx["refitted"] {frame: (w, h)}; unreadable frames raise pixels.FrameUnavailable
+    (in background mode Nuke's main-thread call returns the exception object, so it is re-raised here)."""
+    ctx.setdefault("refitted", {})
+
     def get_rgb(frame):
+        args = (ctx["write"], frame, ctx["pixel_path"])
         if background:
-            return nuke.executeInMainThreadWithResult(pixels.render_frame, (ctx["write"], frame, ctx["pixel_path"]))
-        return pixels.render_frame(ctx["write"], frame, ctx["pixel_path"])
+            img = nuke.executeInMainThreadWithResult(_render_or_error, args)
+            if isinstance(img, Exception):
+                raise img
+        else:
+            img = pixels.render_frame(*args)
+        if img.shape[:2] != (ctx["height"], ctx["width"]):
+            ctx["refitted"][frame] = (img.shape[1], img.shape[0])
+            img = pixels.fit_to_format(img, ctx["width"], ctx["height"])
+        return img
     return get_rgb
+
+
+def _render_or_error(write, frame, path):
+    """Main-thread side of get_rgb: exceptions in executeInMainThread callbacks are swallowed, so return them."""
+    try:
+        return pixels.render_frame(write, frame, path)
+    except Exception as e:                                    # noqa: BLE001 - handed back to the worker thread
+        return e
+
+
+def _sequence_note(ctx, missing):
+    """Status text for T-086 conditions: skipped unreadable frames and frames brought to the shot format."""
+    note = ""
+    if missing:
+        note += "; %d unreadable frame(s) skipped (no key): %s" % (len(missing), _ranges(sorted(missing)))
+    ref = ctx.get("refitted") or {}
+    if ref:
+        sizes = sorted(set(ref.values()))
+        note += ("; %d frame(s) at another resolution (%s) were fitted to %dx%d like a default Reformat%s: frames %s"
+                 % (len(ref), ", ".join("%dx%d" % s for s in sizes), ctx["width"], ctx["height"],
+                    " (proxy mode is on: full accuracy needs proxy off)" if _proxy_on() else "",
+                    _ranges(sorted(ref))))
+    return note
+
+
+def _proxy_on():
+    try:
+        return bool(nuke.root()["proxy"].value())
+    except Exception:                                         # noqa: BLE001
+        return False
 
 
 def _run(group, name, work, apply, background, stop_hint=None):
@@ -489,8 +532,8 @@ def on_track(group, background: bool = True, resume: bool = False):
             parts.append("%s%d keys (%d points)%s, %d frames without object" % (
                 "" if len(ids) == 1 else r["name"] + ": ", len(r["keys"]), r.get("anchors") or 16, extra,
                 len(r["absent_frames"])) + _review_text(store, oid))
-        msg = "done%s: %s; device %s%s" % (" (resumed)" if resume else "", " | ".join(parts), result["device"],
-                                            skipped_note)
+        msg = "done%s: %s; device %s%s%s" % (" (resumed)" if resume else "", " | ".join(parts), result["device"],
+                                              skipped_note, _sequence_note(ctx, result.get("missing_frames")))
         if result["device_fallback"]:
             msg += " (FALLBACK: %s)" % result["device_reason"]
         if rep["conflicts"]:
@@ -552,7 +595,7 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
                 raise ValueError("frame %d has your own key for %r: it already guides the re-track (edit that key "
                                  "instead)" % (fix["frame"], targets[0][0]))
             fixes = {sid: fix}
-        ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name())}
+        ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name()), "width": width, "height": height}
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None
     get_rgb = _renderer(ctx, background)
@@ -580,6 +623,7 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
             parts.append("%s: %d AI keys changed, %d artist keys kept" % (name, counts[sid], kept)
                          + _review_text(store, oid))
         msg = "re-tracked %s; device %s" % (" | ".join(parts), job.result["device"])
+        msg += _sequence_note(ctx, job.result.get("missing_frames"))
         if fix is not None:
             msg = "re-prompted frame %d: %s" % (fix["frame"], msg)
         if skipped:
@@ -617,7 +661,8 @@ def on_render_mattes(group, background: bool = True):
         dev = group["stroto_device"].value()
         band, radius = max(1, int(group["stroto_band"].value())), max(1, int(group["stroto_radius"].value()))
         ctransform = _colour(group)
-        ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name())}
+        ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name()),
+               "width": int(src.width()), "height": int(src.height())}
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None
     get_rgb = _renderer(ctx, background)
@@ -642,6 +687,9 @@ def on_render_mattes(group, background: bool = True):
         if r["frames_interpolated"]:
             msg += "; frames between keys (linear, may differ from Roto): %s" % "; ".join(
                 "%s %s" % (k, _ranges(v)) for k, v in sorted(r["frames_interpolated"].items()))
+        if r.get("plate_missing"):
+            msg += "; plate unreadable, hard edges written: %s" % _ranges(r["plate_missing"])
+        msg += _sequence_note(ctx, None)
         job.applied = msg
         group["stroto_status"].setValue(msg)
 

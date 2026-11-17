@@ -13,6 +13,7 @@ import time
 
 from st_roto import exr, matte
 from . import colour
+from .pixels import FrameUnavailable
 
 PASS_ID = "st_roto_matte_v1"
 
@@ -46,7 +47,8 @@ def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, r
                   models_root=None, device="auto"):
     """Write `<out_dir>/<shot>_mattes.####.exr` for `frames`. objects: object ids (default: every object of the
     shot). Returns {"pattern", "files", "layers": {object name: layer}, "frames_interpolated": {name: [frames]},
-    "frames_held": {...}, "seconds"}."""
+    "frames_held": {...}, "plate_missing": [frames], "seconds"}. A frame whose plate cannot be read (T-086) gets a
+    hard matte (the shapes need no plate) and is listed in "plate_missing"."""
     t0 = time.time()
     method = method or ("guided" if soft else "hard")
     if method not in METHODS:
@@ -73,12 +75,17 @@ def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, r
     settings = {"pass": PASS_ID, "soft": bool(soft), "method": method, "band": band, "radius": radius, "eps": eps,
                 "model": "vitmatte-small-composition-1k (D-032)" if vm else None,
                 "guide_colour": colour.transform_id(colour_transform) if soft else None}
-    files, layers, interp, held = [], {}, {}, {}
+    files, layers, interp, held, no_plate = [], {}, {}, {}, []
     frames = list(frames)
     for i, f in enumerate(frames):
         if job:
             job.check(); job.report(i / float(len(frames)), "matte frame %d (%d/%d)" % (f, i + 1, len(frames)))
-        guide = colour.to_model_input(get_rgb(f), colour_transform) if soft else None
+        guide = None
+        if soft:
+            try:
+                guide = colour.to_model_input(get_rgb(f), colour_transform)
+            except FrameUnavailable:
+                no_plate.append(f)
         alphas = {}
         for o in objs:
             fa, how, feathered = matte.object_alpha(store, o["id"], f, h, w)
@@ -90,10 +97,12 @@ def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, r
                     held.setdefault(o["name"], []).append(f)
             if feathered:
                 alphas[o["name"]] = fa            # the artist's feather (T-073) decides the edge, as in Roto
+            elif guide is None:
+                alphas[o["name"]] = fa            # hard matte, or no plate for this frame (T-086)
             elif method == "vitmatte":
                 alphas[o["name"]] = _vitmatte_crop(vm, guide, m)
             else:
-                alphas[o["name"]] = matte.refine_alpha(guide, m, band=band, radius=radius, eps=eps) if soft else fa
+                alphas[o["name"]] = matte.refine_alpha(guide, m, band=band, radius=radius, eps=eps)
         path = exr.frame_path(out_dir, base, f)
         layers = exr.write_mattes(path, alphas, compression=compression,
                                   attributes={"st_roto": json.dumps(settings, sort_keys=True)})
@@ -101,5 +110,5 @@ def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, r
     if job:
         job.report(1.0, "wrote %d matte frames" % len(files))
     return {"pattern": exr.sequence_pattern(out_dir, base), "files": files, "layers": layers,
-            "frames_interpolated": interp, "frames_held": held, "seconds": round(time.time() - t0, 2),
+            "frames_interpolated": interp, "frames_held": held, "plate_missing": no_plate, "seconds": round(time.time() - t0, 2),
             "settings": settings}

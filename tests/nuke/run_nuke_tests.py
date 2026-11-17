@@ -1149,6 +1149,64 @@ def test_reprompt_here(res):
     return bool(ok)
 
 
+def test_difficult_sequences(res):
+    """T-086 / REQ-092: a sequence with missing frames (4-5) and half-resolution frames (7-9) tracks instead of
+    failing: no keys on the missing frames, every key on target (the half-res frames fitted to the shot format),
+    both reported; then Re-track in PROXY mode (before T-086: 'You must specify a proxy file name') works."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import shutil
+    import st_roto_nuke.node as stnode
+    from st_roto import views
+    from st_roto_nuke import session
+    from st_roto.geometry import Anchor
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vw, vh, n = meta["w"], meta["h"], 10
+    seq = tempfile.mkdtemp().replace("\\", "/")
+    for f in range(n):
+        if f in (4, 5):
+            continue
+        if f >= 7:
+            img = cv2.imread(VIDEO + "/frame_%04d.png" % f)
+            cv2.imwrite(seq + "/frame_%04d.png" % f, cv2.resize(img, (vw // 2, vh // 2), interpolation=cv2.INTER_AREA))
+        else:
+            shutil.copyfile(VIDEO + "/frame_%04d.png" % f, seq + "/frame_%04d.png" % f)
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=seq + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "seq.stroto")
+    g = stnode.create(rd, proj)
+    g["stroto_object"].setValue("target"); nuke.frame(0)
+    g["stroto_click"].setValue([meta["click_xy"][0], vh - meta["click_xy"][1]]); stnode.on_add_point(g, 1)
+    job = stnode.on_track(g, background=False)
+    res["track_status"] = g["stroto_status"].value()
+    if job is None or job.status != "done":
+        res["error"] = job.error if job else "no job"; return False
+    store, _ = session.project(proj)
+    oid = store.objects(store.conn.execute("SELECT id FROM shots").fetchone()["id"])[0]["id"]
+    sid = views.main_shape(store, oid)["id"]
+
+    def ious():
+        out = {}
+        for k in store.keys(sid):
+            a = [Anchor(p=np.array(p[:2]), h_in=np.array(p[2:4]), h_out=np.array(p[4:]), corner=False) for p in k["points"]]
+            gt = cv2.imread(VIDEO + "/gt_%04d.png" % k["frame"], cv2.IMREAD_GRAYSCALE) > 127
+            out[k["frame"]] = round(iou(rasterize_spline(a, vh, vw), gt), 4)
+        return out
+    res["track_iou"] = ious()
+    ok = (sorted(res["track_iou"]) == [0, 1, 2, 3, 6, 7, 8, 9] and min(res["track_iou"].values()) > 0.98
+          and "2 unreadable frame(s) skipped (no key): 4-5" in res["track_status"]
+          and "3 frame(s) at another resolution (640x360)" in res["track_status"])
+    nuke.root()["proxy_type"].setValue("scale"); nuke.root()["proxy_scale"].setValue(0.5)
+    nuke.root()["proxy"].setValue(True)
+    j2 = stnode.on_retrack(g, background=False)
+    res["proxy_retrack_status"] = g["stroto_status"].value()
+    nuke.root()["proxy"].setValue(False)
+    res["proxy_retrack_iou"] = ious()
+    ok &= (j2 is not None and j2.status == "done" and "proxy mode is on" in res["proxy_retrack_status"]
+           and min(res["proxy_retrack_iou"].values()) > 0.97 and sorted(res["proxy_retrack_iou"]) == sorted(res["track_iou"]))
+    return bool(ok)
+
+
 NET_EVENTS = ("socket.__new__", "socket.bind", "socket.connect", "socket.sendto", "socket.sendmsg",
               "socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyaddr", "socket.getnameinfo",
               "urllib.Request", "http.client.connect", "http.client.send", "ftplib.connect", "smtplib.connect",
@@ -1208,7 +1266,8 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_export_import_shapes, test_crash_recovery_and_package, test_motion_blur_links,
          test_colour_auto_follows_script, test_split_object_parts, test_cancel_and_resume_track,
          test_package_script_relink, test_feather_and_rotopaint, test_point_feather_roundtrip,
-         test_vitmatte_mattes, test_box_prompt, test_reprompt_here, test_offline_no_network)
+         test_vitmatte_mattes, test_box_prompt, test_reprompt_here, test_offline_no_network,
+         test_difficult_sequences)
 
 
 def main():
