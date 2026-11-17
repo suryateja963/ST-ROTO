@@ -1600,6 +1600,13 @@ def test_propagation_controls(res):
     res["range_iou"] = ious
     ok &= (set(res["changed_by_range"]) <= set(range(15, 20)) and len(res["changed_by_range"]) >= 3
            and min(ious.values()) > 0.98 and "frames 15-19 only (keys outside unchanged)" in res["range_status"])
+    # DEF-008: Re-prompt on a locked frame names the lock (not 'your own key')
+    g["stroto_range_mode"].setValue("whole shot")
+    nuke.frame(6)
+    g["stroto_box"].setValue([200.0, 200.0, 500.0, 500.0])
+    stnode.on_reprompt_here(g, background=False)
+    res["reprompt_locked_status"] = g["stroto_status"].value()
+    ok &= "is locked: press Unlock range" in res["reprompt_locked_status"]
     bus.undo()
     res["undo_restores"] = keys() == k1
     g["stroto_range_from"].setValue(0); g["stroto_range_to"].setValue(29)

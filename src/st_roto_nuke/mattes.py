@@ -139,11 +139,8 @@ def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, r
         if offset_px or blur_px:                            # T-099 refinement, per object, full resolution
             alphas = {k: matte.blur_edge(matte.offset_alpha(v, offset_px), blur_px) for k, v in alphas.items()}
         roles = {o["name"]: (o.get("role") or "add") for o in objs}
-        if any(r != "add" for r in roles.values()):        # T-098: holdout / garbage objects
-            from st_roto.views import combine_roles
-            combined = combine_roles(alphas, roles)
-        else:
-            combined = np.max(np.stack([np.asarray(v, np.float32) for v in alphas.values()]), 0)
+        from st_roto.views import combine_roles             # same arithmetic as Nuke's Roto render (DEF-001):
+        combined = combine_roles(alphas, roles)             # objects composited 'over', not max
         extra = {}
         if core_edge_px:
             extra["core_matte"], extra["edge_matte"] = matte.core_edge(combined, core_edge_px)

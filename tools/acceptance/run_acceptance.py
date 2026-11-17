@@ -117,7 +117,18 @@ def step_offline():
                       % (t.get("network_event_count"), ext, "blocks them" if ext == 0 else "not active?")}
 
 
+def step_defects():
+    """Criterion 20: no OPEN defect that blocks a release (DEFECTS.md)."""
+    rows = [l for l in open(os.path.join(ROOT, "DEFECTS.md"), encoding="utf-8") if l.startswith("| DEF-")]
+    cells = [[c.strip() for c in l.strip().strip("|").split("|")] for l in rows]
+    blocking = [c[0] for c in cells if c[5].lower() == "yes" and c[6].lower() == "open"]
+    open_all = [c[0] for c in cells if c[6].lower() == "open"]
+    return {"ok": not blocking, "seconds": 0, "detail": "%d defects, %d open (%s), %d open release blockers%s" % (
+        len(cells), len(open_all), ", ".join(open_all) or "-", len(blocking), (": " + ", ".join(blocking)) if blocking else "")}
+
+
 STEPS = [  # name, function, acceptance criteria (docs/ACCEPTANCE.md numbers)
+    ("defects", step_defects, [20]),
     ("unit", step_unit, [3, 6, 9, 10, 11, 13, 15, 17]),
     ("nuke_headless", step_nuke_headless, [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]),
     ("gui", step_gui, [2, 3, 4, 9, 13, 17]),

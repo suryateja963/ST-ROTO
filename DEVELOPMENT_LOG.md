@@ -434,3 +434,7 @@ Built st_roto_setup.py (offline package, install, upgrade, rollback, repair, uni
 ## 2026-11-17 - T-104 acceptance criteria and run
 
 Wrote docs/ACCEPTANCE.md: the 20 criteria of section 30 with verification method, evidence and status (3 met for v0, 15 partly, 2 not met - other Nuke versions/editions and a defect tracker are the main missing pieces). Built tools/acceptance/run_acceptance.py (unit, headless Nuke, GUI probes, installer end to end, offline). Its first run failed one unit test intermittently; measured that Windows' clock gives the same timestamp for ~2 ms, so two backups made close together got the same file name and the second silently overwrote the first - a real data-safety bug since T-071. Fixed (exclusive name reservation with an order-preserving suffix) with a regression test; full acceptance run repeated.
+
+## 2026-11-17 - T-105 defect register
+
+Created DEFECTS.md (criterion 20) with the defects found today and the acceptance-run step that fails on open release blockers. While listing them, confirmed and fixed DEF-001: without roles the combined EXR matte took the maximum of the objects while Nuke's render composites them 'over' (0.5 vs 0.75 where two soft edges overlap); fixed DEF-008 (locked-frame re-prompt message). I first wrote 'verified in test_propagation_controls' for DEF-008 before that check existed; added it to the Nuke test, which passes.

@@ -1154,6 +1154,9 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
             if not frames[0] <= fix["frame"] <= frames[-1]:
                 raise ValueError("frame %d is outside the source range" % fix["frame"])
             sid = targets[0][2]
+            locked = json.loads(store.row("shapes", sid)["generator"] or "{}").get("locked_frames", [])
+            if fix["frame"] in locked:                      # DEF-008: say why, with the right remedy
+                raise ValueError("frame %d of %r is locked: press Unlock range for it first" % (fix["frame"], targets[0][0]))
             if fix["frame"] in retrack_plan(store, sid, frames)["artist"]:
                 raise ValueError("frame %d has your own key for %r: it already guides the re-track (edit that key "
                                  "instead)" % (fix["frame"], targets[0][0]))

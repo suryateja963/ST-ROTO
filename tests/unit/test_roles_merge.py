@@ -93,3 +93,18 @@ def test_interchange_keeps_roles(tmp_path):
     bt.execute({"op": "create_shot", "row": {"id": "T", "name": "shot", "width": W, "height": H}})
     interchange.import_shot(bt, json.loads(json.dumps(data)), "T")
     assert {o["name"]: o["role"] for o in t.objects("T")}["objB"] == "holdout"
+
+
+def test_combined_matte_is_over_not_max_on_soft_overlaps(tmp_path):
+    """DEF-001: two soft edges overlapping at 0.5 each -> 0.75 (as Nuke's Roto renders), not 0.5 (max)."""
+    pytest.importorskip("OpenEXR")
+    from st_roto import exr
+    from st_roto_nuke.mattes import render_mattes
+    s, bus = project(tmp_path)
+    plate = lambda f: np.full((H, W, 3), 0.2, np.float32)                # noqa: E731
+    rep = render_mattes(plate, s, "S", [0], str(tmp_path / "m"), soft=False, objects=["A", "B"], blur_px=3.0)
+    ch = exr.read_channels(rep["files"][0])
+    a, b = ch["objA.A"], ch["objB.A"]
+    assert np.abs(ch["A"] - (a + b - a * b)).max() < 1e-5
+    both = (a > 0.2) & (a < 0.8) & (b > 0.2) & (b < 0.8)
+    assert both.any() and (ch["A"][both] > np.maximum(a, b)[both] + 0.01).all()

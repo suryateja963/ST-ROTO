@@ -29,11 +29,11 @@ Verified environment so far: Windows 11, Nuke 17.1v3 **Non-commercial** only, RT
 | 17 | Tested collaboration functionality | automated: leases, roles, keys, signed history (simulated co-workers), replication prototype | T-020, T-083, T-084, T-094 | **partly** | no network transport; no test with two real machines |
 | 18 | Reproducible quality benchmarks | rerun the SA-V tools (`research/probes/2026-11-16_calibration`, `2026-11-16_shape_fit`) | T-068, T-080, T-082 | **partly** | competitor benchmarks (REQ-190) not done; benchmark methodology not published |
 | 19 | Complete documentation | manual review | `docs/USER_GUIDE_v0.md`, registers, RESULTS files | **partly** | full user manual, install guide per edition, developer/API docs |
-| 20 | No critical release-blocking defects | manual: defect list review; every acceptance run green | registers, development log | **not met** | no formal defect tracker yet; criteria 1-19 still have gaps |
+| 20 | No critical release-blocking defects | automated `defects` step: no OPEN row with 'blocks release = yes' in DEFECTS.md; every acceptance run green | DEFECTS.md (T-105): 9 recorded, 0 open release blockers | **partly** | criteria 1-19 still have gaps; the register is only as complete as testing so far |
 
-**Summary:** 3 met (v0), 15 partly, 2 not met. Blocked items: C++/NDK (licence), Silhouette/Mocha formats
+**Summary:** 3 met (v0), 16 partly, 1 not met (16, compatibility claims). Blocked items: C++/NDK (licence), Silhouette/Mocha formats
 (applications). The largest remaining gaps for 1.0: other Nuke versions/editions (2, 16), real production shots
-by an artist (3, 4), AMD/Intel GPUs (14), a defect tracker (20).
+by an artist (3, 4), AMD/Intel GPUs (14).
 
 ## Acceptance runs
 
