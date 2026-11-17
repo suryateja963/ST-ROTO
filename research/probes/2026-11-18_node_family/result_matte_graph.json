@@ -1,0 +1,37 @@
+{
+ "before_max_diff_all": 0.0,
+ "after_channels": [
+  "A",
+  "B",
+  "CryptoObject00.A",
+  "CryptoObject00.B",
+  "CryptoObject00.G",
+  "CryptoObject00.R",
+  "CryptoObject01.A",
+  "CryptoObject01.B",
+  "CryptoObject01.G",
+  "CryptoObject01.R",
+  "G",
+  "N.X",
+  "N.Y",
+  "N.Z",
+  "P.X",
+  "P.Y",
+  "P.Z",
+  "R",
+  "backward.u",
+  "backward.v",
+  "depth.Z",
+  "distractor.A",
+  "forward.u",
+  "forward.v",
+  "target.A"
+ ],
+ "alpha_vs_combined": 0.0,
+ "layers": {
+  "distractor.A": 0.0,
+  "target.A": 0.0
+ },
+ "plate_rgb_and_layers_diff": 0.0,
+ "budget_remaining": 7
+}

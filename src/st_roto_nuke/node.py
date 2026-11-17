@@ -241,6 +241,11 @@ def create(source=None, project_path: str = ""):
     ex = _button(group, "stroto_export_shapes", "Export shapes (JSON + SVG)", "n.on_export_shapes(nuke.thisNode())")
     ex.setTooltip("Writes <project>_export/<shot>/<shot>.json (every object, key and provenance; re-importable) and "
                   "one SVG per keyed frame.")
+    ab = _button(group, "stroto_export_abc", "Export Alembic", "n.on_export_alembic(nuke.thisNode())",
+                 new_line=False)
+    ab.setTooltip("Writes <project>_export/<shot>/<shot>.abc for 3D packages: per shape an animated closed Bezier "
+                  "curve (the exact spline) and an outline mesh (for readers without curves, e.g. Nuke's 3D), in pixel "
+                  "units, y up, origin bottom-left, z = 0, one sample per keyed frame at the script's fps.")
     cr = _button(group, "stroto_copy_rotopaint", "Copy shapes to RotoPaint", "n.on_copy_to_rotopaint(nuke.thisNode())")
     cr.setTooltip("Creates a RotoPaint node next to this one with native copies of every shape (keys and feather).")
     im = _button(group, "stroto_import_shapes", "Import shapes (JSON)", "n.on_import_shapes(nuke.thisNode())",
@@ -260,18 +265,19 @@ def create(source=None, project_path: str = ""):
     sr.setTooltip("What this machine and Nuke edition can do: GPU, memory, AI runtime, models, edition limits "
                   "(render size, node budget, plug-ins), and why a feature is limited or unavailable.")
     group.addKnob(nuke.Text_Knob("stroto_status", "status", "idle"))
+    # Inner graph PASTED (T-112, measured: a paste costs 1 of the Non-commercial 10 Python node objects whatever its
+    # size, and returns its last node - the pixel Write); then one look-up for the Roto: 3 objects for the whole node
+    # instead of 6. Same nodes as before: Input1 -> STROTO_shapes (alpha, replace, T-110) -> STROTO_clamp (T-098)
+    # -> Output1, and the disabled STROTO_pixels Write on the input.
+    from .family import _paste_inner
+    w = _paste_inner(group, MAIN_INNER)
     with group:
-        inp = nuke.nodes.Input(name="Input1")
-        roto = nuke.nodes.Roto(name="STROTO_shapes", output="alpha")
-        roto["replace"].setValue(True)                        # T-110: alpha = the shapes, also on plates with alpha
-        roto.setInput(0, inp)
-        clamp = _make_clamp(roto)                             # T-098: holdout / garbage subtract; keep alpha 0-1
-        out = nuke.nodes.Output(name="Output1")
-        out.setInput(0, clamp)
-        w = nuke.nodes.Write(name="STROTO_pixels")
-        w.setInput(0, inp)
-        pixels.configure_write(w, pixels.temp_pixel_path(group.name()))
-        w["disable"].setValue(True)
+        roto = nuke.toNode("STROTO_shapes")
+    if w is None or roto is None or w.name() != "STROTO_pixels":
+        raise NodeBudgetError("Nuke returned no node while building %s (Non-commercial 10-node limit); save the "
+                              "script, reopen it and try again." % group.name())
+    pixels.configure_write(w, pixels.temp_pixel_path(group.name()))
+    w["disable"].setValue(True)
     _add_motionblur_links(group)
     rk = nuke.Link_Knob("stroto_replace_alpha", "replace input alpha")
     rk.setLink("STROTO_shapes.replace")
@@ -843,6 +849,35 @@ def on_lock_range(group, lock: bool = True):
         return None
 
 
+MAIN_INNER = """set cut_paste_input [stack 0]
+version 17.1 v3
+Input {
+ inputs 0
+ name Input1
+}
+set N_IN [stack 0]
+Roto {
+ output alpha
+ replace true
+ name STROTO_shapes
+}
+Clamp {
+ channels alpha
+ minimum 0
+ maximum 1
+ name STROTO_clamp
+}
+Output {
+ name Output1
+}
+push $N_IN
+Write {
+ disable true
+ name STROTO_pixels
+}
+"""
+
+
 def _make_clamp(roto):
     c = nuke.nodes.Clamp(name="STROTO_clamp")
     c["channels"].setValue("alpha")
@@ -921,18 +956,14 @@ def on_delivery(group, zip_path: str = None):
     from .mattes import default_output_dir
     from .track import models_root
     try:
-        src = _inner(group, "src", None)
-        project = group["stroto_project"].value()
-        if not project:
-            raise ValueError("set a project file")
-        store, bus = _open_project(group, project)
-        row = store.conn.execute("SELECT id FROM shots WHERE name = ?", (src.name(),)).fetchone()
+        store, bus, _src, project, row = _shot_for(group)
+        name = _shot_name(group)
         if row is None:
-            raise ValueError("nothing tracked or imported yet for %s" % src.name())
+            raise ValueError("nothing tracked or imported yet for %s" % name)
         resync(group)                                           # capture the latest Roto edits first
         from st_roto import exr as _exr
-        exr_layer = _exr.layer_name(src.name())
-        mdir = group["stroto_matte_dir"].value().strip() or default_output_dir(project, src.name())
+        exr_layer = _exr.layer_name(name)
+        mdir = group["stroto_matte_dir"].value().strip() or default_output_dir(project, name)
         outputs = {"mattes": _latest_dir(mdir),
                    "shapes": _latest_dir(os.path.join(os.path.splitext(os.path.abspath(project))[0] + "_export",
                                                       exr_layer))}
@@ -2087,14 +2118,31 @@ def on_render_mattes(group, background: bool = True):
     return _run(group, "mattes", work, apply, background)
 
 
+def is_family_node(group):
+    """True for ST_RotoMatte / ST_RotoOutput (T-112): they name their shot in a knob and have no Roto of their own."""
+    return "stroto_kind" in group.knobs()
+
+
+def _shot_name(group):
+    """The shot a node works on: the family nodes' 'shot' knob, else the ST_Roto node's source name."""
+    if is_family_node(group):
+        name = group["stroto_shot"].value().strip()
+        if not name:
+            raise ValueError("set 'shot' (the name of the node feeding the ST_Roto node, e.g. Read1)")
+        return name
+    return _inner(group, "src", None).name()
+
+
 def _shot_for(group):
-    """(store, bus, src, shot row) for a node whose shot exists; raises ValueError otherwise."""
-    src = _inner(group, "src", None)
+    """(store, bus, src, project, shot row or None) for a node; src is None for family nodes. Raises ValueError."""
+    src = None if is_family_node(group) else _inner(group, "src", None)
     project = group["stroto_project"].value()
     if not project:
         raise ValueError("set a project file")
+    if is_family_node(group) and not os.path.exists(project):
+        raise ValueError("project file not found: %s" % project)
     store, bus = _open_project(group, project)
-    shot = store.conn.execute("SELECT * FROM shots WHERE name = ?", (src.name(),)).fetchone()
+    shot = store.conn.execute("SELECT * FROM shots WHERE name = ?", (_shot_name(group),)).fetchone()
     return store, bus, src, project, shot
 
 
@@ -2104,9 +2152,9 @@ def on_export_shapes(group, out_dir: str = None):
     try:
         store, bus, src, project, shot = _shot_for(group)
         if shot is None:
-            raise ValueError("nothing tracked or imported yet for %s" % src.name())
+            raise ValueError("nothing tracked or imported yet for %s" % _shot_name(group))
         resync(group)                                           # capture the latest Roto edits first
-        base = exr.layer_name(src.name())
+        base = exr.layer_name(_shot_name(group))
         out_dir = out_dir or os.path.join(os.path.splitext(os.path.abspath(project))[0] + "_export", base)
         os.makedirs(os.path.join(out_dir, "svg"), exist_ok=True)
         jpath = os.path.join(out_dir, base + ".json")
@@ -2124,6 +2172,33 @@ def on_export_shapes(group, out_dir: str = None):
         _status(group, "error: %s" % e); return None
     _status(group, "exported %s and %d SVG frames" % (jpath, len(svgs)))
     return {"json": jpath, "svg": svgs}
+
+
+def on_export_alembic(group, path: str = None):
+    """T-113: shot -> Alembic (.abc) next to the JSON export. Returns st_roto_nuke.alembic.write_shot's dict."""
+    from st_roto import exr
+    from . import alembic
+    try:
+        why = alembic.available()
+        if why:
+            raise ValueError("Alembic export is not available: %s" % why)
+        store, bus, src, project, shot = _shot_for(group)
+        if shot is None:
+            raise ValueError("nothing tracked or imported yet for %s" % _shot_name(group))
+        resync(group)                                           # capture the latest Roto edits first
+        base = exr.layer_name(_shot_name(group))
+        path = path or os.path.join(os.path.splitext(os.path.abspath(project))[0] + "_export", base, base + ".abc")
+        try:
+            fps = float(nuke.root()["fps"].value())
+        except Exception:                                      # noqa: BLE001
+            fps = 24.0
+        r = alembic.write_shot(store, shot["id"], path, fps=fps)
+    except (ValueError, NodeBudgetError, OSError, RuntimeError) as e:
+        _status(group, "error: %s" % e); return None
+    shapes = len(r["prims"]) // 2
+    _status(group, "exported %s: %d shape(s) as curves + outline meshes, frames %d-%d at %g fps (pixel units, y up)"
+            % (r["path"], shapes, r["frames"][0], r["frames"][1], fps))
+    return r
 
 
 def on_import_shapes(group, path: str = None):
@@ -2241,7 +2316,9 @@ def store_ro(path):
 
 def resync(group, import_first: bool = True):
     """Capture artist edits made in the Roto node (import_edits), then make the Roto node reflect the project
-    (sync_shot). Returns the sync report with the import report under "import"."""
+    (sync_shot). Returns the sync report with the import report under "import". Family nodes (no Roto): None."""
+    if is_family_node(group):
+        return None
     store, bus = _open_project(group, group["stroto_project"].value())
     src = _inner(group, "src", None)
     shot = store.conn.execute("SELECT id FROM shots WHERE name = ?", (src.name(),)).fetchone()

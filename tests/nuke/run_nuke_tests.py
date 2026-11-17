@@ -2267,6 +2267,186 @@ def test_review_overlay_and_presets(res):
     return bool(ok)
 
 
+def test_node_family(res):
+    """T-112 (REQ-040, REQ-292): in ONE fresh Non-commercial session - Read, ST_Roto (box prompt, Track: 2 objects,
+    one made a holdout), ST_RotoMatte (validation errors; Check; render; its output in the node graph: alpha = the
+    combined matte, per-object layers, plate RGB unchanged; role filter), ST_RotoOutput (export, delivery) - and
+    Node-object budget left over."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    import st_roto_nuke.family as fam
+    from st_roto import exr
+    from st_roto_nuke import session
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vw, vh, n = meta["w"], meta["h"], 8
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "fam.stroto")
+    g = stnode.create(rd, proj)
+
+    def gt(f):
+        return cv2.imread(VIDEO + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE) > 127
+
+    def set_box(name, x0, y0, x1, y1):
+        g["stroto_object"].setValue(name)
+        g["stroto_box"].setValue([x0, vh - y1, x1, vh - y0])
+        stnode.on_set_box(g)
+    nuke.frame(0)
+    ys, xs = np.nonzero(gt(0))
+    set_box("target", xs.min() - 4.0, ys.min() - 4.0, xs.max() + 5.0, ys.max() + 5.0)
+    set_box("disc", 1050 - 95.0, 560 - 95.0, 1050 + 95.0, 560 + 95.0)
+    job = stnode.on_track(g, background=False)
+    res["track_status"] = g["stroto_status"].value()
+    if job is None or job.status != "done":
+        res["error"] = job.error if job else "no job"; return False
+    g["stroto_object"].setValue("disc")
+    stnode.on_set_role(g, "holdout")
+    m = fam.create_matte(g, proj, "")
+    ok = True
+    # validation
+    res["err_no_shot"] = (fam.on_matte_render(m, background=False), m["stroto_status"].value())[1]
+    m["stroto_shot"].setValue("Read9")
+    fam.on_check(m)
+    res["err_wrong_shot"] = m["stroto_status"].value()
+    m["stroto_shot"].setValue(rd.name())
+    m["stroto_objects"].setValue("target, nobody")
+    fam.on_check(m)
+    res["err_unknown_object"] = m["stroto_status"].value()
+    m["stroto_objects"].setValue("")
+    m["stroto_role_filter"].setValue("garbage")
+    fam.on_check(m)
+    res["err_no_garbage"] = m["stroto_status"].value()
+    ok &= "set 'shot'" in res["err_no_shot"] and "no shot 'Read9'" in res["err_wrong_shot"] and "Read1" in res["err_wrong_shot"]
+    ok &= "no object named nobody" in res["err_unknown_object"] and "no object to render" in res["err_no_garbage"]
+    m["stroto_role_filter"].setValue("all roles")
+    chk = fam.on_check(m)
+    res["check"] = m["stroto_status"].value()
+    ok &= chk is not None and sorted(chk["chosen"]) == ["disc", "target"] and "disc [holdout]" in res["check"]
+    # before rendering: pass-through
+    w = nuke.nodes.Write(inputs=[m])
+    path = OUT + "/family_matte.exr"
+    w["file"].setValue(path); w["file_type"].setValue("exr"); w["datatype"].setValue("32 bit float")
+    w["channels"].setValue("all")
+    nuke.execute(w, 3, 3)
+    before = exr.read_channels(path)
+    plate = cv2.imread(VIDEO + "/frame_0003.png")[:, :, ::-1].astype(np.float32) / 255.0
+    jm = fam.on_matte_render(m, background=False)
+    res["matte_status"] = m["stroto_status"].value()
+    if jm is None or jm.status != "done":
+        res["matte_error"] = jm.error if jm else "no job"; return False
+    nuke.execute(w, 3, 3)
+    after = exr.read_channels(path)
+    res["after_channels"] = sorted(after)
+    t3 = gt(3)
+    res["alpha_vs_target_truth"] = round(iou(after["A"] > 0.5, t3), 4)
+    res["target_layer_vs_truth"] = round(iou(after.get("target.A", np.zeros_like(t3, np.float32)) > 0.5, t3), 4)
+    res["rgb_unchanged"] = float(max(np.abs(after[c] - before[c]).max() for c in "RGB"))
+    disc = after.get("disc.A")
+    res["holdout_layer_px"] = int((disc > 0.5).sum()) if disc is not None else None
+    ok &= res["rgb_unchanged"] == 0.0 and res["alpha_vs_target_truth"] > 0.95 and res["target_layer_vs_truth"] > 0.95
+    ok &= disc is not None and res["holdout_layer_px"] > 1000 and "Read1" in m["stroto_pattern"].value()
+    # holdouts only
+    m["stroto_role_filter"].setValue("holdout")
+    jh = fam.on_matte_render(m, background=False)
+    nuke.execute(w, 3, 3)
+    hold = exr.read_channels(path)
+    res["holdout_only_layers"] = sorted(k for k in hold if k.endswith(".A"))
+    ok &= jh is not None and jh.status == "done" and "target.A" not in hold and "disc.A" in hold
+    # output node
+    o = fam.create_output(m, proj, rd.name())
+    rj = fam.on_output(o, "export")
+    res["export_status"] = o["stroto_status"].value()
+    rdv = fam.on_output(o, "delivery")
+    res["delivery_status"] = o["stroto_status"].value()
+    ok &= rj is not None and os.path.exists(rj["json"]) and len(rj["svg"]) == n and rdv is not None
+    res["budget_left"] = sum(1 for _ in range(12) if nuke.nodes.NoOp() is not None)
+    ok &= res["budget_left"] >= 2
+    return bool(ok)
+
+
+def test_alembic_export(res):
+    """T-113: 'Export Alembic' on an ST_Roto node: an object with a main shape (frames 1-5) and a part shape that is
+    collapsed (piece absent) on frame 3. Read back through USD: curve / mesh points equal st_roto.geomexport of the
+    stored keys; the part is invisible on frame 3. Nuke 17's own 3D (GeoImport + orthographic Camera3 +
+    ScanlineRender2) renders the meshes on top of ST-ROTO's exact raster of the splines."""
+    import st_roto_nuke.node as stnode
+    from st_roto import exr, geomexport as ge, model as m
+    from st_roto.geometry import mask_to_points
+    from st_roto.stereo import mask_from_keys
+    from st_roto_nuke import alembic, session
+    if alembic.available():
+        res["skipped"] = alembic.available(); return True
+    W_, H_ = 640, 360
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=1, last=5)
+    proj = os.path.join(tempfile.mkdtemp(), "abc.stroto")
+    g = stnode.create(rd, proj)
+    store, bus = session.project(proj)
+    OID, SID, PID = "0a0b0c0d" + "0" * 24, "1a2b3c4d" + "0" * 24, "2a2b3c4d" + "0" * 24
+    bus.execute({"op": "create_shot", "row": {"id": "S", "name": rd.name(), "width": W_, "height": H_,
+                                              "first_frame": 1, "last_frame": 5}})
+    bus.execute({"op": "create_object", "row": {"id": OID, "shot_id": "S", "name": "hero arm"}}, actor=m.ACTOR_AI)
+    bus.execute({"op": "create_shape", "row": {"id": SID, "object_id": OID, "name": "hero arm", "point_count": 12}},
+                actor=m.ACTOR_AI)
+    bus.execute({"op": "create_shape", "row": {"id": PID, "object_id": OID, "name": "hero arm_part2",
+                                               "point_count": 8, "generator": json.dumps({"part_of": SID})}},
+                actor=m.ACTOR_AI)
+    yy, xx = np.mgrid[0:H_, 0:W_] + 0.5
+    keys, parts = {}, {}
+    for f in range(1, 6):
+        u = (xx - 200 - 30 * f) / 110.0; v = (yy - 150 - 10 * f) / 60.0
+        keys[f] = mask_to_points(1 - np.sqrt(u * u + v * v), count=12)
+        parts[f] = mask_to_points(25 - np.hypot(xx - 520, yy - 280 + 5 * f), count=8) if f != 3 else [[520.0, 80.0] * 3] * 8
+        bus.execute({"op": "set_key", "shape_id": SID, "frame": f, "points": keys[f]}, actor=m.ACTOR_AI)
+        bus.execute({"op": "set_key", "shape_id": PID, "frame": f, "points": parts[f]}, actor=m.ACTOR_AI)
+    r = stnode.on_export_alembic(g)
+    res["status"] = g["stroto_status"].value()
+    if r is None:
+        return False
+    res["prims"] = sorted(r["prims"])
+    ok = open(r["path"], "rb").read(5) == b"Ogawa"
+    back = alembic.read_back(r["path"])
+    err = 0.0
+    for pth, per in back.items():
+        src = parts if "part2" in pth else keys
+        for f, pts in per.items():
+            if f not in src or (src is parts and f == 3):
+                continue
+            exp = ge.curve_points(src[f], H_) if pth.endswith("curveShape") else ge.mesh_polygon(src[f], H_)
+            err = max(err, float(np.abs(np.array(pts) - exp).max()))
+    res["read_back_max_error_px"] = err
+    ok &= len(back) == 4 and err < 1e-3
+    from pxr import Usd, UsdGeom
+    st = Usd.Stage.Open(r["path"])
+    vis = {}
+    for p in st.Traverse():
+        if p.GetTypeName() in ("Mesh", "BasisCurves"):
+            a = UsdGeom.Imageable(p).GetVisibilityAttr()
+            vis[str(p.GetPath())] = {f: str(a.Get(f)) for f in (2, 3, 4)}
+    res["visibility"] = vis
+    ok &= all(v[3] == "invisible" and v[2] == "inherited" for k, v in vis.items() if "part2" in k)
+    ok &= all(v[3] == "inherited" for k, v in vis.items() if "part2" not in k)
+    # Nuke's own 3D renders the meshes
+    nuke.root()["format"].setValue(nuke.addFormat("%d %d 1 abc_test" % (W_, H_)))
+    gi = nuke.nodes.GeoImport(file=r["path"].replace("\\", "/"))          # Nuke file knobs: forward slashes
+    cam = nuke.nodes.Camera3()
+    cam["projection_mode"].setValue("orthographic"); cam["focal"].setValue(1.0)
+    cam["haperture"].setValue(float(W_)); cam["vaperture"].setValue(float(H_))
+    cam["translate"].setValue([W_ / 2.0, H_ / 2.0, 100.0])
+    sr = nuke.nodes.ScanlineRender2()
+    sr.setInput(1, gi); sr.setInput(2, cam)
+    wr = nuke.nodes.Write(file=OUT + "/abc_render.####.exr", file_type="exr", datatype="32 bit float", channels="rgba")
+    wr.setInput(0, sr)
+    q = {}
+    for f in (1, 3, 5):
+        nuke.execute(wr, f, f)
+        a = exr.read_channels(OUT + "/abc_render.%04d.exr" % f)["A"] > 0.5
+        ref = mask_from_keys([keys[f]] + ([parts[f]] if f != 3 else []), H_, W_)
+        q[f] = round(iou(a, ref), 4)
+    res["nuke_3d_render_iou"] = q
+    ok &= all(x > 0.99 for x in q.values())
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
@@ -2278,7 +2458,8 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_system_report, test_memory_aware_model, test_retrack_flagged_large,
          test_collaboration_ui, test_propagation_controls, test_roles_and_merge,
          test_matte_outputs, test_prompt_from_mask, test_model_manager,
-         test_delivery_package, test_stereo_views, test_extra_channels, test_review_overlay_and_presets)
+         test_delivery_package, test_stereo_views, test_extra_channels, test_review_overlay_and_presets,
+         test_node_family, test_alembic_export)
 
 
 def main():

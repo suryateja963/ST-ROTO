@@ -1,0 +1,5 @@
+{
+ "case": "paste",
+ "paste_return": "\ngroup_view_position top-left\nshow_group_view false\ndisable_group_view false\nlock_connections false\nmapsize 0.15\nnote \"\"",
+ "remaining_after_paste": 9
+}

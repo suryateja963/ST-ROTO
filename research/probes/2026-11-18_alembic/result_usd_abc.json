@@ -1,0 +1,215 @@
+{
+ "pxr_import": "C:\\Program Files\\Nuke17.1v3\\FnUSD\\lib\\python\\pxr\\__init__.py",
+ "file_formats": {
+  "usd": true,
+  "usda": true,
+  "usdc": true,
+  "abc": true
+ },
+ "usd_version": [
+  0,
+  25,
+  8
+ ],
+ "write_abc": {
+  "size": 2222,
+  "magic": "4f67617761ff00017608000000000000",
+  "prims": [
+   [
+    "/stroto",
+    "Xform"
+   ],
+   [
+    "/stroto/hero",
+    "Xform"
+   ],
+   [
+    "/stroto/hero/heroShape",
+    "BasisCurves"
+   ]
+  ],
+  "start_end_tps": [
+   1.0,
+   3.0,
+   24.0
+  ],
+  "curve": {
+   "path": "/stroto/hero/heroShape",
+   "basis": "bezier",
+   "type": "cubic",
+   "wrap": "periodic",
+   "samples": [
+    0.0,
+    1.0,
+    2.0,
+    3.0
+   ],
+   "counts": [],
+   "counts_at_1": [
+    12
+   ],
+   "counts_samples": [
+    0.0
+   ],
+   "first_point_each_sample": [
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     1.0,
+     0.0,
+     0.0
+    ],
+    [
+     2.0,
+     0.0,
+     0.0
+    ],
+    [
+     3.0,
+     0.0,
+     0.0
+    ]
+   ],
+   "n_points": [
+    12,
+    12,
+    12,
+    12
+   ],
+   "attrs": [
+    "accelerations",
+    "basis",
+    "curveVertexCounts",
+    "doubleSided",
+    "extent",
+    "normals",
+    "orientation",
+    "points",
+    "primvars:displayColor",
+    "primvars:displayOpacity",
+    "purpose",
+    "type",
+    "velocities",
+    "visibility",
+    "widths",
+    "wrap",
+    "xformOpOrder"
+   ]
+  }
+ },
+ "nuke_read_nodes": {
+  "ReadGeo2": {
+   "created": true,
+   "file_knob": "file",
+   "error": false
+  },
+  "ReadGeo": {
+   "created": true,
+   "file_knob": "file",
+   "error": false
+  },
+  "GeoImport": {
+   "created": true,
+   "file_knob": "file",
+   "error": false
+  }
+ },
+ "readgeo2_details": {
+  "knobs": [
+   "all_objects",
+   "autolabel",
+   "bookmark",
+   "cacheLocal",
+   "cached",
+   "cast_shadow",
+   "disable",
+   "display",
+   "dope_sheet",
+   "export_chan",
+   "file",
+   "file_menu",
+   "file_menu_lbl",
+   "frame_rate",
+   "geo_select",
+   "gl_color",
+   "gl_display",
+   "gl_render_mode",
+   "gl_selectable",
+   "gl_wireframe_overlay",
+   "help",
+   "hide_input",
+   "icon",
+   "import_chan",
+   "indicators",
+   "knobChanged",
+   "label",
+   "lifetimeEnd",
+   "lifetimeStart",
+   "localizationPolicy",
+   "localizationPriority",
+   "lock_frame",
+   "matrix",
+   "name",
+   "note_font",
+   "note_font_color",
+   "note_font_size",
+   "onCreate",
+   "onDestroy",
+   "panel",
+   "pivot",
+   "pivot_rotate",
+   "pivot_translate",
+   "point_render_mode",
+   "postage_stamp",
+   "postage_stamp_frame",
+   "range_first",
+   "range_last",
+   "read_on_each_frame",
+   "receive_shadow",
+   "reload",
+   "render",
+   "render_mode",
+   "rootNodeUpdated",
+   "rot_order",
+   "rotate",
+   "scaling",
+   "scene_view",
+   "selectable",
+   "selected",
+   "skew",
+   "snap_menu",
+   "snap_menu_lbl",
+   "sub_frame",
+   "tile_color",
+   "transform",
+   "translate",
+   "uniform_scale",
+   "updateLocalization",
+   "updateUI",
+   "useLifetime",
+   "useMatrix",
+   "use_geometry_colors",
+   "version",
+   "xform_order",
+   "xpos",
+   "ypos"
+  ],
+  "k_read_on_each_frame": "True",
+  "k_sub_frame": "True",
+  "k_lock_frame": "1.0",
+  "k_frame_rate": "24.0",
+  "k_gl_wireframe_overlay": "None",
+  "k_scene_view": "0",
+  "k_all_objects": "False",
+  "k_postage_stamp_frame": "1.0",
+  "scene_view_items": [
+   "-------          "
+  ],
+  "scene_view_selected": [
+   "-------          "
+  ]
+ }
+}

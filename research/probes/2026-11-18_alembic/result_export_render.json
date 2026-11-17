@@ -1,0 +1,131 @@
+{
+ "prims": {
+  "/st_roto/hero_arm/hero_arm_curve": [
+   "hero arm",
+   "hero arm"
+  ],
+  "/st_roto/hero_arm/hero_arm_mesh": [
+   "hero arm",
+   "hero arm"
+  ]
+ },
+ "magic": "Ogawa",
+ "read_back_paths": [
+  "/st_roto/hero_arm/hero_arm_curve/hero_arm_curveShape",
+  "/st_roto/hero_arm/hero_arm_mesh/hero_arm_meshShape"
+ ],
+ "extra_sample_times": {
+  "/st_roto/hero_arm/hero_arm_curve/hero_arm_curveShape": 0,
+  "/st_roto/hero_arm/hero_arm_mesh/hero_arm_meshShape": 0
+ },
+ "extra_sample_equals_first": {
+  "/st_roto/hero_arm/hero_arm_curve/hero_arm_curveShape": true,
+  "/st_roto/hero_arm/hero_arm_mesh/hero_arm_meshShape": true
+ },
+ "read_back_max_error_curve": 1.4780592380247981e-05,
+ "read_back_max_error_mesh": 1.5093574006641575e-05,
+ "read_back_frames": {
+  "/st_roto/hero_arm/hero_arm_curve/hero_arm_curveShape": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5
+  ],
+  "/st_roto/hero_arm/hero_arm_mesh/hero_arm_meshShape": [
+   0,
+   1,
+   2,
+   3,
+   4,
+   5
+  ]
+ },
+ "geoimport_knobs": [
+  "act_as_layer_break",
+  "autolabel",
+  "bookmark",
+  "cacheLocal",
+  "cached",
+  "disable",
+  "dope_sheet",
+  "file",
+  "gl_color",
+  "help",
+  "hide_input",
+  "icon",
+  "indicators",
+  "knobChanged",
+  "label",
+  "lifetimeEnd",
+  "lifetimeStart",
+  "localizationPolicy",
+  "localizationPriority",
+  "name",
+  "note_font",
+  "note_font_color",
+  "note_font_size",
+  "onCreate",
+  "onDestroy",
+  "panel",
+  "postage_stamp",
+  "postage_stamp_frame",
+  "promote_layer_metadata",
+  "range_first",
+  "range_last",
+  "reload",
+  "rootNodeUpdated",
+  "selected",
+  "stageUpdate",
+  "tile_color",
+  "time_offset",
+  "time_scale",
+  "updateLocalization",
+  "updateUI",
+  "usd_scenegraph",
+  "useLifetime",
+  "version",
+  "xpos",
+  "ypos"
+ ],
+ "camera_class": "Camera3",
+ "camera_knobs": [
+  "file_proj_link",
+  "focal",
+  "focal_point",
+  "haperture",
+  "pivot_translate",
+  "projection_mode",
+  "read_from_file_proj_link",
+  "reload_proj_link",
+  "translate",
+  "vaperture",
+  "win_scale",
+  "win_translate",
+  "winroll"
+ ],
+ "render_class": "ScanlineRender2",
+ "render_inputs": [
+  0,
+  1,
+  2
+ ],
+ "nuke_render_vs_spline": {
+  "1": {
+   "iou": 0.9999,
+   "alpha_px": 20738,
+   "ref_px": 20738
+  },
+  "3": {
+   "iou": 0.9999,
+   "alpha_px": 20738,
+   "ref_px": 20738
+  },
+  "5": {
+   "iou": 0.9999,
+   "alpha_px": 20739,
+   "ref_px": 20740
+  }
+ }
+}

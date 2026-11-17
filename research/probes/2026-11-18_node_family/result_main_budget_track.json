@@ -1,0 +1,98 @@
+{
+ "steps": [
+  {
+   "step": "Read",
+   "objects_so_far": 1,
+   "new": [
+    [
+     "nodes.Read",
+     "Read1",
+     ""
+    ]
+   ]
+  },
+  {
+   "step": "ST_Roto create",
+   "objects_so_far": 4,
+   "new": [
+    [
+     "nodes.Group",
+     "ST_Roto1",
+     ""
+    ],
+    [
+     "nodePaste",
+     "STROTO_pixels",
+     "File \"D:\\ST-ROTO/src\\st_roto_nuke\\family.py\", line 109, in _paste_inner"
+    ],
+    [
+     "toNode",
+     "STROTO_shapes",
+     "File \"D:\\ST-ROTO/src\\st_roto_nuke\\node.py\", line 270, in create"
+    ]
+   ]
+  },
+  {
+   "step": "Set box",
+   "objects_so_far": 4,
+   "new": []
+  },
+  {
+   "step": "Track",
+   "objects_so_far": 4,
+   "new": []
+  },
+  {
+   "step": "Render mattes",
+   "objects_so_far": 4,
+   "new": []
+  },
+  {
+   "step": "ST_RotoMatte create",
+   "objects_so_far": 6,
+   "new": [
+    [
+     "nodes.Group",
+     "ST_RotoMatte1",
+     ""
+    ],
+    [
+     "nodePaste",
+     "STROTO_pixels",
+     "File \"D:\\ST-ROTO/src\\st_roto_nuke\\family.py\", line 109, in _paste_inner"
+    ]
+   ]
+  },
+  {
+   "step": "ST_RotoMatte render",
+   "objects_so_far": 6,
+   "new": []
+  },
+  {
+   "step": "ST_RotoOutput create",
+   "objects_so_far": 8,
+   "new": [
+    [
+     "nodes.Group",
+     "ST_RotoOutput1",
+     ""
+    ],
+    [
+     "nodePaste",
+     "Output1",
+     "File \"D:\\ST-ROTO/src\\st_roto_nuke\\family.py\", line 109, in _paste_inner"
+    ]
+   ]
+  },
+  {
+   "step": "ST_RotoOutput export",
+   "objects_so_far": 8,
+   "new": []
+  }
+ ],
+ "track": "done: 8 keys (12 points), 0 frames without object; device cuda",
+ "matte_status": "mattes of target: 8 frames 1280x720 (guided edges) -> <HOME>/AppData/Local/Temp/tmpmpian2cq/b_mattes/Read1_ST_RotoMatte1/Read1_mattes.####.exr; alpha = combined, layers: target",
+ "output_status": "exported <HOME>\\AppData\\Local\\Temp\\tmpmpian2cq\\b_export\\Read1\\Read1.json and 8 SVG frames",
+ "budget_left_after_all": 5,
+ "total": 8
+}
