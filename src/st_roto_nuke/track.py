@@ -21,8 +21,15 @@ ANCHORS = 16
 
 
 def models_root() -> str:
+    """The PLUGIN location's onnx folder (dev layout: <repo>/models/onnx). Use model_dir(name) to load a model."""
     here = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(os.path.dirname(os.path.dirname(here)), "models", "onnx")      # dev layout: <repo>/models/onnx
+    return os.path.join(os.path.dirname(os.path.dirname(here)), "models", "onnx")
+
+
+def model_dir(name: str) -> str:
+    """Folder of model `name` in the storage location that is used (user, studio, plugin; T-101)."""
+    from st_roto_ai.registry import model_dir as _md          # no ONNX Runtime import (registry is plain Python)
+    return _md(name)
 
 
 def _ram_budget(n_objects, total=24, horizon=16):
@@ -72,7 +79,7 @@ def track_objects(get_rgb, frames, objects, model="sam2.1-hiera-tiny", device="a
             raise ValueError("no checkpoint to resume in %s" % checkpoint_dir)
         if saved["definition"] != json.loads(json.dumps(definition)):
             raise ValueError("the checkpoint belongs to a different tracking run (prompts, frames or settings differ)")
-    multi = Sam2MultiVideo(os.path.join(models_root(), model, "video"), device=device)
+    multi = Sam2MultiVideo(os.path.join(model_dir(model), "video"), device=device)
     runs = []
     for i, o in enumerate(objects):
         pts = [tuple(p) for p in o["points"]]
@@ -242,7 +249,7 @@ def retrack_objects(get_rgb, store, shape_ids, frames, width, height, model="sam
     plans = [retrack_plan(store, sid, frames, (fixes or {}).get(sid), (anchors or {}).get(sid)) for sid in shape_ids]
     if not plans:
         raise ValueError("no objects to re-track")
-    multi = Sam2MultiVideo(os.path.join(models_root(), model, "video"), device=device)
+    multi = Sam2MultiVideo(os.path.join(model_dir(model), "video"), device=device)
     for i, p in enumerate(plans):
         seq = pieces.Sequencer(count=p["anchors"], parts=parts)
         for f, pts in p["artist"].items():

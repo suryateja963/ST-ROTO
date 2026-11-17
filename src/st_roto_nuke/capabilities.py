@@ -21,7 +21,6 @@ def edition() -> str:
 
 
 def facts(group=None) -> dict:
-    from .track import models_root
     from . import node as stnode
     f = {"nuke_version": getattr(nuke, "NUKE_VERSION_STRING", "?"), "edition": edition()}
     gi = cap.gpu_info()
@@ -35,10 +34,11 @@ def facts(group=None) -> dict:
             from st_roto_ai import runtime
             f["providers"] = runtime.available_devices()
             f["ort_version"] = runtime.ort.__version__
-    root = models_root()
-    f["models"] = {"sam2.1-hiera-tiny": os.path.exists(os.path.join(root, "sam2.1-hiera-tiny", "video")),
-                   "sam2.1-hiera-large": os.path.exists(os.path.join(root, "sam2.1-hiera-large", "video")),
-                   "vitmatte-small-composition-1k": _vitmatte_present(root)}
+    from .track import model_dir
+    f["models"] = {"sam2.1-hiera-tiny": os.path.exists(os.path.join(model_dir("sam2.1-hiera-tiny"), "video")),
+                   "sam2.1-hiera-large": os.path.exists(os.path.join(model_dir("sam2.1-hiera-large"), "video")),
+                   "vitmatte-small-composition-1k": _vitmatte_present(
+                       os.path.dirname(model_dir("vitmatte-small-composition-1k")))}
     try:
         f["ocio"] = nuke.root()["colorManagement"].value() == "OCIO"
     except Exception:                                         # noqa: BLE001

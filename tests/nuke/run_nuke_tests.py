@@ -1840,6 +1840,45 @@ def test_prompt_from_mask(res):
     return bool(ok)
 
 
+def test_model_manager(res):
+    """T-101 / REQ-052, REQ-130: model manager logic in real Nuke. Rows show the installed models with licence and
+    approval; full Verify of tiny; Self-test of tiny (tracks a generated disc, IoU and time) and ViTMatte; import of
+    tiny into a temporary USER location -> it is then the copy used (self-test runs from it, every file verified
+    from its own location); Remove of that copy -> the plugin copy is used again."""
+    from st_roto_nuke import models_ui
+    from st_roto_nuke.track import model_dir
+    from st_roto_ai import registry as reg
+    rows = models_ui.rows()
+    res["rows"] = [(r["name"], r["location"], r["active"], r["licence"], r["approval"], r["vram"]) for r in rows]
+    names = {r["name"]: r for r in rows if r["location"] == "plugin"}
+    ok = all(n in names and names[n]["usable"] and names[n]["active"]
+             for n in ("sam2.1-hiera-tiny", "sam2.1-hiera-large", "vitmatte-small-composition-1k"))
+    v = models_ui.verify("sam2.1-hiera-tiny", names["sam2.1-hiera-tiny"]["root"])
+    res["verify_tiny"] = {"ok": v["ok"], "files": len(v["files"]) - 1, "seconds": v["seconds"]}
+    st = models_ui.self_test("sam2.1-hiera-tiny")
+    res["self_test_tiny"] = st
+    sv = models_ui.self_test("vitmatte-small-composition-1k")
+    res["self_test_vitmatte"] = sv
+    ok &= v["ok"] and st["ok"] and st["device"] == "cuda" and sv["ok"]
+    user = tempfile.mkdtemp()
+    os.environ["ST_ROTO_MODELS_USER"] = user
+    imp = models_ui.import_from(names["sam2.1-hiera-tiny"]["root"], "sam2.1-hiera-tiny", "user")
+    res["import"] = {"files": imp["files"]}
+    res["used_after_import"] = os.path.abspath(model_dir("sam2.1-hiera-tiny")).startswith(os.path.abspath(user))
+    from st_roto_ai import runtime
+    runtime.clear_cache()                                      # load the user copy, not the cached plugin sessions
+    st2 = models_ui.self_test("sam2.1-hiera-tiny")
+    res["self_test_from_user_copy"] = st2
+    gone = models_ui.remove("sam2.1-hiera-tiny", user)
+    res["removed"] = len(gone)
+    res["used_after_remove"] = os.path.abspath(model_dir("sam2.1-hiera-tiny")).startswith(
+        os.path.abspath(reg.default_models_root()))
+    del os.environ["ST_ROTO_MODELS_USER"]
+    ok &= (res["used_after_import"] and st2["ok"] and res["removed"] == 1 and res["used_after_remove"]
+           and imp["files"] >= 5)
+    return bool(ok)
+
+
 NET_EVENTS = ("socket.__new__", "socket.bind", "socket.connect", "socket.sendto", "socket.sendmsg",
               "socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyaddr", "socket.getnameinfo",
               "urllib.Request", "http.client.connect", "http.client.send", "ftplib.connect", "smtplib.connect",
@@ -1903,7 +1942,7 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_difficult_sequences, test_traditional_roto_without_ai, test_plate_above_render_limit,
          test_system_report, test_memory_aware_model, test_retrack_flagged_large,
          test_collaboration_ui, test_propagation_controls, test_roles_and_merge,
-         test_matte_outputs, test_prompt_from_mask)
+         test_matte_outputs, test_prompt_from_mask, test_model_manager)
 
 
 def main():

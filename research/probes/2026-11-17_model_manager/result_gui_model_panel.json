@@ -1,0 +1,25 @@
+{
+ "gui": true,
+ "rows": [
+  [
+   "sam2.1-hiera-large",
+   "plugin",
+   "yes",
+   "apache-2.0"
+  ],
+  [
+   "sam2.1-hiera-tiny",
+   "plugin",
+   "yes",
+   "apache-2.0"
+  ],
+  [
+   "vitmatte-small-composition-1k",
+   "plugin",
+   "yes",
+   "apache-2.0"
+  ]
+ ],
+ "verify_info": "sam2.1-hiera-tiny: all files verified (12 files, 1.7 s)",
+ "passed": true
+}

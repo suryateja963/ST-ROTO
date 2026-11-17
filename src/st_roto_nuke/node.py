@@ -438,7 +438,8 @@ def plan_model(choice, device):
     """Memory-aware (model, device, note) for an AI action (T-092, REQ-021): measured GPU memory needs vs free
     memory now (local nvidia-smi); models already loaded by this Nuke need nothing new."""
     from st_roto import capabilities as cap
-    present = {m: os.path.exists(os.path.join(models_root(), m, "video")) for m in MODELS if m != AUTO_MODEL}
+    from .track import model_dir
+    present = {m: os.path.exists(os.path.join(model_dir(m), "video")) for m in MODELS if m != AUTO_MODEL}
     loaded = _loaded_models()
     gi = cap.gpu_info() if device != "cpu" else {"gpus": []}
     free = gi["gpus"][0]["free_mib"] if gi["gpus"] else None
@@ -579,6 +580,12 @@ def on_set_role(group, role=None):
     except (ValueError, NodeBudgetError, KeyError) as e:
         _status(group, "error: %s" % e)
         return None
+
+
+def _vitmatte_root():
+    """The onnx folder of the location holding ViTMatte-S (T-101; vitmatte.model_path joins the model name)."""
+    from .track import model_dir
+    return os.path.dirname(model_dir("vitmatte-small-composition-1k"))
 
 
 def _anchors(group):
@@ -921,7 +928,8 @@ def on_load_model(group):
     model, device, note = plan_model(group["stroto_model"].value(), group["stroto_device"].value())
     group["stroto_status"].setValue("loading %s (Nuke may pause briefly)..." % model)
     try:
-        r = preload_video(os.path.join(models_root(), model, "video"), device)
+        from .track import model_dir
+        r = preload_video(os.path.join(model_dir(model), "video"), device)
     except Exception as e:
         group["stroto_status"].setValue("failed to load model: %s" % e)
         return None
@@ -1256,7 +1264,7 @@ def on_render_mattes(group, background: bool = True):
         ro = store_ro(project)          # worker thread: its own connection
         try:
             return render_mattes(get_rgb, ro, shot["id"], frames, out_dir, soft=soft, method=method,
-                                 models_root=models_root(), device=dev, band=band, radius=radius, out_size=out_size,
+                                 models_root=_vitmatte_root() if method == "vitmatte" else None, device=dev, band=band, radius=radius, out_size=out_size,
                                  **extras,
                                  job=job, colour_transform=ctransform)
         finally:

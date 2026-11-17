@@ -1,0 +1,72 @@
+{
+ "nuke": "17.1v3",
+ "nc": true,
+ "test_model_manager": {
+  "rows": [
+   [
+    "sam2.1-hiera-large",
+    "plugin",
+    true,
+    "apache-2.0",
+    "owner request 2026-11-15",
+    "fits (7132 of 8151 MiB)"
+   ],
+   [
+    "sam2.1-hiera-tiny",
+    "plugin",
+    true,
+    "apache-2.0",
+    "D-015",
+    "fits (3916 of 8151 MiB)"
+   ],
+   [
+    "vitmatte-small-composition-1k",
+    "plugin",
+    true,
+    "apache-2.0",
+    "D-032",
+    "-"
+   ]
+  ],
+  "verify_tiny": {
+   "ok": true,
+   "files": 12,
+   "seconds": 1.7
+  },
+  "self_test_tiny": {
+   "ok": true,
+   "device": "cuda",
+   "iou": [
+    0.9966,
+    0.9966,
+    0.9935
+   ],
+   "seconds_per_frame": 1.74,
+   "note": "includes model load on the first run"
+  },
+  "self_test_vitmatte": {
+   "ok": true,
+   "mean_abs_error": 0.0002,
+   "seconds": 0.99
+  },
+  "import": {
+   "files": 12
+  },
+  "used_after_import": true,
+  "self_test_from_user_copy": {
+   "ok": true,
+   "device": "cuda",
+   "iou": [
+    0.9966,
+    0.9966,
+    0.9935
+   ],
+   "seconds_per_frame": 1.339,
+   "note": "includes model load on the first run"
+  },
+  "removed": 1,
+  "used_after_remove": true,
+  "passed": true
+ },
+ "failed": 0
+}

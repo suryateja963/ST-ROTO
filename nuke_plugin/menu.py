@@ -10,5 +10,6 @@ _f.addCommand("System report...", "import st_roto_nuke.capabilities as c; c.show
 try:
     import nukescripts
     nukescripts.panels.registerWidgetAsPanel("st_roto_nuke.panel.ObjectPanel", "ST-ROTO Objects", "st_roto.objects")
+    nukescripts.panels.registerWidgetAsPanel("st_roto_nuke.model_panel.ModelPanel", "ST-ROTO Models", "st_roto.models")
 except Exception as e:                                     # never break Nuke start-up because of ST-ROTO
     nuke.tprint("ST-ROTO: object panel not registered: %s" % e)

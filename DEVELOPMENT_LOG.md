@@ -414,3 +414,7 @@ Commit 1ee7c06 (T-099) contained the Windows user name inside a truncated temp p
 ## 2026-11-17 - T-100 rough masks as prompts; D-042
 
 Owner decided to keep the git history (D-042). Built prompts from rough masks: a Roto shape/polygon in the node, another node's alpha, or a mask file become box + interior clicks (not a SAM mask prompt, which would keep the rough edge on its frame). Nuke test with deliberately rough inputs (IoU 0.95, 0.61, 0.89 vs truth) tracked at 0.985-0.994.
+
+## 2026-11-17 - T-101 model manager
+
+Built the ST-ROTO Models panel and its logic: models across user / studio / plugin locations (lookup order, file verification infers its location), full re-verification, a self-test that tracks a generated disc (accuracy + time per frame), removal and import of approved, checksummed models only. Downloads remain the owner-approved tool. Loading now resolves each model's location (model_dir) everywhere. Nuke test passes (incl. import into a user location, using that copy, removing it) and a GUI probe drives the panel. The full suite caught a regression: Render mattes looked up ViTMatte's location for every edge method, which imported st_roto_ai.registry in a purely traditional (AI-off) workflow; the lookup is now made only for ViTMatte edges (AI-off, ViTMatte and matte tests pass again).
