@@ -418,3 +418,7 @@ Owner decided to keep the git history (D-042). Built prompts from rough masks: a
 ## 2026-11-17 - T-101 model manager
 
 Built the ST-ROTO Models panel and its logic: models across user / studio / plugin locations (lookup order, file verification infers its location), full re-verification, a self-test that tracks a generated disc (accuracy + time per frame), removal and import of approved, checksummed models only. Downloads remain the owner-approved tool. Loading now resolves each model's location (model_dir) everywhere. Nuke test passes (incl. import into a user location, using that copy, removing it) and a GUI probe drives the panel. The full suite caught a regression: Render mattes looked up ViTMatte's location for every edge method, which imported st_roto_ai.registry in a purely traditional (AI-off) workflow; the lookup is now made only for ViTMatte edges (AI-off, ViTMatte and matte tests pass again).
+
+## 2026-11-17 - D-043 OQ-29 dropped
+
+Owner chose to skip the precise-edge comparison completely: no drawing, no edge-refinement change. Recorded as D-043; the study (T-095) and the kit (T-096) stay in the repository for later. The full Nuke suite rerun after the T-101 fix was stopped on the owner's request; last verified: 33/34 before the fix, the 3 affected tests passing after it.
