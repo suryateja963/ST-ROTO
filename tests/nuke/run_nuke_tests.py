@@ -2763,6 +2763,85 @@ def test_multicam_cameras(res):
     return bool(ok)
 
 
+def test_crypto_shapes_and_propagation(res):
+    """T-121 on the synthetic CG shot, with AI DISABLED: 'Shapes from Cryptomatte' makes an object from the name
+    'target' on every frame (imported provenance, IoU vs truth); 'Propagate along vectors' carries a hand-drawn key of
+    frame 0 forward and stops before the hand key on frame 20 (untouched), IoU vs truth; a backward run; one undo
+    step each."""
+    if not os.path.exists(CG + "/meta.json"):
+        res["skipped"] = "CG frames not generated"; return True
+    import st_roto_nuke.assist as assist
+    import st_roto_nuke.node as stnode
+    from st_roto import model as m, stereo, views
+    from st_roto.geometry import mask_to_points
+    from st_roto_nuke import session
+    from st_roto_nuke.roto_export import sync_shot
+    meta = json.load(open(CG + "/meta.json"))
+    vw, vh, n = meta["w"], meta["h"], meta["frames"]
+    nuke.root()["format"].setValue(nuke.addFormat("%d %d 1 cg_t121" % (vw, vh)))
+    rd = nuke.nodes.Read(file=CG + "/cg.####.exr", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "t121.stroto")
+    g = stnode.create(rd, proj)
+    g["stroto_ai_off"].setValue(True)                               # neither feature is AI
+
+    def gt(f):
+        return cv2.imread(CG + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE) > 127
+    g["stroto_object"].setValue("target_crypto")
+    g["stroto_prompt_source"].setValue("target")
+    j = assist.on_shapes_from_crypto(g, background=False)
+    res["crypto_status"] = g["stroto_status"].value()
+    if j is None or j.status != "done":
+        res["error"] = (j.error if j else "no job"); return False
+    store, bus = session.project(proj)
+    shot = store.conn.execute("SELECT id FROM shots").fetchone()["id"]
+    oc = {o["name"]: o for o in store.objects(shot)}["target_crypto"]
+    shapes = store.shapes(oc["id"])
+
+    def obj_iou(oid, f):
+        ks = [store.key(s["id"], f) for s in store.shapes(oid)]
+        return iou(stereo.mask_from_keys([k["points"] for k in ks if k], vh, vw), gt(f))
+    qc = [obj_iou(oc["id"], f) for f in range(n)]
+    res["crypto_iou"] = {"mean": round(float(np.mean(qc)), 4), "min": round(min(qc), 4), "shapes": len(shapes),
+                         "origin": oc["origin"]}
+    ok = res["crypto_iou"]["mean"] > 0.99 and oc["origin"] == m.IMPORTED_NATIVE
+    ok &= all(k["origin"] == m.IMPORTED_NATIVE for s in shapes for k in store.keys(s["id"]))
+    # hand-drawn keys on frames 0 and 20
+    HID, HSID = "0f0f0f0f" + "0" * 24, "1f1f1f1f" + "0" * 24
+    bus.execute({"op": "create_object", "row": {"id": HID, "shot_id": shot, "name": "hand"}})
+    bus.execute({"op": "create_shape", "row": {"id": HSID, "object_id": HID, "name": "hand", "point_count": 24}})
+    for f in (0, 20):
+        bus.execute({"op": "set_key", "shape_id": HSID, "frame": f,
+                     "points": mask_to_points(gt(f).astype(np.float32) - 0.5, count=24)})
+    sync_shot(store, shot, stnode._inner(g, "roto", "STROTO_shapes")["curves"], vh)
+    key20 = store.key(HSID, 20)["points"]
+    g["stroto_object"].setValue("hand")
+    g["stroto_ch_motion"].setValue("forward")
+    g["stroto_ch_motion_back"].setValue("backward")
+    nuke.frame(0)
+    jp = assist.on_propagate(g, "forward", background=False)
+    res["forward_status"] = g["stroto_status"].value()
+    if jp is None or jp.status != "done":
+        res["error"] = (jp.error if jp else "no job"); return False
+    ks = {k["frame"]: k for k in store.keys(HSID)}
+    res["forward_frames"] = sorted(f for f, k in ks.items() if k["origin"] == m.IMPORTED_NATIVE)
+    q = {f: round(iou(stereo.mask_from_keys([ks[f]["points"]], vh, vw), gt(f)), 4) for f in range(1, 20)}
+    res["forward_iou"] = q
+    ok &= res["forward_frames"] == list(range(1, 20)) and ks[20]["points"] == key20
+    ok &= all(q[f] > 0.97 for f in range(1, 10)) and all(q[f] > 0.93 for f in range(14, 20))
+    ok &= "stopped before frame 20" in res["forward_status"]
+    bus.undo()
+    ok &= sorted(k["frame"] for k in store.keys(HSID)) == [0, 20]                  # one undo step
+    nuke.frame(20)
+    jb = assist.on_propagate(g, "backward", background=False)
+    res["backward_status"] = g["stroto_status"].value()
+    kb = {k["frame"]: k for k in store.keys(HSID)}
+    res["backward_frames"] = len([f for f, k in kb.items() if k["origin"] == m.IMPORTED_NATIVE])
+    qb = [round(iou(stereo.mask_from_keys([kb[f]["points"]], vh, vw), gt(f)), 4) for f in range(1, 20)]
+    res["backward_iou_min_mean"] = [min(qb), round(float(np.mean(qb)), 4)]
+    ok &= jb is not None and jb.status == "done" and res["backward_frames"] == 19
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
@@ -2776,7 +2855,7 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_matte_outputs, test_prompt_from_mask, test_model_manager,
          test_delivery_package, test_stereo_views, test_extra_channels, test_review_overlay_and_presets,
          test_node_family, test_alembic_export, test_model_versions, test_edge_colour_and_chatter,
-         test_stereo_resume, test_multicam_cameras)
+         test_stereo_resume, test_multicam_cameras, test_crypto_shapes_and_propagation)
 
 
 def main():
