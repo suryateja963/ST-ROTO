@@ -3,6 +3,7 @@
  "gui": true,
  "columns": [
   "name",
+  "role",
   "origin",
   "locked",
   "held by",

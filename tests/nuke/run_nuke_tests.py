@@ -1609,6 +1609,87 @@ def test_propagation_controls(res):
     return bool(ok)
 
 
+def test_roles_and_merge(res):
+    """T-098 / REQ-082, REQ-100: hand-drawn objects 'actor' (the target), 'pole' (holdout, crosses the actor) and
+    'area' (garbage, covers only the left part of the actor). After Set role, NUKE's own render of the node and
+    ST-ROTO's EXR combined matte agree (both: actor minus pole, only inside area); the holdout/garbage shapes are on
+    top of the Roto layer with blend 'minus' (+ inverted for garbage). Merge pole into actor (one undo step): the
+    pole shape becomes part of the actor (no longer cut out); undo restores the holdout."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    from st_roto_nuke.roto_export import build_shape
+    from st_roto.geometry import mask_to_points
+    from st_roto import exr, views
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vh, vw, n = meta["h"], meta["w"], 2
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "roles.stroto")
+    g = stnode.create(rd, proj)
+    curves = stnode._INNER[g.fullName()]["roto"]["curves"]
+    yy, xx = np.mgrid[0:vh, 0:vw] + 0.5
+    gt = {f: cv2.imread(VIDEO + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE) > 127 for f in range(n)}
+    ys, xs = np.nonzero(gt[0]); cx, cy = float(np.median(xs)), float(np.median(ys))
+    pole = {f: (np.abs(xx - cx) < 25) & (np.abs(yy - cy) < 220) for f in range(n)}            # vertical bar
+    area = {f: np.hypot(xx - (cx - 60), yy - cy) < 110 for f in range(n)}                    # left part only
+    for name, masks, cnt in (("actor", gt, 32), ("pole", pole, 16), ("area", area, 24)):
+        curves.rootLayer.append(build_shape(curves, name, {f: mask_to_points(masks[f].astype(float) - 0.5, count=cnt)
+                                                             for f in range(n)}, vh))
+    nuke.frame(0)
+    stnode.on_import_edits(g)
+    store, bus = session.project(proj)
+    names = sorted(o["name"] for o in store.objects(store.conn.execute("SELECT id FROM shots").fetchone()["id"]))
+    res["objects"] = names
+    for obj, role in (("pole", "holdout"), ("area", "garbage")):
+        g["stroto_object"].setValue(obj); g["stroto_role"].setValue(role)
+        stnode.on_set_role(g)
+    res["role_status"] = g["stroto_status"].value()
+    items = [it for it in curves.rootLayer]
+    res["layer_order"] = [it.name.split("_st")[0] for it in items]
+    res["blend"] = {it.name.split("_st")[0]: (it.getAttributes().getValue(0, "bm"), it.getAttributes().getValue(0, "inv"))
+                    for it in items}
+    g["stroto_edges"].setValue("hard")
+    jm = stnode.on_render_mattes(g, background=False)
+    w = nuke.nodes.Write(file=OUT + "/roles.####.tif", file_type="tiff", channels="alpha")
+    w["datatype"].setValue("32 bit float"); w["compression"].setValue("none"); w.setInput(0, g)
+
+    def nuke_alpha(f):
+        nuke.execute(w, f, f)
+        img = cv2.imread(OUT + "/roles.%04d.tif" % f, cv2.IMREAD_UNCHANGED)
+        return (img if img.ndim == 2 else img[:, :, -1])
+    expect = gt[0] & ~pole[0] & area[0]
+    na = nuke_alpha(0)
+    ea = exr.read_channels(jm.result["files"][0])["A"]
+    res["nuke_min_max"] = [float(na.min()), float(na.max())]
+    res["iou_nuke_vs_exr"] = round(iou(na > 0.5, ea > 0.5), 4)
+    res["iou_nuke_vs_expected"] = round(iou(na > 0.5, expect), 4)
+    res["iou_exr_vs_expected"] = round(iou(ea > 0.5, expect), 4)
+    ok = (names == ["actor", "area", "pole"] and set(res["layer_order"][:2]) == {"pole", "area"}
+          and res["blend"]["pole"] == (12.0, 0.0) and res["blend"]["area"] == (12.0, 1.0)
+          and res["blend"]["actor"] == (0.0, 0.0) and res["nuke_min_max"][0] >= 0.0 and res["nuke_min_max"][1] <= 1.0
+          and res["iou_nuke_vs_exr"] > 0.99 and res["iou_nuke_vs_expected"] > 0.98 and res["iou_exr_vs_expected"] > 0.98)
+    # merge pole into actor: no longer a holdout
+    shot_id = store.conn.execute("SELECT id FROM shots").fetchone()["id"]
+    by = {o["name"]: o["id"] for o in store.objects(shot_id)}
+    bus.execute({"op": "batch", "ops": views.merge_ops(store, by["pole"], by["actor"])})
+    stnode.resync(g, import_first=False)
+    res["after_merge_objects"] = sorted(o["name"] for o in store.objects(shot_id))
+    na2 = nuke_alpha(1)
+    res["iou_after_merge"] = round(iou(na2 > 0.5, (gt[1] | pole[1]) & area[1]), 4)
+    bus.undo()
+    stnode.resync(g, import_first=False)
+    res["after_undo_objects"] = sorted(o["name"] for o in store.objects(shot_id))
+    res["pole_role_after_undo"] = [o["role"] for o in store.objects(shot_id) if o["name"] == "pole"]
+    na3 = nuke_alpha(0)
+    res["iou_after_undo"] = round(iou(na3 > 0.5, expect), 4)
+    ok &= (res["after_merge_objects"] == ["actor", "area"] and res["iou_after_merge"] > 0.98
+           and res["after_undo_objects"] == ["actor", "area", "pole"] and res["pole_role_after_undo"] == ["holdout"]
+           and res["iou_after_undo"] > 0.98)
+    return bool(ok)
+
+
 NET_EVENTS = ("socket.__new__", "socket.bind", "socket.connect", "socket.sendto", "socket.sendmsg",
               "socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyaddr", "socket.getnameinfo",
               "urllib.Request", "http.client.connect", "http.client.send", "ftplib.connect", "smtplib.connect",
@@ -1671,7 +1752,7 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_vitmatte_mattes, test_box_prompt, test_reprompt_here, test_offline_no_network,
          test_difficult_sequences, test_traditional_roto_without_ai, test_plate_above_render_limit,
          test_system_report, test_memory_aware_model, test_retrack_flagged_large,
-         test_collaboration_ui, test_propagation_controls)
+         test_collaboration_ui, test_propagation_controls, test_roles_and_merge)
 
 
 def main():

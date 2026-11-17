@@ -70,6 +70,46 @@ def part_shapes(store, main_id: str) -> list:
     return [p for p in store.shapes(s["object_id"]) if part_of(p) == main_id] if s else []
 
 
+def merge_ops(store, source_id: str, target_id: str) -> list:
+    """Ops merging object `source_id` into `target_id` (T-098): every shape of the source moves to the target
+    (keys, feather, provenance and part links unchanged), then the empty source object is deleted. Run them as ONE
+    batch (one undo step). The target's main shape stays its main shape."""
+    if source_id == target_id:
+        raise ValueError("cannot merge an object into itself")
+    src, tgt = store.row("objects", source_id), store.row("objects", target_id)
+    if src is None or tgt is None:
+        raise KeyError("no such object")
+    if src["shot_id"] != tgt["shot_id"]:
+        raise ValueError("objects of different shots cannot be merged")
+    ops = [{"op": "update_shape", "id": s["id"], "fields": {"object_id": target_id}} for s in store.shapes(source_id)]
+    ops.append({"op": "delete_subtree", "object_id": source_id})
+    return ops
+
+
+def combine_roles(alphas: dict, roles: dict):
+    """Combined matte of several objects with roles (T-098), exactly as Nuke's Roto composites ST-ROTO's shapes
+    (measured, research/probes/2026-11-17_roles): 'add' objects composited over each other (a + b - a*b), then
+    every holdout subtracted, then (1 - garbage) subtracted for every garbage object, clamped to [0, 1].
+    alphas: {name: HxW float}; roles: {name: role}. Returns HxW float32 or None without objects."""
+    import numpy as np
+    out = None
+    for n, a in alphas.items():
+        if roles.get(n, "add") == "add":
+            a = np.asarray(a, np.float32)
+            out = a.copy() if out is None else out + a - out * a
+    if out is None:
+        out = np.zeros_like(np.asarray(next(iter(alphas.values())), np.float32)) if alphas else None
+        if out is None:
+            return None
+    for n, a in alphas.items():
+        r = roles.get(n, "add")
+        if r == "holdout":
+            out = out - np.asarray(a, np.float32)
+        elif r == "garbage":
+            out = out - (1.0 - np.asarray(a, np.float32))
+    return np.clip(out, 0.0, 1.0).astype(np.float32)
+
+
 def rename_ops(store, object_id: str, new_name: str) -> list:
     """Ops renaming an object and the shapes named after it: '<old>' -> '<new>' and AI parts '<old>_part<n>' ->
     '<new>_part<n>' (T-049). Shapes the artist named differently keep their names."""

@@ -13,9 +13,13 @@ import json
 import os
 import sqlite3
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 10
 
 _MIGRATIONS = {
+    10: [
+        # Object roles in the combined matte (T-098): add / holdout / garbage.
+        """ALTER TABLE objects ADD COLUMN role TEXT NOT NULL DEFAULT 'add'""",
+    ],
     9: [
         # Signed operations (T-084, D-037): each operation's author signature; users' public keys (revoked keys
         # are kept so past work stays verifiable).

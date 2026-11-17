@@ -87,6 +87,7 @@ def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, r
     base = exr.layer_name(shot["name"]) + "_mattes"
     size = fit_size(w, h, out_size)
     settings = {"pass": PASS_ID, "soft": bool(soft), "method": method, "band": band, "radius": radius, "eps": eps,
+                "roles": {o["name"]: (o.get("role") or "add") for o in objs},
                 "size": list(size), "shot_size": [w, h],
                 "model": "vitmatte-small-composition-1k (D-032)" if vm else None,
                 "guide_colour": colour.transform_id(colour_transform) if soft else None}
@@ -123,7 +124,12 @@ def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, r
             alphas = {k: cv2.resize(np.asarray(v, np.float32), size, interpolation=cv2.INTER_AREA)
                       for k, v in alphas.items()}
         path = exr.frame_path(out_dir, base, f)
-        layers = exr.write_mattes(path, alphas, compression=compression,
+        roles = {o["name"]: (o.get("role") or "add") for o in objs}
+        combined = True
+        if any(r != "add" for r in roles.values()):        # T-098: holdout / garbage objects
+            from st_roto.views import combine_roles
+            combined = combine_roles(alphas, roles)
+        layers = exr.write_mattes(path, alphas, combined=combined, compression=compression,
                                   attributes={"st_roto": json.dumps(settings, sort_keys=True)})
         files.append(path)
     if job:

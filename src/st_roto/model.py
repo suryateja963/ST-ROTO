@@ -26,6 +26,11 @@ ORIGINS = (AI_GENERATED, IMPORTED_NATIVE, ARTIST_CREATED, ARTIST_MODIFIED_AI)
 # "locked" (the fifth class in master prompt section 6) is a separate flag, because any origin can be locked.
 
 # Who performs an operation. AI may only touch AI-generated, unlocked content (REQ-042).
+# Object roles in the combined matte (T-098, REQ-082/REQ-100): add (default), holdout (cut out of the combined
+# matte), garbage (the combined matte is kept only inside it; several garbage objects: inside all of them).
+ROLE_ADD, ROLE_HOLDOUT, ROLE_GARBAGE = "add", "holdout", "garbage"
+ROLES = (ROLE_ADD, ROLE_HOLDOUT, ROLE_GARBAGE)
+
 ACTOR_ARTIST = "artist"
 ACTOR_AI = "ai"
 ACTOR_IMPORT = "import"

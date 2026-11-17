@@ -178,6 +178,13 @@ def create(source=None, project_path: str = ""):
     band.setTooltip("Half-width in pixels of the zone that may become soft.")
     rad = nuke.Int_Knob("stroto_radius", "radius"); rad.setValue(8); rad.clearFlag(nuke.STARTLINE); group.addKnob(rad)
     rad.setTooltip("Guided-filter window radius in pixels.")
+    rl = nuke.Enumeration_Knob("stroto_role", "object role", ["add", "holdout", "garbage"])
+    rl.setTooltip("Role of the object named above in the combined matte (rgba.alpha and Nuke's render): add, holdout "
+                  "(cut out, e.g. a pole in front of the actor) or garbage (the matte is kept only inside it). Its "
+                  "own EXR layer stays unchanged. Press Set role.")
+    group.addKnob(rl)
+    sr_ = _button(group, "stroto_set_role", "Set role", "n.on_set_role(nuke.thisNode())", new_line=False)
+    sr_.setTooltip("Applies 'object role' to the object named above (undoable).")
     md = nuke.File_Knob("stroto_matte_dir", "matte folder"); group.addKnob(md)
     md.setTooltip("Where the EXR mattes go. Empty: <project>_mattes/<shot>/ next to the project file.")
     rm = _button(group, "stroto_render_mattes", "Render mattes (EXR)", "n.on_render_mattes(nuke.thisNode())")
@@ -204,8 +211,9 @@ def create(source=None, project_path: str = ""):
         inp = nuke.nodes.Input(name="Input1")
         roto = nuke.nodes.Roto(name="STROTO_shapes", output="alpha")
         roto.setInput(0, inp)
+        clamp = _make_clamp(roto)                             # T-098: holdout / garbage subtract; keep alpha 0-1
         out = nuke.nodes.Output(name="Output1")
-        out.setInput(0, roto)
+        out.setInput(0, clamp)
         w = nuke.nodes.Write(name="STROTO_pixels")
         w.setInput(0, inp)
         pixels.configure_write(w, pixels.temp_pixel_path(group.name()))
@@ -482,6 +490,62 @@ def on_lock_range(group, lock: bool = True):
                                                                  _ranges(sorted(new)) or "none"))
         return sorted(new)
     except (ValueError, NodeBudgetError) as e:
+        _status(group, "error: %s" % e)
+        return None
+
+
+def _make_clamp(roto):
+    c = nuke.nodes.Clamp(name="STROTO_clamp")
+    c["channels"].setValue("alpha")
+    c["minimum"].setValue(0.0)
+    c["maximum"].setValue(1.0)
+    c.setInput(0, roto)
+    return c
+
+
+def _ensure_clamp(group):
+    """Nodes made before T-098 have no Clamp after their Roto: add it when a role is first used (costs 2 node
+    objects of the Non-commercial budget, once)."""
+    cache = _INNER.setdefault(group.fullName(), {})
+    if cache.get("clamp") is not None:
+        return cache["clamp"]
+    with group:
+        c = nuke.toNode("STROTO_clamp")
+        if c is None:
+            roto = _inner(group, "roto", "STROTO_shapes")
+            out = nuke.toNode("Output1")
+            if out is None:
+                raise NodeBudgetError("Nuke returned no node for %s.Output1 (Non-commercial 10-node limit); save the "
+                                      "script, reopen it and try again." % group.name())
+            c = _make_clamp(roto)
+            out.setInput(0, c)
+    cache["clamp"] = c
+    return c
+
+
+def on_set_role(group, role=None):
+    """Set the role of the object named above (T-098): add / holdout / garbage, one undoable op; the Roto node and
+    the EXR combined matte follow it."""
+    from st_roto import model as _m
+    try:
+        role = role or group["stroto_role"].value()
+        if role not in _m.ROLES:
+            raise ValueError("role must be one of %s" % ", ".join(_m.ROLES))
+        store, bus = _open_project(group, group["stroto_project"].value())
+        src = _inner(group, "src", None)
+        shot = store.conn.execute("SELECT id FROM shots WHERE name = ?", (src.name(),)).fetchone()
+        name = _object_name(group)
+        obj = [o for o in (store.objects(shot["id"]) if shot else []) if o["name"] == name]
+        if not obj:
+            raise ValueError("no object named %r" % name)
+        if role != "add":
+            _ensure_clamp(group)
+        bus.execute({"op": "update_object", "id": obj[0]["id"], "fields": {"role": role}})
+        resync(group, import_first=False)
+        _status(group, "%s is now %s%s" % (name, role, {"holdout": " (cut out of the combined matte)",
+                                                         "garbage": " (combined matte kept only inside it)"}.get(role, "")))
+        return role
+    except (ValueError, NodeBudgetError, KeyError) as e:
         _status(group, "error: %s" % e)
         return None
 

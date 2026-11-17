@@ -39,7 +39,8 @@ def export_shot(store, shot_id: str) -> dict:
                                     for k in store.keys(s["id"])],
                            "point_feather": [{"frame": f, "data": d} for f, d in sorted(store.feathers(s["id"]).items())]})
         objs.append({"id": o["id"], "name": o["name"], "parent_id": o["parent_id"], "origin": o["origin"],
-                     "locked": bool(o["locked"]), "color": o["color"], "shapes": shapes})
+                     "locked": bool(o["locked"]), "color": o["color"], "role": o.get("role") or "add",
+                     "shapes": shapes})
     return {"format": FORMAT, "version": VERSION, "coordinates": COORDINATES,
             "shot": {k: shot[k] for k in ("id", "name", "source_path", "width", "height", "first_frame", "last_frame")},
             "objects": objs}
@@ -70,7 +71,7 @@ def import_shot(bus, data: dict, shot_id: str) -> dict:
             if o["parent_id"] and o["parent_id"] in ids and o["parent_id"] not in done:
                 continue
             row = {"id": ids[o["id"]], "shot_id": shot_id, "name": o["name"], "color": o.get("color"),
-                   "parent_id": ids.get(o["parent_id"])}
+                   "parent_id": ids.get(o["parent_id"]), "role": o.get("role") or "add"}
             ops.append({"op": "create_object", "row": row})
             for s in o["shapes"]:
                 sid = ids[s["id"]] = m.new_id()

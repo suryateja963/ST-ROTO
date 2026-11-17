@@ -33,7 +33,7 @@ def sequence_pattern(directory: str, base: str, ext: str = "exr") -> str:
     return os.path.join(directory, "%s.####.%s" % (base, ext)).replace("\\", "/")
 
 
-def write_mattes(path: str, layers: dict, combined: bool = True, compression: str = "zip", half: bool = False,
+def write_mattes(path: str, layers: dict, combined=True, compression: str = "zip", half: bool = False,
                  attributes: dict = None):
     """layers: {object name: H x W float alpha}. Writes `<layer>.A` per object and, if `combined`, `A` = max over
     objects. Unique layer names are enforced (a clash gets a numeric suffix). Returns {object name: layer}."""
@@ -56,7 +56,9 @@ def write_mattes(path: str, layers: dict, combined: bool = True, compression: st
             ln, i = "%s_%d" % (layer_name(name), i), i + 1
         used.add(ln); names[name] = ln
         channels[ln + ".A"] = a
-    if combined:
+    if combined is not None and not isinstance(combined, bool):        # an explicit combined alpha (T-098 roles)
+        channels["A"] = np.ascontiguousarray(np.clip(combined, 0, 1), dtype)
+    elif combined:
         channels["A"] = np.ascontiguousarray(np.max(np.stack([channels[n + ".A"] for n in used]), 0), dtype)
     header = {"compression": comp, "type": OpenEXR.scanlineimage}
     for k, v in (attributes or {}).items():

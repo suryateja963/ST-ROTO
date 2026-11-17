@@ -169,6 +169,49 @@ def _forget(store, tag):
         conn.execute("DELETE FROM host_exports WHERE host_tag = ? AND host = ?", (tag, HOST))
 
 
+# Object roles in Nuke's own render (T-098, measured in research/probes/2026-11-17_roles): a shape's blend mode only
+# acts where the shape is; the FIRST item of a Roto layer is on top; blend mode 12 ('minus') subtracts. Holdouts:
+# minus; garbage: INVERTED shape, minus; both on top of the add shapes, and a Clamp (0-1) after the Roto removes the
+# negative values minus leaves where nothing lies below. ST-ROTO's EXR combine (st_roto.views.combine_roles) uses the
+# same arithmetic.
+BLEND_ATTR, INVERT_ATTR, BLEND_MINUS = "bm", "inv", 12.0
+
+
+def apply_roles(store, shot_id: str, curves_knob) -> bool:
+    """Blend attributes and order of the shot's shapes from their objects' roles. Returns True if anything changed
+    (then curves_knob.changed() has been called: Nuke does not re-render Python attribute edits otherwise)."""
+    roles = {o["id"]: (o.get("role") or "add") for o in store.objects(shot_id)}
+    tag_role = {host_tag(s["id"]): roles.get(s["object_id"], "add") for s in views.shot_shapes(store, shot_id)}
+    layer = curves_knob.rootLayer
+    items = list(layer)
+    role_of = {}
+    for it in items:
+        mt = TAG_RE.search(getattr(it, "name", "") or "")
+        role_of[id(it)] = tag_role.get(mt.group(1), "add") if mt else "add"
+    changed = False
+    for it in items:
+        r = role_of[id(it)]
+        want = {BLEND_ATTR: BLEND_MINUS if r != "add" else 0.0, INVERT_ATTR: 1.0 if r == "garbage" else 0.0}
+        try:
+            a = it.getAttributes()
+        except AttributeError:
+            continue
+        for k, v in want.items():
+            if abs(float(a.getValue(0, k)) - v) > 1e-6:
+                a.set(k, v); changed = True
+    top = [it for it in items if role_of[id(it)] != "add"]
+    rest = [it for it in items if role_of[id(it)] == "add"]
+    if [id(x) for x in items] != [id(x) for x in top + rest]:
+        for idx in sorted((i for i, it in enumerate(items) if role_of[id(it)] != "add"), reverse=True):
+            layer.remove(idx)                                 # Layer.remove takes an index (measured)
+        for it in reversed(top):
+            layer.insert(0, it)
+        changed = True
+    if changed:
+        curves_knob.changed()
+    return changed
+
+
 def sync_shot(store, shot_id: str, curves_knob, height: float) -> dict:
     """Make the Roto node reflect the project, never overwriting artist edits made in the Roto node."""
     layer = curves_knob.rootLayer
@@ -216,6 +259,7 @@ def sync_shot(store, shot_id: str, curves_knob, height: float) -> dict:
             _remove(layer, item); _forget(store, tag); report["removed"].append(name)
         else:
             report["conflicts"].append(item.name)                                  # unknown or edited: keep
+    report["roles_applied"] = apply_roles(store, shot_id, curves_knob)
     return report
 
 

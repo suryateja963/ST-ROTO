@@ -101,6 +101,9 @@ def _create_object(conn, op, actor):
     row.setdefault("created_utc", utc_now())
     row["origin"] = m.origin_for_write(actor, None)
     row.setdefault("locked", 0)
+    row.setdefault("role", m.ROLE_ADD)
+    if row["role"] not in m.ROLES:
+        raise ValueError("role must be one of %s" % ", ".join(m.ROLES))
     if row.get("parent_id") and actor == m.ACTOR_AI and _object_locked_chain(conn, row["parent_id"]):
         raise ProtectedError("cannot add an AI object under a locked parent")
     _insert(conn, "objects", row)
@@ -136,7 +139,7 @@ def _restore_subtree(conn, op, actor):
     return {"op": "delete_subtree", "object_id": snap["objects"][0]["id"]}
 
 
-_OBJECT_FIELDS = ("name", "locked", "color", "parent_id")
+_OBJECT_FIELDS = ("name", "locked", "color", "parent_id", "role")
 _SHOT_FIELDS = ("name", "source_path", "source_fingerprint", "width", "height", "first_frame", "last_frame")
 
 
@@ -167,6 +170,8 @@ def _update_object(conn, op, actor):
             raise ValueError("field %r not editable" % f)
     if actor == m.ACTOR_AI and (r["origin"] != m.AI_GENERATED or r["locked"] or "locked" in fields):
         raise ProtectedError("AI may not edit or (un)lock object %s" % op["id"])
+    if "role" in fields and fields["role"] not in m.ROLES:
+        raise ValueError("role must be one of %s" % ", ".join(m.ROLES))
     old = {f: r[f] for f in fields}
     conn.execute("UPDATE objects SET %s WHERE id = ?" % ", ".join("%s = ?" % f for f in fields),
                  [fields[f] for f in fields] + [op["id"]])
@@ -284,7 +289,8 @@ def _delete_key(conn, op, actor):
             "origin_override": prev["origin"], "generator": prev["generator"]}
 
 
-_SHAPE_FIELDS = ("name", "locked", "closed", "feather_x", "feather_y", "feather_falloff", "generator")   # generator: T-081 fixes
+_SHAPE_FIELDS = ("name", "locked", "closed", "feather_x", "feather_y", "feather_falloff", "generator",  # T-081 fixes
+                 "object_id")                                                                       # T-098 merge
 
 
 def _update_shape(conn, op, actor):
@@ -295,6 +301,13 @@ def _update_shape(conn, op, actor):
             raise ValueError("field %r not editable" % f)
     if actor == m.ACTOR_AI and (s["origin"] != m.AI_GENERATED or s["locked"] or "locked" in fields):
         raise ProtectedError("AI may not edit or (un)lock shape %s" % s["id"])
+    if "object_id" in fields:
+        tgt = conn.execute("SELECT shot_id FROM objects WHERE id = ?", (fields["object_id"],)).fetchone()
+        src = conn.execute("SELECT shot_id FROM objects WHERE id = ?", (s["object_id"],)).fetchone()
+        if tgt is None or tgt["shot_id"] != src["shot_id"]:
+            raise ValueError("a shape can only move to another object of the same shot")
+        if actor == m.ACTOR_AI:
+            raise ProtectedError("AI may not move shapes between objects")
     old = {f: s[f] for f in fields}
     conn.execute("UPDATE shapes SET %s WHERE id = ?" % ", ".join("%s = ?" % f for f in fields),
                  [fields[f] for f in fields] + [s["id"]])

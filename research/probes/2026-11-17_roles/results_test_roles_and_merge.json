@@ -1,0 +1,54 @@
+{
+ "nuke": "17.1v3",
+ "nc": true,
+ "test_roles_and_merge": {
+  "objects": [
+   "actor",
+   "area",
+   "pole"
+  ],
+  "role_status": "area is now garbage (combined matte kept only inside it)",
+  "layer_order": [
+   "pole",
+   "area",
+   "actor"
+  ],
+  "blend": {
+   "pole": [
+    12.0,
+    0.0
+   ],
+   "area": [
+    12.0,
+    1.0
+   ],
+   "actor": [
+    0.0,
+    0.0
+   ]
+  },
+  "nuke_min_max": [
+   0.0,
+   1.0
+  ],
+  "iou_nuke_vs_exr": 0.9987,
+  "iou_nuke_vs_expected": 0.9974,
+  "iou_exr_vs_expected": 0.9982,
+  "after_merge_objects": [
+   "actor",
+   "area"
+  ],
+  "iou_after_merge": 0.9982,
+  "after_undo_objects": [
+   "actor",
+   "area",
+   "pole"
+  ],
+  "pole_role_after_undo": [
+   "holdout"
+  ],
+  "iou_after_undo": 0.9974,
+  "passed": true
+ },
+ "failed": 0
+}

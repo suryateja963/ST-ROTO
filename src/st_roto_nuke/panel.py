@@ -19,7 +19,7 @@ from . import collab
 from . import node as stnode
 from . import session
 
-COLUMNS = ["name", "origin", "locked", "held by", "keys", "frames", "review"]
+COLUMNS = ["name", "role", "origin", "locked", "held by", "keys", "frames", "review"]
 
 
 class ObjectPanel(QtWidgets.QWidget):
@@ -42,7 +42,8 @@ class ObjectPanel(QtWidgets.QWidget):
         self.table.setEditTriggers(QtWidgets.QAbstractItemView.NoEditTriggers)
         lay.addWidget(self.table)
         btns = QtWidgets.QHBoxLayout()
-        for label, fn in (("Rename", self.rename), ("Lock / Unlock", self.toggle_lock), ("Delete", self.delete),
+        for label, fn in (("Rename", self.rename), ("Lock / Unlock", self.toggle_lock), ("Role...", self.set_object_role),
+                          ("Merge into...", self.merge_into), ("Delete", self.delete),
                           ("Undo", self.undo), ("Redo", self.redo)):
             b = QtWidgets.QPushButton(label); b.clicked.connect(fn); btns.addWidget(b)
         lay.addLayout(btns)
@@ -113,10 +114,11 @@ class ObjectPanel(QtWidgets.QWidget):
             r["review"] = flags
             review = quality.summary(flags)
             held = collab.lease_text(store.conn, r["id"], me_)
-            for j, v in enumerate([r["name"], r["origin"], "yes" if r["locked"] else "", held, str(r["keys"]), frames,
-                                   review]):
+            role = (store.row("objects", r["id"]) or {}).get("role") or "add"
+            for j, v in enumerate([r["name"], "" if role == "add" else role, r["origin"], "yes" if r["locked"] else "",
+                                   held, str(r["keys"]), frames, review]):
                 item = QtWidgets.QTableWidgetItem(v)
-                if j == 6 and flags:
+                if j == 7 and flags:
                     item.setToolTip("\n".join("frame %d [%s]: %s" % fr for fr in flags))
                 self.table.setItem(i, j, item)
         self.info.setText("%d objects · undo %s · redo %s" % (len(self.rows), "yes" if bus.can_undo() else "no",
@@ -161,6 +163,30 @@ class ObjectPanel(QtWidgets.QWidget):
         r = self._selected()
         return self._do(lambda bus: bus.execute({"op": "update_object", "id": r["id"],
                                                  "fields": {"locked": 0 if r["locked"] else 1}}))
+
+    def set_object_role(self, role=None):
+        r = self._selected()
+        if role is None:
+            role, ok = QtWidgets.QInputDialog.getItem(self, "Object role", "role of %s" % r["name"],
+                                                      ["add", "holdout", "garbage"], 0, False)
+            if not ok:
+                return None
+        if role != "add":
+            stnode._ensure_clamp(self.group)
+        return self._do(lambda bus: bus.execute({"op": "update_object", "id": r["id"], "fields": {"role": role}}))
+
+    def merge_into(self, target_name=None):
+        """Merge the selected object into another one (its shapes move; one undo step)."""
+        r = self._selected()
+        others = [x["name"] for x in self.rows if x["id"] != r["id"]]
+        if target_name is None:
+            target_name, ok = QtWidgets.QInputDialog.getItem(self, "Merge", "merge %s into" % r["name"], others, 0, False)
+            if not ok:
+                return None
+        tgt = [x for x in self.rows if x["name"] == target_name]
+        if not tgt:
+            self.info.setText("error: no object named %r" % target_name); return None
+        return self._do(lambda bus: bus.execute({"op": "batch", "ops": views.merge_ops(bus.store, r["id"], tgt[0]["id"])}))
 
     def delete(self):
         r = self._selected()

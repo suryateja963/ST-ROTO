@@ -1,0 +1,179 @@
+{
+ "attribute_names": {
+  "blending": "bm",
+  "inverted": "inv"
+ },
+ "base": {
+  "in_A_only": 1.0,
+  "overlap": 1.0,
+  "in_B_only": 1.0
+ },
+ "bm_0": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 1.0,
+  "outside": 0.0
+ },
+ "bm_1": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 1.0,
+  "outside": 0.0
+ },
+ "bm_2": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside": 0.0
+ },
+ "bm_3": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside": 0.0
+ },
+ "bm_4": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside": 0.0
+ },
+ "bm_5": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 1.0,
+  "outside": 0.0
+ },
+ "bm_6": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 1.0,
+  "outside": 0.0
+ },
+ "bm_7": {
+  "A_only": 1.0,
+  "overlap": 2.0,
+  "B_only": 1.0,
+  "outside": 0.0
+ },
+ "bm_8": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 1.0,
+  "outside": 0.0
+ },
+ "bm_9": {
+  "A_only": 1.0,
+  "overlap": 2.0,
+  "B_only": 1.0,
+  "outside": 0.0
+ },
+ "bm_10": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside": 0.0
+ },
+ "bm_11": {
+  "A_only": 1.0,
+  "overlap": 0.0,
+  "B_only": 1.0,
+  "outside": 0.0
+ },
+ "bm_12": {
+  "A_only": 1.0,
+  "overlap": 0.0,
+  "B_only": -1.0,
+  "outside": 0.0
+ },
+ "bm_13": {
+  "A_only": 1.0,
+  "overlap": 0.0,
+  "B_only": 1.0,
+  "outside": 0.0
+ },
+ "bm_14": {
+  "A_only": 1.0,
+  "overlap": 0.0,
+  "B_only": 1.0,
+  "outside": 0.0
+ },
+ "bm_15": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside": 0.0
+ },
+ "bm_16": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside": 0.0
+ },
+ "bm_17": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside": 0.0
+ },
+ "bm_18": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside": 0.0
+ },
+ "bm_19": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside": 0.0
+ },
+ "inv_bm_0": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside": 1.0
+ },
+ "inv_bm_2": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside": 0.0
+ },
+ "inv_bm_3": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside": 0.0
+ },
+ "inv_bm_4": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside": 0.0
+ },
+ "inv_bm_10": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside": 0.0
+ },
+ "inv_bm_15": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside": 0.0
+ },
+ "inv_bm_16": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside": 0.0
+ },
+ "inverted_B": {
+  "A_only": 1.0,
+  "overlap": 1.0,
+  "B_only": 0.0,
+  "outside_both": 1.0
+ }
+}
