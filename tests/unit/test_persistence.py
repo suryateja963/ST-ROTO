@@ -263,3 +263,17 @@ def test_unpack_and_relink_asks_until_the_right_footage(tmp_path):
     assert [r[0] for r in rep["refused"]] == ["sh"] and rep["relinked"] == [("sh", right, "match")]
     assert right in open(rep["scripts"][0]).read()
     t = ProjectStore(rep["project"]); assert t.row("shots", "S")["source_path"] == right; t.close()
+
+
+def test_backups_with_the_same_timestamp_never_overwrite(tmp_path, monkeypatch):
+    """T-104 regression: Windows' clock advances only every ~2 ms, so backups made close together can share a
+    timestamp; each must still get its own file, newest first, and rotation must keep the newest."""
+    p = str(tmp_path / "same.stroto")
+    s, bus = _make(p)
+    monkeypatch.setattr(ps, "_stamp", lambda: "20261117T000000000000Z")
+    paths = [ps.backup(p, keep=10) for _ in range(3)]
+    assert len(set(paths)) == 3 and ps.list_backups(p) == paths[::-1]          # newest first
+    assert paths[1].endswith("_01.auto" + ps.BACKUP_EXT) and paths[2].endswith("_02.auto" + ps.BACKUP_EXT)
+    ps.backup(p, keep=2)
+    assert ps.list_backups(p) == [ps.list_backups(p)[0], paths[2]]               # rotated to the 2 newest
+    s.close()

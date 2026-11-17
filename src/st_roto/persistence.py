@@ -90,13 +90,29 @@ def _snapshot(src_path: str, dst_path: str):
     os.replace(tmp, dst_path)
 
 
+def _reserve(d, base, reason):
+    """A new, unique backup path, created empty so no other backup can take it. Windows' clock advances only every
+    ~2 ms (measured: 200,000 calls -> 194 distinct timestamps, T-104), so two backups can share a stamp; the later
+    one then gets '_01', '_02' ... - which sort AFTER the plain name ('_' > '.'), keeping newest-first order."""
+    stamp = _stamp()
+    for i in range(1000):
+        path = os.path.join(d, "%s.%s%s.%s%s" % (base, stamp, "" if i == 0 else "_%02d" % i, reason, BACKUP_EXT))
+        try:
+            fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            continue
+        os.close(fd)
+        return path
+    raise RuntimeError("no free backup name for %s at %s" % (base, stamp))
+
+
 def backup(project_path: str, backup_dir: str = None, keep: int = 20, reason: str = "auto") -> str:
     """Snapshot the project into `backup_dir` (default `<project>_backups/`), verify it, keep the newest `keep`
     backups of the same `reason` (others are never rotated away). Returns the backup path."""
     d = backup_dir or default_backup_dir(project_path)
     os.makedirs(d, exist_ok=True)
     base = os.path.splitext(os.path.basename(project_path))[0]
-    path = os.path.join(d, "%s.%s.%s%s" % (base, _stamp(), reason, BACKUP_EXT))
+    path = _reserve(d, base, reason)
     _snapshot(project_path, path)
     c = check(path)
     if not c["ok"]:

@@ -68,7 +68,7 @@ First issue, 2026-11-15.
 | REQ-250 | 27 | Nine phases in order; research and architecture not skipped | Process | – | Researching (Phase 1) | Phase deliverables | Phase 1 incomplete |
 | REQ-260 | 28 | 1.0 not redefined without approval | Process | – | Planned | Change log audit | |
 | REQ-270 | 29 | Sixteen persistent documents; ten-point milestone report | Process | – | Implemented in part | Repository contents | Seven documents not yet created |
-| REQ-280 | 30 | Twenty acceptance demonstrations, each with a reproducible method | Mandatory | all | Planned | `RELEASE_CHECKLIST.md` | |
+| REQ-280 | 30 | Twenty acceptance demonstrations, each with a reproducible method | Mandatory | all | Partly implemented: docs/ACCEPTANCE.md (status of all 20) + tools/acceptance/run_acceptance.py (T-104) | `RELEASE_CHECKLIST.md` | |
 | REQ-290 | owner, 2026-11-15 | Everything built for ST-ROTO stays in `D:\ST-ROTO` | Mandatory | – | Implemented (as process) | Folder audit | Owner confirmed (D-006): covers models, caches, build output, venvs, probes, test data |
 | REQ-291 | owner, 2026-11-15 | Public GitHub repository `ST-ROTO`; everything related to the project uploaded there (except model weights, caches, local tools per D-008) | Mandatory | – | In progress | Repository audit | D-007 |
 | REQ-292 | owner, 2026-11-15 | Under Non-commercial, ST-ROTO works as a single-node core within the 10-node Python cap | Mandatory | REQ-040 | Planned | In-Nuke test under NC with >10 user nodes in script | D-012 |

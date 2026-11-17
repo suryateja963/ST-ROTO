@@ -1,0 +1,71 @@
+{
+ "utc": "2026-11-17T144513Z",
+ "commit": "0af47ac",
+ "steps": {
+  "unit": {
+   "ok": false,
+   "seconds": 527.0,
+   "detail": "FAILED tests/unit/test_persistence.py::test_backup_of_open_project_is_consistent_and_rotated",
+   "criteria": [
+    3,
+    6,
+    9,
+    10,
+    11,
+    13,
+    15,
+    17
+   ]
+  },
+  "nuke_headless": {
+   "ok": true,
+   "seconds": 478.1,
+   "detail": "34/34 pass",
+   "criteria": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14
+   ]
+  },
+  "gui": {
+   "ok": true,
+   "seconds": 75.6,
+   "detail": "gui_track_slice.py PASS; gui_ai_toggle.py PASS; gui_panel_collab.py PASS; gui_timeline.py PASS; gui_model_panel.py PASS",
+   "criteria": [
+    2,
+    3,
+    4,
+    9,
+    13,
+    17
+   ]
+  },
+  "installer": {
+   "ok": true,
+   "seconds": 69.4,
+   "detail": "package ok; install ok; nuke_runs_installed_copy ok; uninstall ok; owner_setup_untouched ok",
+   "criteria": [
+    1,
+    2
+   ]
+  },
+  "offline": {
+   "ok": true,
+   "seconds": 24.9,
+   "detail": "Python network events 0; external connections seen 0 (Nuke's own; firewall rule D-040 blocks them)",
+   "criteria": [
+    12
+   ]
+  }
+ }
+}
