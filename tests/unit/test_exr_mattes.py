@@ -85,3 +85,32 @@ def test_render_mattes_hard_and_soft(tmp_path):
     ring = (_disc(35, 45, 21) > 0) & (_disc(35, 45, 20) <= 0)
     assert a[ring].mean() > 0.5                                                      # pulled out to the plate edge
     s.close()
+
+
+def test_mattes_fitted_into_a_box(tmp_path):
+    """OQ-28: out_size fits the EXRs into a box (e.g. 1920x1080) with the shot's proportions; the result is the
+    area-average of the full-resolution matte (same computation, then INTER_AREA); never scaled up."""
+    cv2 = pytest.importorskip("cv2")
+    from st_roto_nuke.mattes import fit_size, render_mattes
+    assert fit_size(3840, 2160, (1920, 1080)) == (1920, 1080)
+    assert fit_size(7680, 4320, (1920, 1080)) == (1920, 1080)
+    assert fit_size(1080, 1920, (1920, 1080)) == (607, 1080)
+    assert fit_size(1280, 720, (1920, 1080)) == (1280, 720)            # fits already: unchanged
+    assert fit_size(4096, 2160, None) == (4096, 2160)
+    s = ProjectStore(str(tmp_path / "p.stroto")); bus = CommandBus(s)
+    bus.execute({"op": "create_shot", "row": {"id": "S", "name": "shot", "width": W, "height": H}})
+    bus.execute({"op": "create_object", "row": {"id": "A", "shot_id": "S", "name": "objA"}})
+    bus.execute({"op": "create_shape", "row": {"id": "As", "object_id": "A", "name": "A", "point_count": 12}})
+    bus.execute({"op": "set_key", "shape_id": "As", "frame": 0, "points": mask_to_points(_disc(35, 45, 20), count=12)},
+                actor=m.ACTOR_ARTIST)
+    plate = lambda f: np.full((H, W, 3), 0.2, np.float32)                          # noqa: E731
+    full = render_mattes(plate, s, "S", [0], str(tmp_path / "full"), soft=False)
+    box = (W // 2, H)                                                               # width-limited box
+    fit = render_mattes(plate, s, "S", [0], str(tmp_path / "fit"), soft=False, out_size=box)
+    a_full = exr.read_channels(full["files"][0])["objA.A"]
+    a_fit = exr.read_channels(fit["files"][0])["objA.A"]
+    assert fit["size"] == (W // 2, H // 2) and a_fit.shape == (H // 2, W // 2)
+    assert np.abs(cv2.resize(a_full, (W // 2, H // 2), interpolation=cv2.INTER_AREA) - a_fit).max() < 1e-6
+    meta = json.loads(OpenEXR.File(fit["files"][0]).header()["st_roto"])
+    assert meta["size"] == [W // 2, H // 2] and meta["shot_size"] == [W, H]
+    s.close()

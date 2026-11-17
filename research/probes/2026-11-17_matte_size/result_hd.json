@@ -1,0 +1,88 @@
+{
+ "case": "hd",
+ "plate": [
+  1280,
+  720
+ ],
+ "track_status": "done: 6 keys (12 points), 0 frames without object; device cuda",
+ "full resolution | guided filter": {
+  "seconds": 2.2,
+  "status": "mattes: 6 frames 1280x720 -> <TEMP>/tmpw_ad514d/m/Read1_mattes.####.exr (layers: target; guided-filter edges, 2.2 s)",
+  "mb_per_frame": 0.04,
+  "exr_size": [
+   1280,
+   720
+  ],
+  "iou_vs_truth": 0.9999,
+  "soft_pixels": 3489,
+  "nuke_format": [
+   1280,
+   720
+  ],
+  "nuke_channels": [
+   "rgba.alpha",
+   "target.alpha"
+  ],
+  "nuke_max_abs_diff": 0.0
+ },
+ "full resolution | hard": {
+  "seconds": 0.19,
+  "status": "mattes: 6 frames 1280x720 -> <TEMP>/tmpu63u9tga/m/Read1_mattes.####.exr (layers: target; hard edges, 0.2 s)",
+  "mb_per_frame": 0.02,
+  "exr_size": [
+   1280,
+   720
+  ],
+  "iou_vs_truth": 0.9963,
+  "soft_pixels": 0,
+  "nuke_format": [
+   1280,
+   720
+  ],
+  "nuke_channels": [
+   "rgba.alpha",
+   "target.alpha"
+  ],
+  "nuke_max_abs_diff": 0.0
+ },
+ "fit 1920x1080 | guided filter": {
+  "seconds": 2.19,
+  "status": "mattes: 6 frames 1280x720 -> <TEMP>/tmptlyt59hy/m/Read1_mattes.####.exr (layers: target; guided-filter edges, 2.2 s)",
+  "mb_per_frame": 0.04,
+  "exr_size": [
+   1280,
+   720
+  ],
+  "iou_vs_truth": 0.9999,
+  "soft_pixels": 3489,
+  "nuke_format": [
+   1280,
+   720
+  ],
+  "nuke_channels": [
+   "rgba.alpha",
+   "target.alpha"
+  ],
+  "nuke_max_abs_diff": 0.0
+ },
+ "fit 1920x1080 | hard": {
+  "seconds": 0.18,
+  "status": "mattes: 6 frames 1280x720 -> <TEMP>/tmppowuw7c7/m/Read1_mattes.####.exr (layers: target; hard edges, 0.2 s)",
+  "mb_per_frame": 0.02,
+  "exr_size": [
+   1280,
+   720
+  ],
+  "iou_vs_truth": 0.9963,
+  "soft_pixels": 0,
+  "nuke_format": [
+   1280,
+   720
+  ],
+  "nuke_channels": [
+   "rgba.alpha",
+   "target.alpha"
+  ],
+  "nuke_max_abs_diff": 0.0
+ }
+}

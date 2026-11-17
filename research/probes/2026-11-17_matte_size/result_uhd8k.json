@@ -1,0 +1,90 @@
+{
+ "case": "uhd8k",
+ "plate": [
+  7680,
+  4320
+ ],
+ "track_status": "done: 6 keys (64 points), 0 frames without object; device cuda; this Nuke edition renders at most 1920x1080, so the AI saw frames reduced to 1920x1080 (from 7680x4320); shapes are full resolution, accuracy slightly lower",
+ "full resolution | guided filter": {
+  "seconds": 85.37,
+  "status": "mattes: 6 frames 7680x4320 -> <TEMP>/tmpha86s_b1/m/Read1_mattes.####.exr (layers: target; guided-filter edges, 85.3 s); this Nuke edition renders at most 1920x1080, so the AI saw frames reduced to 1920x1080 (from 7680x4320); shapes a",
+  "mb_per_frame": 0.55,
+  "exr_size": [
+   7680,
+   4320
+  ],
+  "iou_vs_truth": 0.9955,
+  "soft_pixels": 43884,
+  "nuke_format": [
+   7680,
+   4320
+  ],
+  "nuke_channels": [
+   "rgba.alpha",
+   "target.alpha"
+  ],
+  "nuke_max_abs_diff": 0.0
+ },
+ "full resolution | hard": {
+  "seconds": 5.68,
+  "status": "mattes: 6 frames 7680x4320 -> <TEMP>/tmpd8zt198a/m/Read1_mattes.####.exr (layers: target; hard edges, 5.7 s)",
+  "mb_per_frame": 0.33,
+  "exr_size": [
+   7680,
+   4320
+  ],
+  "iou_vs_truth": 0.9951,
+  "soft_pixels": 0,
+  "nuke_format": [
+   7680,
+   4320
+  ],
+  "nuke_channels": [
+   "rgba.alpha",
+   "target.alpha"
+  ],
+  "nuke_max_abs_diff": 0.0
+ },
+ "fit 1920x1080 | guided filter": {
+  "seconds": 82.37,
+  "status": "mattes: 6 frames 1920x1080 -> <TEMP>/tmp56i1yc2e/m/Read1_mattes.####.exr (layers: target; guided-filter edges, 82.3 s) (fitted from 7680x4320); this Nuke edition renders at most 1920x1080, so the AI saw frames reduced to 1920x1080 (f",
+  "mb_per_frame": 0.05,
+  "exr_size": [
+   1920,
+   1080
+  ],
+  "iou_vs_truth": 0.9947,
+  "soft_pixels": 3685,
+  "max_diff_vs_downscaled_full": 0.0,
+  "nuke_format": [
+   1920,
+   1080
+  ],
+  "nuke_channels": [
+   "rgba.alpha",
+   "target.alpha"
+  ],
+  "nuke_max_abs_diff": 0.0
+ },
+ "fit 1920x1080 | hard": {
+  "seconds": 2.26,
+  "status": "mattes: 6 frames 1920x1080 -> <TEMP>/tmpl50kvkrl/m/Read1_mattes.####.exr (layers: target; hard edges, 2.2 s) (fitted from 7680x4320)",
+  "mb_per_frame": 0.03,
+  "exr_size": [
+   1920,
+   1080
+  ],
+  "iou_vs_truth": 0.9946,
+  "soft_pixels": 1382,
+  "max_diff_vs_downscaled_full": 0.0,
+  "nuke_format": [
+   1920,
+   1080
+  ],
+  "nuke_channels": [
+   "rgba.alpha",
+   "target.alpha"
+  ],
+  "nuke_max_abs_diff": 0.0
+ }
+}

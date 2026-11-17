@@ -32,6 +32,7 @@ from .roto_export import export_preview, import_edits, sync_shot
 from .track import apply_results, models_root, track_object, track_objects
 
 MODELS = ["sam2.1-hiera-tiny", "sam2.1-hiera-large"]
+MATTE_SIZES = ["full resolution", "fit 1920x1080"]
 DEVICES = ["auto", "cpu"]
 POINT_COUNTS = ["auto", "8", "12", "16", "24", "32", "48"]
 _JOBS = {}            # group full name -> last Job
@@ -126,6 +127,12 @@ def create(source=None, project_path: str = ""):
     soft.setVisible(False)                                   # kept for scripts made before the 'edges' choice
     soft.setTooltip("Refine a narrow band around each shape's edge against the plate (guided filter, no AI model). "
                     "Off: hard mattes identical to the shapes.")
+    msz = nuke.Enumeration_Knob("stroto_matte_size", "matte size", MATTE_SIZES)
+    msz.setTooltip("full resolution: EXR mattes at the plate's size. fit 1920x1080: mattes computed at full "
+                   "resolution, then area-averaged down to fit 1920x1080 with the plate's proportions (Nuke "
+                   "Non-commercial's own output limit). Plates that already fit are never scaled.")
+    msz.clearFlag(nuke.STARTLINE)
+    group.addKnob(msz)
     band = nuke.Int_Knob("stroto_band", "edge band"); band.setValue(3); band.clearFlag(nuke.STARTLINE); group.addKnob(band)
     band.setTooltip("Half-width in pixels of the zone that may become soft.")
     rad = nuke.Int_Knob("stroto_radius", "radius"); rad.setValue(8); rad.clearFlag(nuke.STARTLINE); group.addKnob(rad)
@@ -800,6 +807,8 @@ def on_render_mattes(group, background: bool = True):
                              % (ai_disabled_reason(group) or ai_runtime_problem()))
         dev = group["stroto_device"].value()
         band, radius = max(1, int(group["stroto_band"].value())), max(1, int(group["stroto_radius"].value()))
+        out_size = (1920, 1080) if ("stroto_matte_size" in group.knobs()
+                                    and group["stroto_matte_size"].value() == "fit 1920x1080") else None
         ctransform = _colour(group)
         ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name()),
                "width": int(src.width()), "height": int(src.height()), "group": group}
@@ -811,16 +820,18 @@ def on_render_mattes(group, background: bool = True):
         ro = store_ro(project)          # worker thread: its own connection
         try:
             return render_mattes(get_rgb, ro, shot["id"], frames, out_dir, soft=soft, method=method,
-                                 models_root=models_root(), device=dev, band=band, radius=radius,
+                                 models_root=models_root(), device=dev, band=band, radius=radius, out_size=out_size,
                                  job=job, colour_transform=ctransform)
         finally:
             ro.close()
 
     def apply(job):
         r = job.result
-        msg = "mattes: %d frames -> %s (layers: %s; %s edges, %.1f s)" % (
-            len(r["files"]), r["pattern"], ", ".join(sorted(r["layers"].values())),
+        msg = "mattes: %d frames %dx%d -> %s (layers: %s; %s edges, %.1f s)" % (
+            len(r["files"]), r["size"][0], r["size"][1], r["pattern"], ", ".join(sorted(r["layers"].values())),
             {"guided": "guided-filter", "vitmatte": "ViTMatte-S", "hard": "hard"}[method], r["seconds"])
+        if tuple(r["size"]) != (int(src.width()), int(src.height())):
+            msg += " (fitted from %dx%d)" % (int(src.width()), int(src.height()))
         if method == "vitmatte":
             from st_roto_ai.vitmatte import CAVEAT
             msg += ". " + CAVEAT

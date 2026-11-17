@@ -11,6 +11,8 @@ import json
 import os
 import time
 
+import numpy as np
+
 from st_roto import exr, matte
 from . import colour
 from .pixels import FrameUnavailable
@@ -24,6 +26,15 @@ def default_output_dir(project_path: str, shot_name: str) -> str:
 
 
 METHODS = ("guided", "vitmatte", "hard")
+
+
+def fit_size(w, h, box=None):
+    """(width, height) of the shot scaled down to fit in `box` with its proportions (never up); the shot size when
+    box is None or the shot already fits."""
+    if not box:
+        return (int(w), int(h))
+    s = min(box[0] / float(w), box[1] / float(h), 1.0)
+    return (max(1, int(w * s)), max(1, int(h * s)))
 
 
 def _vitmatte_crop(vm, guide, mask, inner=6, outer=20, margin=8):
@@ -44,9 +55,11 @@ def _vitmatte_crop(vm, guide, mask, inner=6, outer=20, margin=8):
 
 def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, radius=8, eps=1e-4,
                   objects=None, compression="zip", job=None, colour_transform=colour.TRANSFORM_ID, method=None,
-                  models_root=None, device="auto"):
+                  models_root=None, device="auto", out_size=None):
     """Write `<out_dir>/<shot>_mattes.####.exr` for `frames`. objects: object ids (default: every object of the
-    shot). Returns {"pattern", "files", "layers": {object name: layer}, "frames_interpolated": {name: [frames]},
+    shot). out_size: (width, height) box the EXRs must fit in (OQ-28: e.g. 1920x1080); mattes are computed at the
+    shot's full resolution and area-averaged down into the largest box with the shot's proportions; None = full
+    resolution. Returns {"pattern", "files", "layers": {object name: layer}, "frames_interpolated": {name: [frames]},
     "frames_held": {...}, "plate_missing": [frames], "seconds"}. A frame whose plate cannot be read (T-086) gets a
     hard matte (the shapes need no plate) and is listed in "plate_missing"."""
     t0 = time.time()
@@ -72,7 +85,9 @@ def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, r
     if not objs:
         raise ValueError("no objects with shapes to render")
     base = exr.layer_name(shot["name"]) + "_mattes"
+    size = fit_size(w, h, out_size)
     settings = {"pass": PASS_ID, "soft": bool(soft), "method": method, "band": band, "radius": radius, "eps": eps,
+                "size": list(size), "shot_size": [w, h],
                 "model": "vitmatte-small-composition-1k (D-032)" if vm else None,
                 "guide_colour": colour.transform_id(colour_transform) if soft else None}
     files, layers, interp, held, no_plate = [], {}, {}, {}, []
@@ -103,6 +118,10 @@ def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, r
                 alphas[o["name"]] = _vitmatte_crop(vm, guide, m)
             else:
                 alphas[o["name"]] = matte.refine_alpha(guide, m, band=band, radius=radius, eps=eps)
+        if size != (w, h):
+            import cv2
+            alphas = {k: cv2.resize(np.asarray(v, np.float32), size, interpolation=cv2.INTER_AREA)
+                      for k, v in alphas.items()}
         path = exr.frame_path(out_dir, base, f)
         layers = exr.write_mattes(path, alphas, compression=compression,
                                   attributes={"st_roto": json.dumps(settings, sort_keys=True)})
@@ -111,4 +130,4 @@ def render_mattes(get_rgb, store, shot_id, frames, out_dir, soft=True, band=3, r
         job.report(1.0, "wrote %d matte frames" % len(files))
     return {"pattern": exr.sequence_pattern(out_dir, base), "files": files, "layers": layers,
             "frames_interpolated": interp, "frames_held": held, "plate_missing": no_plate, "seconds": round(time.time() - t0, 2),
-            "settings": settings}
+            "settings": settings, "size": size}
