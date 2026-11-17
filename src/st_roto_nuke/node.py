@@ -232,6 +232,10 @@ def create(source=None, project_path: str = ""):
                   "after changes).")
     pk = _button(group, "stroto_package", "Package project", "n.on_package(nuke.thisNode())", new_line=False)
     pk.setTooltip("Portable zip: project, mattes, exports and a checksummed manifest (no model weights).")
+    dl = _button(group, "stroto_delivery", "Delivery package", "n.on_delivery(nuke.thisNode())", new_line=False)
+    dl.setTooltip("Zip for handing over this shot: the latest mattes and shape export, project settings, models used "
+                  "(licence, revision, approval), processing, provenance and quality reports, dependencies, and a "
+                  "checksummed manifest. Render mattes / Export shapes first.")
     sr = _button(group, "stroto_sysreport", "System report",
                  "import st_roto_nuke.capabilities as c; c.show_report(nuke.thisNode())", new_line=False)
     sr.setTooltip("What this machine and Nuke edition can do: GPU, memory, AI runtime, models, edition limits "
@@ -586,6 +590,75 @@ def _vitmatte_root():
     """The onnx folder of the location holding ViTMatte-S (T-101; vitmatte.model_path joins the model name)."""
     from .track import model_dir
     return os.path.dirname(model_dir("vitmatte-small-composition-1k"))
+
+
+def _latest_dir(d):
+    """`d` or its newest version folder (`d_v002`, ... - T-099), whichever exists last."""
+    import glob
+    vs = sorted(glob.glob(glob.escape(d) + "_v[0-9][0-9][0-9]"))
+    return vs[-1] if vs else (d if os.path.isdir(d) else None)
+
+
+def on_delivery(group, zip_path: str = None):
+    """Delivery package of this node's shot (T-108, REQ-180): st_roto.delivery with the outputs, settings and
+    dependencies gathered here."""
+    import platform
+    import sys as _sys
+    from st_roto import delivery
+    from .mattes import default_output_dir
+    from .track import models_root
+    try:
+        src = _inner(group, "src", None)
+        project = group["stroto_project"].value()
+        if not project:
+            raise ValueError("set a project file")
+        store, bus = _open_project(group, project)
+        row = store.conn.execute("SELECT id FROM shots WHERE name = ?", (src.name(),)).fetchone()
+        if row is None:
+            raise ValueError("nothing tracked or imported yet for %s" % src.name())
+        resync(group)                                           # capture the latest Roto edits first
+        from st_roto import exr as _exr
+        exr_layer = _exr.layer_name(src.name())
+        mdir = group["stroto_matte_dir"].value().strip() or default_output_dir(project, src.name())
+        outputs = {"mattes": _latest_dir(mdir),
+                   "shapes": _latest_dir(os.path.join(os.path.splitext(os.path.abspath(project))[0] + "_export",
+                                                      exr_layer))}
+        settings = {k: str(group[k].value()) for k in group.knobs() if k.startswith("stroto_")
+                    and k not in ("stroto_status", "stroto_points_info")}
+        deps = {"st_roto": _st_roto_version(), "nuke": nuke.NUKE_VERSION_STRING,
+                "nuke_edition": "nc" if nuke.env.get("nc") else ("indie" if nuke.env.get("indie") else "commercial"),
+                "python": platform.python_version(), "os": platform.platform()}
+        for mod in ("numpy", "cv2", "OpenEXR", "onnxruntime"):
+            m_ = _sys.modules.get(mod)
+            if m_ is not None:
+                deps[mod] = getattr(m_, "__version__", "?")
+        zip_path = zip_path or os.path.join(os.path.dirname(os.path.abspath(project)),
+                                            "%s_%s_delivery.zip" % (os.path.splitext(os.path.basename(project))[0],
+                                                                     exr_layer))
+        r = delivery.build(store, row["id"], zip_path, outputs={k: v for k, v in outputs.items() if v},
+                           settings=settings, dependencies=deps,
+                           manifests_dir=os.path.join(os.path.dirname(models_root()), "manifests"))
+        missing = [k for k, v in outputs.items() if not v]
+        _status(group, "delivery package: %s (%d files)%s" % (r["zip"], r["files"],
+                                                             ("; not included (make them first): " + ", ".join(missing))
+                                                             if missing else ""))
+        return r
+    except (ValueError, NodeBudgetError, KeyError, OSError) as e:
+        _status(group, "error: delivery package: %s" % e)
+        return None
+
+
+def _st_roto_version():
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    v = os.path.join(root, "VERSION")
+    if os.path.exists(v):
+        return open(v).read().strip()
+    try:
+        import subprocess
+        return "0.1.0-dev+" + subprocess.check_output(["git", "-C", root, "rev-parse", "--short", "HEAD"],
+                                                     stderr=subprocess.DEVNULL).decode().strip()
+    except Exception:                                          # noqa: BLE001
+        return "0.1.0-dev"
 
 
 def _anchors(group):

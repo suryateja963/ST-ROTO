@@ -6,6 +6,7 @@ Updated 2026-11-17.
 
 | ID | Task | Evidence |
 |---|---|---|
+| T-108 | Delivery packages (REQ-180): 'Delivery package' button - latest mattes + shape export, project settings, models used (licence, revision, approval), processing / provenance / quality reports (JSON + MD), dependencies, checksummed MANIFEST; delivery.verify. Nuke test end to end | `src/st_roto/delivery.py`, `tests/unit/test_delivery.py`, `tests/nuke` `test_delivery_package` |
 | T-107 | Benchmark methodology published before any comparison (REQ-190): docs/BENCHMARK_METHODOLOGY.md v1 (rules, data, 10 metric definitions, category weights, overall score, artist-correction protocol without time, competitor access status: none run) + st_roto.metrics (unit-tested) | `docs/BENCHMARK_METHODOLOGY.md`, `src/st_roto/metrics.py` |
 | T-106 | DEF-007: command bus refuses AI writes to locked frames | `DEFECTS.md`, `tests/unit/test_store_commands.py` |
 | T-105 | Defect register (criterion 20): DEFECTS.md with 9 known defects (6 fixed earlier today, 2 fixed here: DEF-001 combined EXR matte now 'over' like Nuke's render instead of max - up to 0.25 alpha difference on overlapping soft edges; DEF-008 locked-frame message), open: DEF-007 (minor), DEF-009 (unsigned exe); acceptance run fails on any open release blocker | `DEFECTS.md`, `tools/acceptance/run_acceptance.py` |

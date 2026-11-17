@@ -1886,6 +1886,49 @@ def test_model_manager(res):
     return bool(ok)
 
 
+def test_delivery_package(res):
+    """T-108 / REQ-180: Track (CUDA) -> Render mattes -> Export shapes -> Delivery package: every section present,
+    outputs included, model metadata with licence, settings from the node, verification against the manifest."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import zipfile
+    import st_roto_nuke.node as stnode
+    from st_roto import delivery
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vh, n = meta["h"], 3
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "deliv.stroto")
+    g = stnode.create(rd, proj)
+    g["stroto_object"].setValue("target"); nuke.frame(0)
+    g["stroto_click"].setValue([meta["click_xy"][0], vh - meta["click_xy"][1]]); stnode.on_add_point(g, 1)
+    stnode.on_track(g, background=False)
+    g["stroto_edges"].setValue("hard")
+    stnode.on_render_mattes(g, background=False)
+    stnode.on_export_shapes(g)
+    r = stnode.on_delivery(g)
+    res["status"] = g["stroto_status"].value()[-200:]
+    if r is None:
+        return False
+    z = zipfile.ZipFile(r["zip"])
+    names = z.namelist()
+    res["sections"] = sorted(x for x in names if "/" not in x)
+    res["mattes_in_package"] = len([x for x in names if x.startswith("outputs/mattes/") and x.endswith(".exr")])
+    res["shapes_in_package"] = len([x for x in names if x.startswith("outputs/shapes/")])
+    models = json.loads(z.read("models.json"))
+    res["models"] = {k: (v.get("licence"), v.get("approval")) for k, v in models.items()}
+    settings = json.loads(z.read("project_settings.json"))["settings"]
+    res["settings_edges"] = settings.get("stroto_edges")
+    deps = json.loads(z.read("dependencies.json"))
+    res["deps"] = {k: deps.get(k) for k in ("nuke", "nuke_edition", "onnxruntime")}
+    res["verify"] = delivery.verify(r["zip"])
+    return bool(set(["MANIFEST.json", "models.json", "processing_report.md", "provenance.json", "quality_report.md",
+                     "dependencies.json", "project_settings.json"]) <= set(res["sections"])
+                and res["mattes_in_package"] == n and res["shapes_in_package"] >= 2
+                and res["models"].get("sam2.1-hiera-tiny", (None,))[0] == "apache-2.0"
+                and res["settings_edges"] == "hard" and res["deps"]["nuke"] and res["verify"] == [])
+
+
 NET_EVENTS = ("socket.__new__", "socket.bind", "socket.connect", "socket.sendto", "socket.sendmsg",
               "socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyaddr", "socket.getnameinfo",
               "urllib.Request", "http.client.connect", "http.client.send", "ftplib.connect", "smtplib.connect",
@@ -1949,7 +1992,8 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_difficult_sequences, test_traditional_roto_without_ai, test_plate_above_render_limit,
          test_system_report, test_memory_aware_model, test_retrack_flagged_large,
          test_collaboration_ui, test_propagation_controls, test_roles_and_merge,
-         test_matte_outputs, test_prompt_from_mask, test_model_manager)
+         test_matte_outputs, test_prompt_from_mask, test_model_manager,
+         test_delivery_package)
 
 
 def main():

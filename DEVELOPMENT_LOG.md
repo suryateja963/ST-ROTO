@@ -446,3 +446,7 @@ Locked frames ('Lock range') are now enforced by the command bus for every AI ke
 ## 2026-11-17 - T-107 benchmark methodology
 
 Published docs/BENCHMARK_METHODOLOGY.md (version 1) before any comparative test, with the metric implementation st_roto.metrics (IoU, Dice, boundary F, MAE, SAD, MSE, temporal error, HD95 contour, stability, identity; category weights and overall score). No competitor is lawfully accessible here yet; none was run and no comparison is claimed.
+
+## 2026-11-17 - T-108 delivery packages
+
+Built st_roto.delivery and the node's Delivery package button: outputs, project settings, models used, processing / provenance / quality reports, dependencies, checksummed manifest with verify(). Unit tests (my first expectation said an artist key on an AI shape is 'artist_created'; the product correctly records 'artist_modified_ai') and a Nuke test end to end.
