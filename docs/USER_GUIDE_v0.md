@@ -53,5 +53,6 @@ Restart Nuke. You should see **Nodes › ST-ROTO › ST_Roto** and the pane **ST
 
 - Shapes you edit directly in the Roto node are **never** overwritten or removed by ST-ROTO; such a shape is reported as "NOT updated (edited in Roto)". **Save Roto edits to project** (or any Track / Re-track) records your edits in the project, undoably.
 - **AI input colour** (default *auto*) follows the script: Nuke's default linear sRGB, or with OCIO colour management (e.g. ACES) the working space converted through the script's OCIO config. Choose a space explicitly if your plates are, for example, already display-encoded. The choice is recorded with every AI result.
+- **Offline:** ST-ROTO itself never uses the network (no telemetry; ONNX Runtime's Windows telemetry is switched off; measured, T-085). Nuke 17.1 Non-commercial itself contacts a server over HTTPS each time it starts; that is Nuke's behaviour, not ST-ROTO's.
 - If you see "Nuke returned no node … 10 nodes per session", save, reopen the script and try again (Non-commercial limit).
 - Report problems with the status text and the Script Editor output.

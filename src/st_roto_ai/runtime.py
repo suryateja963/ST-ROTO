@@ -10,6 +10,15 @@ from dataclasses import dataclass, field
 
 import onnxruntime as ort
 
+# REQ-140 (master prompt section 16: no telemetry). Official ONNX Runtime builds for Windows contain Microsoft's
+# TraceLogging provider "Microsoft.ML.ONNXRuntime" (found in the bundled onnxruntime.dll, T-085) and emit usage
+# events through ETW by default; Windows may forward them depending on the user's diagnostic-data settings.
+# Switch them off before any session exists. Builds without telemetry lack the function: nothing to disable.
+TELEMETRY_DISABLED = False
+if hasattr(ort, "disable_telemetry_events"):
+    ort.disable_telemetry_events()
+    TELEMETRY_DISABLED = True
+
 
 @dataclass
 class DeviceReport:

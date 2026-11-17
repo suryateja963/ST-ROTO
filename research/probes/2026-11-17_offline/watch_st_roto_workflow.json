@@ -1,0 +1,175 @@
+{
+ "command": [
+  "C:\\Program Files\\Nuke17.1v3\\Nuke17.1.exe",
+  "--nc",
+  "-t",
+  "D:\\ST-ROTO\\tests\\nuke\\run_nuke_tests.py",
+  "test_offline_no_network"
+ ],
+ "exit_code": 0,
+ "seconds": 16.6,
+ "polls": 285,
+ "interval_s": 0.05,
+ "processes": {
+  "50276": "Nuke17.1.exe"
+ },
+ "endpoints": [
+  {
+   "pid": 50276,
+   "process": "Nuke17.1.exe",
+   "proto": "tcp",
+   "local": "127.0.0.1:59960",
+   "remote": "127.0.0.1:59961",
+   "status": "ESTABLISHED",
+   "first_s": 0.19,
+   "last_s": 0.19,
+   "loopback_or_unbound": true
+  },
+  {
+   "pid": 50276,
+   "process": "Nuke17.1.exe",
+   "proto": "tcp",
+   "local": "127.0.0.1:59961",
+   "remote": "127.0.0.1:59960",
+   "status": "ESTABLISHED",
+   "first_s": 0.19,
+   "last_s": 0.19,
+   "loopback_or_unbound": true
+  },
+  {
+   "pid": 50276,
+   "process": "Nuke17.1.exe",
+   "proto": "tcp",
+   "local": "<local>:59962",
+   "remote": "34.241.207.160:443",
+   "status": "SYN_SENT",
+   "first_s": 0.25,
+   "last_s": 0.3,
+   "loopback_or_unbound": false
+  },
+  {
+   "pid": 50276,
+   "process": "Nuke17.1.exe",
+   "proto": "tcp",
+   "local": "<local>:59962",
+   "remote": "34.241.207.160:443",
+   "status": "ESTABLISHED",
+   "first_s": 0.36,
+   "last_s": 0.76,
+   "loopback_or_unbound": false
+  },
+  {
+   "pid": 50276,
+   "process": "Nuke17.1.exe",
+   "proto": "tcp",
+   "local": "<local>:59962",
+   "remote": "34.241.207.160:443",
+   "status": "FIN_WAIT1",
+   "first_s": 0.82,
+   "last_s": 0.93,
+   "loopback_or_unbound": false
+  },
+  {
+   "pid": 50276,
+   "process": "Nuke17.1.exe",
+   "proto": "tcp",
+   "local": "<local>:59965",
+   "remote": "34.241.207.160:443",
+   "status": "SYN_SENT",
+   "first_s": 1.04,
+   "last_s": 1.16,
+   "loopback_or_unbound": false
+  },
+  {
+   "pid": 50276,
+   "process": "Nuke17.1.exe",
+   "proto": "tcp",
+   "local": "<local>:59965",
+   "remote": "34.241.207.160:443",
+   "status": "ESTABLISHED",
+   "first_s": 1.21,
+   "last_s": 1.55,
+   "loopback_or_unbound": false
+  },
+  {
+   "pid": 50276,
+   "process": "Nuke17.1.exe",
+   "proto": "tcp",
+   "local": "<local>:59965",
+   "remote": "34.241.207.160:443",
+   "status": "FIN_WAIT1",
+   "first_s": 1.61,
+   "last_s": 1.95,
+   "loopback_or_unbound": false
+  }
+ ],
+ "external_remote_endpoints": [
+  {
+   "pid": 50276,
+   "process": "Nuke17.1.exe",
+   "proto": "tcp",
+   "local": "<local>:59962",
+   "remote": "34.241.207.160:443",
+   "status": "SYN_SENT",
+   "first_s": 0.25,
+   "last_s": 0.3,
+   "loopback_or_unbound": false
+  },
+  {
+   "pid": 50276,
+   "process": "Nuke17.1.exe",
+   "proto": "tcp",
+   "local": "<local>:59962",
+   "remote": "34.241.207.160:443",
+   "status": "ESTABLISHED",
+   "first_s": 0.36,
+   "last_s": 0.76,
+   "loopback_or_unbound": false
+  },
+  {
+   "pid": 50276,
+   "process": "Nuke17.1.exe",
+   "proto": "tcp",
+   "local": "<local>:59962",
+   "remote": "34.241.207.160:443",
+   "status": "FIN_WAIT1",
+   "first_s": 0.82,
+   "last_s": 0.93,
+   "loopback_or_unbound": false
+  },
+  {
+   "pid": 50276,
+   "process": "Nuke17.1.exe",
+   "proto": "tcp",
+   "local": "<local>:59965",
+   "remote": "34.241.207.160:443",
+   "status": "SYN_SENT",
+   "first_s": 1.04,
+   "last_s": 1.16,
+   "loopback_or_unbound": false
+  },
+  {
+   "pid": 50276,
+   "process": "Nuke17.1.exe",
+   "proto": "tcp",
+   "local": "<local>:59965",
+   "remote": "34.241.207.160:443",
+   "status": "ESTABLISHED",
+   "first_s": 1.21,
+   "last_s": 1.55,
+   "loopback_or_unbound": false
+  },
+  {
+   "pid": 50276,
+   "process": "Nuke17.1.exe",
+   "proto": "tcp",
+   "local": "<local>:59965",
+   "remote": "34.241.207.160:443",
+   "status": "FIN_WAIT1",
+   "first_s": 1.61,
+   "last_s": 1.95,
+   "loopback_or_unbound": false
+  }
+ ],
+ "limitations": "polling may miss connections shorter than the interval; ETW telemetry is not visible as a connection of the process"
+}

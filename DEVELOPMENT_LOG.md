@@ -342,3 +342,7 @@ The owner noticed (GitHub app) that CI failed on every job. Cause: since a83fdda
 ## 2026-11-17 - T-082 prompt comparison on SA-V
 
 Box-only and 3-click runs (CUDA in Nuke, 51 sequences each) added to the existing 1-click and box + click runs. Wrong object at the start: 19 / 13 / 2 / 2; mean IoU over visible frames 0.536 / 0.576 / 0.673 / 0.679. Sequences that start on the right object score the same with a click as with a box (0.696 vs 0.678), so the box mainly fixes object choice. User guide now has the table and recommends a box plus one click. Caveat recorded: prompts simulated from the truth (tight boxes, ideal clicks), tiny model only.
+
+## 2026-11-17 - T-085 fully local operation (REQ-140)
+
+Static guard: product code imports no network module (socket only for gethostname). Inside Nuke, an audit hook saw 0 socket/DNS/HTTP events over node, prompts, Load model, Track on CUDA, soft mattes, export, backup and package. Gap found and fixed: the bundled official ONNX Runtime Windows build has Microsoft's ETW telemetry provider on by default and ST-ROTO never switched it off since onnxruntime was first used; `st_roto_ai.runtime` now calls `disable_telemetry_events()` at import (unit test enforces it). OS connection table (`tools/offline/watch_network.py`): Nuke 17.1 NC itself opens 2 HTTPS connections to AWS eu-west-1 within the first ~2 s of every start, also with an empty script; nothing else external. Recorded as R-45 with OQ-26 (offline test with the traffic blocked needs the owner's approval).

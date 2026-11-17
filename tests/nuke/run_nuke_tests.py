@@ -1149,13 +1149,66 @@ def test_reprompt_here(res):
     return bool(ok)
 
 
+NET_EVENTS = ("socket.__new__", "socket.bind", "socket.connect", "socket.sendto", "socket.sendmsg",
+              "socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyaddr", "socket.getnameinfo",
+              "urllib.Request", "http.client.connect", "http.client.send", "ftplib.connect", "smtplib.connect",
+              "poplib.connect", "imaplib.open", "nntplib.connect", "telnetlib.Telnet.open", "webbrowser.open")
+
+
+def test_offline_no_network(res):
+    """T-085 / REQ-140: a whole ST-ROTO workflow (node, two prompts, Load model, Track on the GPU, soft mattes,
+    JSON/SVG export, backup, package, re-open) must not use the network from Python: a sys.addaudithook hook
+    records every socket creation, DNS lookup, connect/send and urllib/http/ftp/smtp/webbrowser event (with the
+    calling stack) from just before ST-ROTO is first used until the end. Expected: none. (The OS-level view,
+    including native code such as ONNX Runtime and Nuke itself, is tools/offline/watch_network.py.)"""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    seen = []
+
+    def hook(event, args):
+        if event in NET_EVENTS:
+            import traceback as tb
+            seen.append({"event": event, "args": repr(args)[:200],
+                         "stack": [("%s:%d" % (f.filename, f.lineno)) for f in tb.extract_stack()[-8:-1]]})
+    sys.addaudithook(hook)                                    # cannot be removed: one test per Nuke process
+    import st_roto_nuke.node as stnode
+    from st_roto_ai import runtime
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vh, n = meta["h"], 6
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    tmp = tempfile.mkdtemp()
+    proj = os.path.join(tmp, "offline.stroto")
+    g = stnode.create(rd, proj)
+    for name, (x, y) in (("target", meta["click_xy"]), ("disc", (1050.0, 560.0))):
+        g["stroto_object"].setValue(name); nuke.frame(0)
+        g["stroto_click"].setValue([x, vh - y]); stnode.on_add_point(g, 1)
+    stnode.on_load_model(g)
+    res["load_status"] = g["stroto_status"].value()
+    job = stnode.on_track(g, background=False)
+    res["track_status"] = g["stroto_status"].value()
+    ok = job is not None and job.status == "done" and "cuda" in res["load_status"].lower()
+    g["stroto_soft"].setValue(True)
+    jm = stnode.on_render_mattes(g, background=False)
+    ok &= jm is not None and jm.status == "done"
+    out = stnode.on_export_shapes(g)
+    ok &= out is not None and os.path.exists(out["json"])
+    stnode.on_backup(g)
+    zp = stnode.on_package(g, os.path.join(tmp, "offline_pkg.zip"))
+    ok &= zp is not None and os.path.exists(zp)
+    res["onnxruntime_telemetry_disabled"] = runtime.TELEMETRY_DISABLED
+    res["network_events"] = seen
+    res["network_event_count"] = len(seen)
+    return bool(ok and not seen and runtime.TELEMETRY_DISABLED)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
          test_export_import_shapes, test_crash_recovery_and_package, test_motion_blur_links,
          test_colour_auto_follows_script, test_split_object_parts, test_cancel_and_resume_track,
          test_package_script_relink, test_feather_and_rotopaint, test_point_feather_roundtrip,
-         test_vitmatte_mattes, test_box_prompt, test_reprompt_here)
+         test_vitmatte_mattes, test_box_prompt, test_reprompt_here, test_offline_no_network)
 
 
 def main():
