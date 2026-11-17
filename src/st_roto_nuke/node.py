@@ -23,6 +23,7 @@ import os
 import threading
 import traceback
 
+import numpy as np
 import nuke
 import nuke.rotopaint  # noqa: F401
 
@@ -189,6 +190,18 @@ def create(source=None, project_path: str = ""):
                   "in this view.")
     pv.clearFlag(nuke.STARTLINE)
     group.addKnob(pv)
+    ck_ = nuke.String_Knob("stroto_cameras", "cameras")
+    ck_.setTooltip("Optional (T-120): the camera nodes of the views, e.g. 'left=CamL, right=CamR' (one camera per view: "
+                   "multi-camera rigs) or one name, e.g. 'StereoCam', whose knobs are split per view. With cameras, "
+                   "each object is found in the other views ALONG its epipolar line (toed-in, rolled or vertically "
+                   "offset rigs, other focal lengths, any number of views) and its box is scaled by the depth; after "
+                   "Track, frames whose shape is off its epipolar line get CHECK flags. Empty: rectified-stereo search "
+                   "(horizontal, a few px vertical).")
+    group.addKnob(ck_)
+    cvb = _button(group, "stroto_check_views", "Check views (cameras)", "n.on_check_views(nuke.thisNode())",
+                  new_line=False)
+    cvb.setTooltip("Re-checks every view's shapes against the cameras (epipolar lines), e.g. after editing shapes; "
+                   "frames off their line get CHECK flags.")
     _add_channel_knobs(group)
     _add_review_view_knobs(group)
     rp = _button(group, "stroto_reprompt", "Re-prompt here", "n.on_reprompt_here(nuke.thisNode())")
@@ -340,7 +353,8 @@ AI_KNOBS = ("stroto_click", "stroto_add_inc", "stroto_add_exc", "stroto_clear", 
             "stroto_resume", "stroto_retrack", "stroto_retrack_all", "stroto_reprompt", "stroto_reprompt_point",
             "stroto_retrack_flagged", "stroto_retrack_model", "stroto_range_mode", "stroto_range_from",
             "stroto_range_to", "stroto_lock_range", "stroto_unlock_range", "stroto_exclude",
-            "stroto_prompt_from", "stroto_prompt_source", "stroto_prompt_use", "stroto_stereo", "stroto_prompt_view")
+            "stroto_prompt_from", "stroto_prompt_source", "stroto_prompt_use", "stroto_stereo", "stroto_prompt_view",
+            "stroto_cameras")
 AI_ENV = "ST_ROTO_AI"
 
 
@@ -1072,6 +1086,49 @@ def prompt_view(group):
     return hero if hero in vs else vs[0]
 
 
+def camera_rig(group, views, frames, width, height):
+    """T-120: {view: {frame: (K, R, C)}} from the node's 'cameras' knob (main thread), or None if it is empty.
+    'v1=Cam1, v2=Cam2': one camera node per view; 'Cam': one node whose knobs are split per view. Raises ValueError
+    with what is wrong (unknown node, a view without camera, not a camera)."""
+    from st_roto import cameras as cm
+    text = group["stroto_cameras"].value().strip() if "stroto_cameras" in group.knobs() else ""
+    if not text:
+        return None
+    if "=" in text:
+        pairs = [x.split("=", 1) for x in text.split(",") if x.strip()]
+        names = {k.strip(): v.strip() for k, v in pairs}
+        missing = [v for v in views if v not in names]
+        if missing:
+            raise ValueError("cameras: no camera named for view(s) %s" % ", ".join(missing))
+        per_view = True
+    else:
+        names, per_view = {v: text for v in views}, False
+    cache = _INNER.setdefault(group.fullName(), {})
+    rig = {}
+    for v in views:
+        key = "cam:" + names[v]
+        node = cache.get(key)
+        if node is None:
+            node = nuke.toNode(names[v])
+            if node is None:
+                raise ValueError("cameras: no node named %r (or the Non-commercial 10-node limit)" % names[v])
+            cache[key] = node
+        if "world_matrix" not in node.knobs() or "focal" not in node.knobs():
+            raise ValueError("cameras: %r is not a camera" % names[v])
+        rig[v] = {}
+        for f in frames:
+            def val(k, i=0):
+                kn = node[k]
+                return kn.valueAt(f, i) if per_view else kn.valueAt(f, i, v)
+            wm = [val("world_matrix", i) for i in range(16)]
+            K = cm.intrinsics(width, height, val("focal"), val("haperture"),
+                              win_translate=(val("win_translate", 0), val("win_translate", 1)),
+                              win_scale=(val("win_scale", 0) or 1.0, val("win_scale", 1) or 1.0))
+            R, C = cm.from_world_matrix(np.array(wm, np.float64).reshape(4, 4))
+            rig[v][f] = (K, R, C)
+    return rig
+
+
 def stereo_on(group):
     """True when the node tracks every view (its checkbox, and the script has several views)."""
     return bool("stroto_stereo" in group.knobs() and group["stroto_stereo"].value() and len(script_views()) > 1)
@@ -1756,6 +1813,11 @@ def on_track(group, background: bool = True, resume: bool = False):
         _status(group, "error: exclude frames: %s" % e); return None
     get_rgb = _renderer(ctx, background)
     ctx["model"], ctx["device"], ctx["model_note"] = plan_model(ctx["model"], ctx["device"])
+    if stereo:
+        try:
+            ctx["rig"] = camera_rig(group, all_views, frames, ctx["width"], ctx["height"])     # T-120
+        except ValueError as e:
+            _status(group, "error: %s" % e); return None
 
     def work(job):
         def run(device, again):
@@ -1793,6 +1855,9 @@ def on_track(group, background: bool = True, resume: bool = False):
                 r.setdefault("view", ctx["view"]); r.setdefault("pair", r["name"])
         ids = apply_results(bus, shot_id, result["objects"])
         rep = _sync(group, store, shot_id, ctx["roto"]["curves"], ctx["height"])
+        if stereo and ctx.get("rig"):                       # T-120: shapes vs their epipolar lines, every frame
+            _epipolar_check(store, bus, shot_id, ctx["rig"], ctx["view"])
+            _refresh_review(group, store, shot_id, ctx["roto"]["curves"])
         parts = []
         for r, (oid, _) in zip(result["objects"], ids):
             extra = (", %d extra piece(s)" % len(r["parts"])) if r.get("parts") else ""
@@ -1805,7 +1870,9 @@ def on_track(group, background: bool = True, resume: bool = False):
                                               skipped_note, _sequence_note(ctx, result.get("missing_frames")))
         if result.get("transfers"):
             msg += "; stereo (prompt view %s): %s" % (ctx["view"], ", ".join(
-                "%s in %s %s" % (n, v, ("found at disparity %+.1f px" % t["dx"]) if isinstance(t, dict) else t)
+                "%s in %s %s" % (n, v, (("found along its epipolar line (cameras), shift %+.0f/%+.0f px, scale %.3f"
+                                         % (t["dx"], t["dy"], t.get("scale", 1.0))) if t.get("cameras") else
+                                        ("found at disparity %+.1f px" % t["dx"])) if isinstance(t, dict) else t)
                 for (n, v), t in sorted(result["transfers"].items())))
         for extra in (ctx.get("model_note"), result.get("oom_fallback")):
             if extra:
@@ -1833,6 +1900,69 @@ def on_track(group, background: bool = True, resume: bool = False):
         return (" - 'Resume track' continues from frame %s" % m["next_frame"]) if m else ""
 
     return _run(group, "track", work, apply, background, stop_hint=hint)
+
+
+def _epipolar_check(store, bus, shot_id, rig, hero):
+    """T-120: for every object of a non-prompt view that has a counterpart in the prompt view (same pair), the
+    distance of its centroid from the epipolar line of the prompt-view centroid, per frame, stored as channel
+    reports ('epipolar_px', tolerance max(10 px, 4 % of the object's size)) -> CHECK flags where a view's shape is
+    off (wrong object, lost). Returns {object name: (frames checked, frames over tolerance)}."""
+    from st_roto import cameras as cm, stereo as st
+    objs = [o for o in store.objects(shot_id) if o.get("view") and o.get("pair")]
+    by_pair = {}
+    for o in objs:
+        by_pair.setdefault(o["pair"], {})[o["view"]] = o
+    ops, report = [], {}
+    for pair, per_view in by_pair.items():
+        if hero not in per_view:
+            continue
+        gh = st.object_geometry(store, per_view[hero]["id"])
+        for v, o in per_view.items():
+            if v == hero or v not in rig:
+                continue
+            gv = st.object_geometry(store, o["id"])
+
+            def F_of(f, v=v):
+                if f not in rig[hero] or f not in rig[v]:
+                    return None
+                Kh, Rh, Ch = rig[hero][f]
+                Kv, Rv, Cv = rig[v][f]
+                return cm.fundamental(cm.projection(Kh, Rh, Ch), cm.projection(Kv, Rv, Cv), Ch)
+            old = store.channel_reports(o["id"])
+            n, bad = 0, 0
+            for f, dist in st.epipolar_distances(gh, gv, F_of).items():
+                g = gv[f]
+                tol = max(10.0, 0.04 * float(np.hypot(g["x1"] - g["x0"], g["y1"] - g["y0"])))
+                data = dict(old.get(f, {}), epipolar_px=dist, epipolar_tol=round(tol, 2), epipolar_from=hero)
+                ops.append({"op": "set_channel_report", "object_id": o["id"], "frame": f, "data": data})
+                n += 1
+                bad += 1 if dist > tol else 0
+            report[o["name"]] = (n, bad)
+    if ops:
+        bus.execute({"op": "batch", "ops": ops})
+    return report
+
+
+def on_check_views(group):
+    """T-120 button: re-run the epipolar check of every stereo / multi-camera object (e.g. after editing shapes)."""
+    try:
+        store, bus, src, project, shot = _shot_for(group)
+        if shot is None:
+            raise ValueError("nothing tracked yet for %s" % _shot_name(group))
+        roto = _inner(group, "roto", "STROTO_shapes")
+        import_edits(store, bus, shot["id"], roto["curves"], int(src.height()), int(nuke.frame()))
+        frames = list(range(int(src.firstFrame()), int(src.lastFrame()) + 1))
+        rig = camera_rig(group, script_views(), frames, int(src.width()), int(src.height()))
+        if rig is None:
+            raise ValueError("set 'cameras' (the camera node of each view)")
+        rep = _epipolar_check(store, bus, shot["id"], rig, prompt_view(group))
+        _refresh_review(group, store, shot["id"], roto["curves"])
+    except (ValueError, NodeBudgetError) as e:
+        _status(group, "error: %s" % e); return None
+    _status(group, "views checked with the cameras: %s" % (" | ".join(
+        "%s: %d frames, %s" % (n, c, ("%d off the epipolar line (CHECK)" % b) if b else "all on their epipolar lines")
+        for n, (c, b) in sorted(rep.items())) or "no objects with views and pairs"))
+    return rep
 
 
 def _track_stereo(job, ctx, frames, get_rgb, background, device, all_views, ck=None, resume=False):
@@ -1898,11 +2028,28 @@ def _track_stereo(job, ctx, frames, get_rgb, background, device, all_views, ck=N
                 if box is None:
                     transfers[(o["name"], v)] = "not tracked: the AI found nothing in %s on frame %d" % (hero, f)
                     continue
+                rig = ctx.get("rig")
                 try:
-                    d = st.estimate_disparity(get_rgb(f), get_v(f), mask)
+                    if rig:                                 # T-120: known cameras -> search along the epipolar line
+                        from st_roto import cameras as cm
+                        Kh, Rh, Ch = rig[hero][f]
+                        Kv, Rv, Cv = rig[v][f]
+                        Ph, Pv = cm.projection(Kh, Rh, Ch), cm.projection(Kv, Rv, Cv)
+                        ys_, xs_ = np.nonzero(mask)
+                        cen = (float(xs_.mean() + 0.5), float(ys_.mean() + 0.5))
+                        scale_of = cm.scale_along((Kh, Rh, Ch), (Kv, Rv, Cv), cen)
+                        d = st.estimate_shift_epipolar(get_rgb(f), get_v(f), mask, cm.fundamental(Ph, Pv, Ch),
+                                                       scale_of=scale_of)
+                        d["scale"] = round(float(scale_of((d["dx"], d["dy"]))), 4)
+                        d["cameras"] = True
+                    else:
+                        d = st.estimate_disparity(get_rgb(f), get_v(f), mask)
                 except (ValueError, pixels.FrameUnavailable) as e:
                     transfers[(o["name"], v)] = "not tracked: %s" % e; continue
-                p = st.transfer_prompt(o, d["dx"], d["dy"], box, w, h)
+                if rig:
+                    p = st.transfer_prompt(o, d["dx"], d["dy"], box, w, h, scale=d["scale"], centre=cen)
+                else:
+                    p = st.transfer_prompt(o, d["dx"], d["dy"], box, w, h)
                 if p is None:
                     transfers[(o["name"], v)] = "not tracked: outside the %s view" % v; continue
                 transfers[(o["name"], v)] = d

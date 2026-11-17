@@ -190,3 +190,26 @@ def test_channel_reports_in_store_review_and_undo(tmp_path):
     with pytest.raises(KeyError):
         bus.execute({"op": "set_channel_report", "object_id": "nope", "frame": 0, "data": {}})
     json.dumps(s.channel_reports("O"))
+
+
+def test_robust_warp_ignores_an_occluder_inside_the_shape():
+    # object moves (+3, +1) px with a small rotation; a strip inside it belongs to an occluder moving +40 px
+    pts = mask_to_points(disc(50, 40, 18), count=16)
+    yy, xx = np.mgrid[0:H, 0:W] + 0.5
+    ang = np.radians(2.0)
+    tx = (xx - 50) * np.cos(ang) - (yy - 40) * np.sin(ang) + 50 + 3 - xx
+    ty = (xx - 50) * np.sin(ang) + (yy - 40) * np.cos(ang) + 40 + 1 - yy
+    tx[:, 40:52] = 40.0                                            # occluder strip (30 % of the disc)
+    ty[:, 40:52] = 0.0
+    u, v = tx.astype(np.float32), (-ty).astype(np.float32)        # stored y-up
+    m = disc(50, 40, 18) > 0
+    A, inl = ch.fit_affine_motion(u, v, "u right, v up (Nuke)", m)
+    assert 0.55 < inl < 0.85
+    expect = np.array([[np.cos(ang), -np.sin(ang)], [np.sin(ang), np.cos(ang)]])
+    assert np.allclose(A[:, :2], expect, atol=0.01)
+    plain = np.array(ch.warp_points(pts, u, v, "u right, v up (Nuke)", mask=m))
+    robust = np.array(ch.warp_points_robust(pts, u, v, "u right, v up (Nuke)", m))
+    p = np.array(pts)[:, :2] - [50, 40]
+    truth = p @ expect.T + [50 + 3, 40 + 1]
+    assert np.abs(robust[:, :2] - truth).max() < 0.6
+    assert np.abs(plain[:, :2] - truth).max() > 10                # some points took the occluder's vector

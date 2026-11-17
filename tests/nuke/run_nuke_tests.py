@@ -2675,6 +2675,94 @@ def test_stereo_resume(res):
     return bool(ok)
 
 
+MULTICAM = ROOT + "/research/probes/2026-11-18_multicam/out/mc"
+
+
+def test_multicam_cameras(res):
+    """T-120 on the synthetic NON-rectified three-camera shot (views A, B, C; toe-in, roll, vertical offset, window
+    translate, another focal length; exact truth): box prompt in A on frame 5, 'track every view' with the camera
+    nodes -> every view found along its epipolar line, IoU vs truth per view; the epipolar check is clean on the AI
+    tracks; a wrong object put into view C by an artist is flagged by 'Check views (cameras)'."""
+    if not os.path.exists(MULTICAM + "/meta.json"):
+        res["skipped"] = "multi-camera frames not generated (make_multicam.py)"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto import model as m, stereo, views
+    from st_roto.geometry import mask_to_points
+    from st_roto_nuke import session
+    meta = json.load(open(MULTICAM + "/meta.json"))
+    vw, vh, n = meta["w"], meta["h"], meta["frames"]
+    nuke.root()["views"].fromScript("A #ff0000\nB #00ff00\nC #0000ff")
+    nuke.root()["format"].setValue(nuke.addFormat("%d %d 1 mc_test" % (vw, vh)))
+    rd = nuke.nodes.Read(file=MULTICAM + "/%V/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "mc.stroto")
+    g = stnode.create(rd, proj)
+    cache = stnode._INNER.setdefault(g.fullName(), {})
+    for v, c in meta["cameras"].items():
+        cam = nuke.nodes.Camera3(name="Cam" + v)
+        cam["translate"].setValue(c["translate"]); cam["rotate"].setValue(c["rotate"])
+        cam["focal"].setValue(c["focal"]); cam["haperture"].setValue(c["haperture"])
+        cam["win_translate"].setValue(c["win_translate"])
+        cache["cam:Cam" + v] = cam                       # the test's own references (Non-commercial node budget)
+
+    def gt(v, f):
+        return cv2.imread(MULTICAM + "/%s/gt_%04d.png" % (v, f), cv2.IMREAD_GRAYSCALE) > 127
+    F0 = 5
+    ys, xs = np.nonzero(gt("A", F0))
+    g["stroto_object"].setValue("target")
+    nuke.frame(F0)
+    g["stroto_box"].setValue([xs.min() - 4.0, vh - ys.max() - 5.0, xs.max() + 5.0, vh - ys.min() + 4.0])
+    stnode.on_set_box(g)
+    g["stroto_stereo"].setValue(True)
+    g["stroto_prompt_view"].setValue("A")
+    g["stroto_cameras"].setValue("A=CamA, B=CamB, C=CamC")
+    job = stnode.on_track(g, background=False)
+    res["track_status"] = g["stroto_status"].value()
+    if job is None or job.status != "done":
+        res["error"] = job.error if job else "no job"; return False
+    store, bus = session.project(proj)
+    shot = store.conn.execute("SELECT id FROM shots").fetchone()["id"]
+    objs = {o["name"]: o for o in store.objects(shot)}
+    res["objects"] = sorted(objs)
+    ok = sorted(objs) == ["target_A", "target_B", "target_C"]
+    ok &= "epipolar line (cameras)" in res["track_status"]
+    q = {}
+    for v in "ABC":
+        sid = views.main_shape(store, objs["target_" + v]["id"])["id"]
+        ks = {k["frame"]: k["points"] for k in store.keys(sid)}
+        ious = [iou(stereo.mask_from_keys([ks[f]], vh, vw), gt(v, f)) for f in sorted(ks)]
+        q[v] = {"frames": len(ious), "min": round(min(ious), 4), "mean": round(float(np.mean(ious)), 4)}
+    res["iou"] = q
+    ok &= all(x["frames"] == n - F0 and x["mean"] > 0.97 for x in q.values())
+    epi = {v: [r.get("epipolar_px") for f, r in sorted(store.channel_reports(objs["target_" + v]["id"]).items())]
+           for v in "BC"}
+    res["epipolar_px_max"] = {v: max(x for x in e if x is not None) for v, e in epi.items()}
+    flags = [x for v in "ABC" for x in views.review_for_object(store, objs["target_" + v]["id"])
+             if "epipolar" in x[2] or "stereo" in x[2]]
+    res["flags_clean_track"] = flags
+    ok &= all(len(e) == n - F0 for e in epi.values()) and not flags
+    # an artist puts the WRONG object (the distractor disc) into view C on frame 10
+    sidc = views.main_shape(store, objs["target_C"]["id"])["id"]
+    gtc = gt("C", 10)
+    sf = 10 / (n - 1.0)
+    from st_roto import cameras as cm
+    c = meta["cameras"]["C"]
+    P = cm.projection(cm.intrinsics(vw, vh, c["focal"], c["haperture"], win_translate=c["win_translate"]),
+                      *cm.from_world_matrix(np.array(c["world_matrix"]).reshape(4, 4)))
+    dc = cm.project(P, [[1.6 - 3.2 * sf, -0.6, -8.0]])[0][0]
+    yy, xx = np.mgrid[0:vh, 0:vw] + 0.5
+    npts = len(store.keys(sidc)[0]["points"])
+    bus.execute({"op": "set_key", "shape_id": sidc, "frame": 10,
+                 "points": mask_to_points(60 - np.hypot(xx - dc[0], yy - dc[1]), count=npts)}, actor=m.ACTOR_ARTIST)
+    from st_roto_nuke.roto_export import sync_shot
+    sync_shot(store, shot, stnode._inner(g, "roto", "STROTO_shapes")["curves"], vh)
+    rep = stnode.on_check_views(g)
+    res["check_views_status"] = g["stroto_status"].value()
+    fl = [x for x in views.review_for_object(store, objs["target_C"]["id"]) if "epipolar" in x[2]]
+    res["flags_after_wrong_object"] = fl
+    ok &= rep is not None and [x[0] for x in fl] == [10]
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
@@ -2688,7 +2776,7 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_matte_outputs, test_prompt_from_mask, test_model_manager,
          test_delivery_package, test_stereo_views, test_extra_channels, test_review_overlay_and_presets,
          test_node_family, test_alembic_export, test_model_versions, test_edge_colour_and_chatter,
-         test_stereo_resume)
+         test_stereo_resume, test_multicam_cameras)
 
 
 def main():

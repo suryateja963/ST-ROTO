@@ -214,11 +214,214 @@ def estimate_disparity(img_a, img_b, mask, max_dx: int = None, max_dy: int = MAX
     return {"dx": float(dx), "dy": float(dy), "error": best, "ambiguity": round(amb, 4)}
 
 
-def transfer_prompt(obj: dict, dx: float, dy: float, box, width: int, height: int, name: str = None):
+def _ssd_list(a, b, mask, x0, y0, shifts):
+    """Zero-mean masked SSD for each integer shift (dx, dy) in `shifts` (inf where < half the mask lands in b)."""
+    h, w = mask.shape
+    m = mask.astype(bool)
+    n = m.sum()
+    pa = a[y0:y0 + h, x0:x0 + w]
+    H, W = b.shape
+    out = []
+    for dx, dy in shifts:
+        ys, xs = y0 + dy, x0 + dx
+        cy0, cx0 = max(0, -ys), max(0, -xs)
+        cy1, cx1 = min(h, H - ys), min(w, W - xs)
+        if cy1 <= cy0 or cx1 <= cx0:
+            out.append(np.inf); continue
+        sel = m[cy0:cy1, cx0:cx1]
+        if sel.sum() < 0.5 * n:
+            out.append(np.inf); continue
+        vb = b[ys + cy0:ys + cy1, xs + cx0:xs + cx1][sel]
+        va = pa[cy0:cy1, cx0:cx1][sel]
+        va, vb = va - va.mean(), vb - vb.mean()
+        den = float(np.sqrt((va * va).sum() * (vb * vb).sum()))
+        # 1 - normalised cross-correlation: robust when the views see the object at a slightly different scale /
+        # roll (plain SSD then preferred flat background: measured on the non-rectified test shot)
+        out.append(1.0 - float((va * vb).sum()) / den if den > 1e-12 else np.inf)
+    return np.array(out)
+
+
+TOP_CANDIDATES = 5
+
+
+def _scaled_about(a, mask, c, sc):
+    """Image and mask scaled by `sc` about canonical point c (same size)."""
+    if abs(sc - 1.0) < 1e-4:
+        return a, mask
+    import cv2
+    H, W = mask.shape
+    cx, cy = c[0] - 0.5, c[1] - 0.5                            # canonical -> pixel-index coordinates
+    M = np.float32([[sc, 0, cx * (1 - sc)], [0, sc, cy * (1 - sc)]])
+    a2 = cv2.warpAffine(np.ascontiguousarray(a, np.float32), M, (W, H), flags=cv2.INTER_LINEAR,
+                        borderMode=cv2.BORDER_REPLICATE)
+    m2 = cv2.warpAffine(mask.astype(np.float32), M, (W, H), flags=cv2.INTER_LINEAR) > 0.5
+    return a2, m2
+
+
+SCALE_STEP = 1.03          # candidates are compared with the template resampled in 3 % scale steps
+
+
+def estimate_shift_epipolar(img_a, img_b, mask, F, max_along: int = None, tol: float = 3.0, margin: int = 2,
+                            scale_of=None) -> dict:
+    """T-120: where the masked region of view A appears in view B when the cameras are KNOWN (non-rectified rigs,
+    vertical disparity, any number of views): the object's centre c must land on its epipolar line F c in B, so the
+    search runs along the part of that line inside B and only +-tol px across it, coarse-to-fine, comparing with
+    normalised cross-correlation. scale_of(shift) -> how much larger B sees the object if it is at that shift
+    (from the cameras: depth by triangulation); with it each candidate is compared with the template resampled at
+    its own scale (in SCALE_STEP steps) - needed when the views see the object at different sizes (measured: an
+    11 % smaller view matched the wrong place without it). Assumes one shift for the whole object (a box prompt).
+    Returns {"dx", "dy", "error", "ambiguity", "line_distance", "scale"}."""
+    from .cameras import epipolar_line, line_distance
+    a, b = _gray(img_a), _gray(img_b)
+    mask = np.asarray(mask, bool)
+    ys, xs = np.nonzero(mask)
+    if len(ys) == 0:
+        raise ValueError("empty mask: nothing to match")
+    H, W = mask.shape
+    c = np.array([xs.mean() + 0.5, ys.mean() + 0.5])
+    l = epipolar_line(F, c)
+    n = np.array([l[0], l[1]])                                 # unit normal
+    d = np.array([-l[1], l[0]])                                # unit direction along the line
+    foot = c - line_distance(l, c) * n
+    base = foot - c
+    ks = []
+    for axis, lim in ((0, W), (1, H)):                         # the part of the line inside image B
+        if abs(d[axis]) > 1e-9:
+            ks.append(sorted([(0 - foot[axis]) / d[axis], (lim - foot[axis]) / d[axis]]))
+    lo_k, hi_k = (max(k[0] for k in ks), min(k[1] for k in ks)) if ks else (-W, W)
+    if max_along:
+        lo_k, hi_k = max(lo_k, -max_along), min(hi_k, max_along)
+    lo_k, hi_k = int(np.floor(lo_k)), int(np.ceil(hi_k))
+    if hi_k <= lo_k:
+        raise ValueError("the epipolar line of the object does not cross the other view")
+    span = max(abs(lo_k), abs(hi_k))
+    obj = max(xs.max() - xs.min(), ys.max() - ys.min())
+    s = max(1, int(np.ceil(span / 128.0)))
+    if s > 1 and obj // s < 8:
+        s = max(1, obj // 8)
+    templates = {}
+
+    def bucket(shift):
+        if scale_of is None:
+            return 0
+        sc = float(scale_of(shift))
+        return int(round(np.log(max(sc, 1e-3)) / np.log(SCALE_STEP)))
+
+    def template(bk, level):
+        key = (bk, level)
+        if key not in templates:
+            a2, m2 = _scaled_about(a, mask, c, SCALE_STEP ** bk)
+            yy, xx = np.nonzero(m2)
+            if len(yy) == 0:
+                templates[key] = None
+            else:
+                y0, y1 = max(0, yy.min() - margin), min(H, yy.max() + 1 + margin)
+                x0, x1 = max(0, xx.min() - margin), min(W, xx.max() + 1 + margin)
+                if level > 1:
+                    ab = _block(a2, level)
+                    mb = _block(m2[:(H // level) * level, :(W // level) * level].astype(np.float32), level) > 0.5
+                    cy0, cy1 = y0 // level, max(y0 // level + 1, y1 // level)
+                    cx0, cx1 = x0 // level, max(x0 // level + 1, x1 // level)
+                    templates[key] = (ab, mb[cy0:cy1, cx0:cx1], cx0, cy0)
+                else:
+                    templates[key] = (a2, m2[y0:y1, x0:x1], x0, y0)
+        return templates[key]
+    b_levels = {1: b}
+
+    def errors(shifts, level):
+        """1 - NCC for full-resolution integer shifts, evaluated at block level `level`."""
+        if level not in b_levels:
+            b_levels[level] = _block(b, level)
+        out = np.full(len(shifts), np.inf)
+        groups = {}
+        for i, sh in enumerate(shifts):
+            groups.setdefault(bucket(sh), []).append(i)
+        for bk, idx in groups.items():
+            t = template(bk, level)
+            if t is None:
+                continue
+            at, mt, tx0, ty0 = t
+            sl = [(int(round(shifts[i][0] / level)), int(round(shifts[i][1] / level))) for i in idx]
+            out[idx] = _ssd_list(at, b_levels[level], mt, tx0, ty0, sl)
+        return out
+
+    # coarse
+    cand = set()
+    for k in range(lo_k, hi_k + 1, s):
+        for t in np.arange(-tol, tol + 1e-6, max(1.0, s / 2.0)):
+            v = base + k * d + t * n
+            cand.add((int(round(v[0] / s)) * s, int(round(v[1] / s)) * s))
+    cand = sorted(cand)
+    e = errors(cand, s)
+    if not np.isfinite(e).any():
+        raise ValueError("the object cannot be compared with the other view (its epipolar line leaves the image)")
+    order = [int(k) for k in np.argsort(e) if np.isfinite(e[k])]
+    tops = []
+    for k in order:                                            # refine the TOP coarse candidates (measured)
+        if all(np.hypot(cand[k][0] - cand[t][0], cand[k][1] - cand[t][1]) >= 2 * s for t in tops):
+            tops.append(k)
+        if len(tops) == TOP_CANDIDATES:
+            break
+    best_fine = None
+    for k in tops:
+        bx, by = cand[k]
+        fine = [(bx + ddx, by + ddy) for ddx in range(-s - 1, s + 2) for ddy in range(-s - 1, s + 2)
+                if abs(line_distance(l, c + np.array([bx + ddx, by + ddy], np.float64))) <= tol + 1.0]
+        ef_k = errors(fine, 1)
+        if np.isfinite(ef_k).any() and (best_fine is None or ef_k.min() < best_fine[1].min()):
+            best_fine = (fine, ef_k, k)
+    if best_fine is None:
+        raise ValueError("the object cannot be compared with the other view")
+    fine, ef, kbest = best_fine
+    best = cand[kbest]
+    j = int(np.argmin(ef))
+    fdx, fdy = fine[j]
+    look = {(q[0], q[1]): v for q, v in zip(fine, ef)}
+    step = (int(round(d[0])), int(round(d[1])))
+    e0, em, ep = ef[j], look.get((fdx - step[0], fdy - step[1])), look.get((fdx + step[0], fdy + step[1]))
+    off = 0.0
+    if em is not None and ep is not None and np.isfinite(em) and np.isfinite(ep):
+        den = em - 2 * e0 + ep
+        off = float(0.5 * (em - ep) / den) if den > 0 else 0.0
+        off = max(-0.5, min(0.5, off))
+    dx, dy = fdx + off * step[0], fdy + off * step[1]
+    far = [k for k, cc in enumerate(cand) if np.hypot(cc[0] - best[0], cc[1] - best[1]) >= 3 * s]
+    second = float(np.min(e[far])) if far and np.isfinite(e[far]).any() else float("inf")
+    amb = (float(np.min(e)) / second) if second > 0 and np.isfinite(second) else 0.0
+    return {"dx": float(dx), "dy": float(dy), "error": float(e0), "ambiguity": round(amb, 4),
+            "line_distance": round(line_distance(l, c + np.array([dx, dy])), 3),
+            "scale": round(SCALE_STEP ** bucket((fdx, fdy)), 4) if scale_of is not None else 1.0}
+
+
+def epipolar_distances(geo_a: dict, geo_b: dict, F_of) -> dict:
+    """{frame: distance (px) of the object's centroid in view B from the epipolar line of its centroid in view A}.
+    F_of(frame) -> F (A->B) or None. Centroids are not exactly corresponding points (perspective, occlusion), so
+    the check is coarse: it catches the wrong object or a shape far off, not edge detail."""
+    from .cameras import epipolar_line, line_distance
+    out = {}
+    for f, a in geo_a.items():
+        b = geo_b.get(f)
+        F = F_of(f) if (a is not None and b is not None) else None
+        if F is None:
+            continue
+        out[f] = round(abs(line_distance(epipolar_line(F, (a["cx"], a["cy"])), (b["cx"], b["cy"]))), 3)
+    return out
+
+
+def transfer_prompt(obj: dict, dx: float, dy: float, box, width: int, height: int, name: str = None,
+                    scale: float = 1.0, centre=None):
     """Prompt for another view: the object's clicks moved by (dx, dy), preceded by a box (x0, y0, x1, y1) = the
     object's extent in the source view moved by (dx, dy) (box + click: the most reliable prompt, T-082). Points
-    that leave the image are dropped; None if the box falls (mostly) outside the image."""
+    that leave the image are dropped; None if the box falls (mostly) outside the image.
+    T-120: `scale` (from the known cameras: focal / depth ratio) resizes the box and the clicks about `centre`
+    (the object's centre in the source view; default the box centre) - views with another focal length or distance
+    see the object at another size."""
     from .prompts import BOX_BR, BOX_TL
+    cx0, cy0 = centre if centre is not None else (0.5 * (box[0] + box[2]), 0.5 * (box[1] + box[3]))
+    if scale != 1.0:
+        box = (cx0 + (box[0] - cx0) * scale, cy0 + (box[1] - cy0) * scale,
+               cx0 + (box[2] - cx0) * scale, cy0 + (box[3] - cy0) * scale)
+        obj = dict(obj, points=[(cx0 + (x - cx0) * scale, cy0 + (y - cy0) * scale) for x, y in obj["points"]])
     bx0, by0, bx1, by1 = box[0] + dx, box[1] + dy, box[2] + dx, box[3] + dy
     cx0, cy0, cx1, cy1 = max(0.0, bx0), max(0.0, by0), min(float(width), bx1), min(float(height), by1)
     if cx1 - cx0 < 2 or cy1 - cy0 < 2 or (cx1 - cx0) * (cy1 - cy0) < 0.25 * (bx1 - bx0) * (by1 - by0):
@@ -243,7 +446,7 @@ def _median(v):
     return 0.0 if n == 0 else (v[n // 2] if n % 2 else 0.5 * (v[n // 2 - 1] + v[n // 2]))
 
 
-def consistency(geo_a: dict, geo_b: dict, name_a: str = "A", name_b: str = "B") -> dict:
+def consistency(geo_a: dict, geo_b: dict, name_a: str = "A", name_b: str = "B", rectified: bool = True) -> dict:
     """Compare one object's geometry in two views ({frame: geometry or None}, from `object_geometry`).
 
     Returns {"frames": {frame: {"dx", "dy_top", "dy_bottom", "area_ratio"}}, "offset": (median dy_top, median
@@ -253,7 +456,10 @@ def consistency(geo_a: dict, geo_b: dict, name_a: str = "A", name_b: str = "B") 
         max(VERTICAL_TOL_PX, VERTICAL_TOL_FRAC x object height) (one edge alone can be a view-dependent occlusion);
       * size: area ratio above AREA_RATIO_MAX;
       * disparity jump: horizontal disparity differs from BOTH neighbouring frames by more than
-        max(DISPARITY_JUMP_PX, DISPARITY_JUMP_FRAC x |median disparity|)."""
+        max(DISPARITY_JUMP_PX, DISPARITY_JUMP_FRAC x |median disparity|).
+    rectified=False (T-120: the cameras are known and the views are NOT a rectified pair - toe-in, roll, other focal
+    lengths): the vertical and size rules are skipped (such rigs violate them legitimately); the epipolar check
+    (channels.review_flags, 'epipolar_px') replaces them."""
     frames = sorted(set(geo_a) | set(geo_b))
     per, flags = {}, []
     for f in frames:
@@ -275,10 +481,10 @@ def consistency(geo_a: dict, geo_b: dict, name_a: str = "A", name_b: str = "B") 
         reasons = []
         tol = max(VERTICAL_TOL_PX, VERTICAL_TOL_FRAC * p["height"])
         et, eb = p["dy_top"] - off_t, p["dy_bottom"] - off_b
-        if abs(et) > tol and abs(eb) > tol:
+        if rectified and abs(et) > tol and abs(eb) > tol:
             reasons.append("views disagree vertically (top %+.1f px, bottom %+.1f px against the shot's usual offset)"
                            % (et, eb))
-        if p["area_ratio"] > AREA_RATIO_MAX:
+        if rectified and p["area_ratio"] > AREA_RATIO_MAX:
             reasons.append("size differs %.0f%% between the views" % (100 * (p["area_ratio"] - 1)))
         if 0 < i < len(fs) - 1:
             dp, dn = abs(p["dx"] - per[fs[i - 1]]["dx"]), abs(p["dx"] - per[fs[i + 1]]["dx"])
@@ -300,7 +506,11 @@ def review_for_object(store, object_id: str) -> list:
     if not others:
         return out
     mine = object_geometry(store, object_id)
+
+    def has_cameras(oid):
+        return any("epipolar_px" in r for r in store.channel_reports(oid).values())
     for o in others:
-        rep = consistency(mine, object_geometry(store, o["id"]), me["view"], o["view"])
+        rect = not (has_cameras(object_id) or has_cameras(o["id"]))      # T-120: epipolar check instead
+        rep = consistency(mine, object_geometry(store, o["id"]), me["view"], o["view"], rectified=rect)
         out += [(f, CHECK, "stereo vs %s: %s" % (o["view"], r)) for f, r in rep["flags"]]
     return sorted(out)

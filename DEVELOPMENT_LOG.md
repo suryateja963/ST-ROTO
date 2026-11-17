@@ -504,3 +504,7 @@ Decontamination solves I = aF + (1-a)B with background / foreground colours push
 ## 2026-11-18 - T-119 stereo Track resume
 
 Stereo runs are now a sequence of checkpointed passes (stereo.json + result per finished view + the running pass's own T-048 checkpoint). Resume continues the interrupted view and reuses the prompts already derived for the other views. Test: cancelled in the right view's pass, resumed, and compared with an uninterrupted run: identical keys (max difference 0.0) for both views.
+
+## 2026-11-18 - T-120 multi-camera correspondence from camera data
+
+Measured Nuke's camera model first (Nuke 17 3D; the classic path rendered nothing headless; world_matrix only via valueAt): my projection matches Nuke within 0.33 px after fixing my own window-translate sign. Built a ray-cast three-camera test shot (non-rectified) and an epipolar search. It failed in four measured ways before it worked - fixed window too short (shifts of -265 px), coarse 16 px grid, SSD preferring flat background when a view sees the object 11 % smaller, and in Nuke the AI mask tipping a weak match to the wrong object (view C tracked the wrong thing) - fixed by searching the whole line, refining the top 5 coarse candidates, NCC, and comparing every candidate at the scale its triangulated depth implies. Result: 31/32 view-frames found (horizontal search: 0); in Nuke all views IoU 0.99, epipolar flags clean, a wrong object flagged.

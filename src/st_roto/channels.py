@@ -24,6 +24,7 @@ STAT_JUMP = 0.25            # spike: deviation from BOTH neighbouring frames, sa
 STAT_JUMP_REL = 0.05        # ... and at least this fraction of the value's magnitude (channels nearly constant)
 STAT_JUMP_ABS = 1e-6
 CONVENTION_MARGIN = 1.02    # an axis's sign is decided only if the flipped sign is >= 2 % worse
+EPIPOLAR_TOL_PX = 10.0     # T-120: centroid off its epipolar line (truth centroids: <= 7.6 px, clipping)
 MOTION_IOU_MIN = 0.85       # shape(f) moved by the vectors vs shape(f+1)
 WARP_INSET = 3              # px inside the shape where outline points read their vector (see warp_points)
 OCCLUSION_MARGIN = 4        # px around occluded / revealed object pixels also left out of the motion check: a
@@ -232,6 +233,55 @@ def warp_points(points, u, v, convention, mask=None, inset: int = None):
     for c in (0, 2, 4):                                          # point and both handles move together
         out[:, c] += mx
         out[:, c + 1] += my
+    return out.tolist()
+
+
+def fit_affine_motion(u, v, convention, mask, max_samples: int = 4000, iterations: int = 4):
+    """The dominant motion inside `mask` as a 2x3 affine map A (x' = A [x, y, 1]), robust to pixels of something
+    else in front (iteratively reweighted least squares, residuals beyond 3 x the median dropped). Returns
+    (A, inlier fraction) or (None, 0) if too few pixels."""
+    dx, dy = displacement(u, v, convention)
+    ys, xs = np.nonzero(np.asarray(mask, bool))
+    if len(xs) < 12:
+        return None, 0.0
+    if len(xs) > max_samples:
+        sel = np.linspace(0, len(xs) - 1, max_samples).astype(int)
+        ys, xs = ys[sel], xs[sel]
+    X = np.c_[xs + 0.5, ys + 0.5, np.ones(len(xs))]
+    T = np.c_[xs + 0.5 + dx[ys, xs], ys + 0.5 + dy[ys, xs]]
+    # robust START: the median vector (the majority's motion). A least-squares start over all pixels was poisoned by
+    # an occluder covering 30 % of the shape (fitted scale 0.16; measured) and trimming then kept the mixture.
+    mx, my = float(np.median(dx[ys, xs])), float(np.median(dy[ys, xs]))
+    A = np.array([[1.0, 0.0, mx], [0.0, 1.0, my]])
+    r0 = np.hypot(*(X @ A.T - T).T)
+    keep = r0 <= max(2.0, 3.0 * float(np.median(r0)))
+    for _ in range(iterations):
+        if keep.sum() < 12:
+            break
+        sol, *_ = np.linalg.lstsq(X[keep], T[keep], rcond=None)
+        A = sol.T
+        r = np.hypot(*(X @ A.T - T).T)
+        med = float(np.median(r[keep]))
+        keep = r <= max(0.5, 3.0 * med)
+    return A, float(keep.mean())
+
+
+def warp_points_robust(points, u, v, convention, mask, tol: float = 2.0):
+    """warp_points that survives occlusion (T-121, measured): each point keeps its own (inset-sampled) vector only if
+    it agrees within `tol` px with the object's dominant affine motion (fit_affine_motion); otherwise it moves with
+    the affine motion. Without this a shape propagated across an occluder took the occluder's vectors and fell
+    apart (IoU 0.98 -> 0.03 in one frame)."""
+    local = np.asarray(warp_points(points, u, v, convention, mask=mask), np.float64)
+    A, _ = fit_affine_motion(u, v, convention, mask)
+    if A is None:
+        return local.tolist()
+    pts = np.asarray(points, np.float64)
+    out = local.copy()
+    for c in (0, 2, 4):
+        xy = np.c_[pts[:, c], pts[:, c + 1], np.ones(len(pts))]
+        aff = xy @ A.T
+        bad = np.hypot(*(local[:, c:c + 2] - aff).T) > tol
+        out[bad, c:c + 2] = aff[bad]
     return out.tolist()
 
 
@@ -515,4 +565,8 @@ def review_flags(report: dict) -> list:
         ci = r.get("crypto_iou")
         if ci is not None and ci < CRYPTO_IOU_MIN:
             out.setdefault(f, []).append("shape differs from the Cryptomatte matte (IoU %.2f)" % ci)
+        ep = r.get("epipolar_px")                             # T-120: known cameras (stereo / multi-camera)
+        if ep is not None and ep > float(r.get("epipolar_tol", EPIPOLAR_TOL_PX)):
+            out.setdefault(f, []).append("shape is %.1f px off the epipolar line from the %s view (cameras)"
+                                         % (ep, r.get("epipolar_from", "prompt")))
     return sorted((f, "; ".join(rs)) for f, rs in out.items())
