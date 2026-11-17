@@ -422,3 +422,7 @@ Built the ST-ROTO Models panel and its logic: models across user / studio / plug
 ## 2026-11-17 - D-043 OQ-29 dropped
 
 Owner chose to skip the precise-edge comparison completely: no drawing, no edge-refinement change. Recorded as D-043; the study (T-095) and the kit (T-096) stay in the repository for later. The full Nuke suite rerun after the T-101 fix was stopped on the owner's request; last verified: 33/34 before the fix, the 3 affected tests passing after it.
+
+## 2026-11-17 - T-101 suite verified; T-102 Objects pane timeline
+
+The full Nuke suite rerun after the T-101 fix completed on the owner's request: 34/34 pass (the earlier commit message's '33/33' was wrong in number and was unverified at the time). Built the timeline in the Objects pane (views.timeline + a painted Qt widget; click jumps frame and selects the object). The first GUI probe sampled background pixels because grab() renders at the display's 1.25 device-pixel ratio; corrected in the probe, and the colours at key, locked and flagged frames and the click behaviour are verified. Process slip: my register script failed on one row, but the commit command on the next line still ran with the previous message, so the T-102 code was pushed as 774bf45 labelled 'D-043'; fixed forward (this entry, next commit), and the commit now runs only if every step before it succeeded.
