@@ -138,6 +138,62 @@ def main(per_obj=6, composite=False):
     print(json.dumps(summ, indent=1))
 
 
+def main_truth(kit, truth_dir=None, tag="artist"):
+    """OQ-29: the same variants scored against a drawn precise-edge truth (tools/edge_truth). Prompt from that truth
+    (tight box + most interior pixel), plate = the kit frame cropped from its canvas. Writes edge_study_<tag>.json."""
+    from st_roto_ai.sam2 import Sam2Image
+    from st_roto.matte import refine_alpha
+    sam = Sam2Image(os.path.join(MODEL), device="cpu")
+    man = json.load(open(os.path.join(kit, "manifest.json")))
+    truth_dir = truth_dir or kit
+    rows = []
+    for e in man["frames"]:
+        tp = os.path.join(truth_dir, "truth.%04d.png" % e["frame"])
+        if not os.path.exists(tp):
+            continue
+        gt = cv2.imread(tp, cv2.IMREAD_GRAYSCALE) > 127
+        h, w = gt.shape
+        img = cv2.imread(os.path.join(kit, "plate.%04d.png" % e["frame"]))[:h, :w, ::-1].astype(np.float32) / 255.0
+        x0, y0, x1, y1 = bbox(gt)
+        cx, cy = interior_point(gt)
+        pts, lab = [(x0, y0), (x1, y1), (cx, cy)], [2, 3, 1]
+        out = sam.predict(sam.encode(img), pts, lab)
+        a = out["logits"] > 0
+        r = {"frame": e["frame"], "seq": e["seq"], "sav_frame": e["sav_frame"], "size": [w, h]}
+        r["A"] = (iou(a, gt),) + boundary_scores(a, gt)
+        b = refine_alpha(img, a) > 0.5
+        r["B"] = (iou(b, gt),) + boundary_scores(b, gt)
+        for key, frac, least in (("C", 0.25, 32), ("C2", 1.0, 128)):
+            if not a.any():
+                r[key] = r["A"]; continue
+            ax0, ay0, ax1, ay1 = bbox(a)
+            mx, my = max(least, int(frac * (ax1 - ax0))), max(least, int(frac * (ay1 - ay0)))
+            X0, Y0, X1, Y1 = max(0, ax0 - mx), max(0, ay0 - my), min(w, ax1 + mx), min(h, ay1 + my)
+            o2 = sam.predict(sam.encode(img[Y0:Y1, X0:X1]), [(px - X0, py - Y0) for px, py in pts], lab)
+            full = out["logits"].copy(); full[Y0:Y1, X0:X1] = o2["logits"]
+            r[key] = (iou(full > 0, gt),) + boundary_scores(full > 0, gt)
+        sav = cv2.imread(os.path.join(SAV, e["seq"], "masks", e["sav_frame"] + ".png"), cv2.IMREAD_GRAYSCALE) > 127
+        r["SAV_vs_truth"] = (iou(sav, gt),) + boundary_scores(sav, gt)       # how far SA-V's own mask is from it
+        rows.append(r)
+        print(e["frame"], " ".join("%s %.3f" % (k, r[k][0]) for k in ("A", "B", "C", "C2", "SAV_vs_truth")), flush=True)
+    keys = ("A", "B", "C", "C2", "SAV_vs_truth")
+    summ = {"frames": len(rows), "tolerance_px": TOL}
+    for k in keys:
+        if rows:
+            summ[k] = {"mean_iou": round(float(np.mean([r[k][0] for r in rows])), 4),
+                       "mean_boundary_f": round(float(np.mean([r[k][1] for r in rows])), 4),
+                       "better_iou_than_A_by_0.01": sum(1 for r in rows if r[k][0] > r["A"][0] + 0.01),
+                       "worse_iou_than_A_by_0.01": sum(1 for r in rows if r[k][0] < r["A"][0] - 0.01)}
+    json.dump({"summary": summ, "rows": rows}, open(os.path.join(HERE, "edge_study_%s.json" % tag), "w"), indent=1)
+    print(json.dumps(summ, indent=1))
+    return summ
+
+
 if __name__ == "__main__":
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    main(int(args[0]) if args else 6, composite="--composite" in sys.argv)
+    if "--truth" in sys.argv:                 # --truth <kit> [--truth-dir <dir>] [--tag <name>]
+        av = sys.argv
+        opt = lambda k, d=None: av[av.index(k) + 1] if k in av else d       # noqa: E731
+        main_truth(opt("--truth"), opt("--truth-dir"), opt("--tag", "artist"))
+    else:
+        args = [a for a in sys.argv[1:] if not a.startswith("--")]
+        main(int(args[0]) if args else 6, composite="--composite" in sys.argv)

@@ -1,0 +1,16 @@
+{
+ "gui": true,
+ "ran": true,
+ "node": true,
+ "ai_off": true,
+ "track_hidden": true,
+ "range": [
+  1,
+  20
+ ],
+ "format": [
+  1920,
+  1920
+ ],
+ "passed": true
+}

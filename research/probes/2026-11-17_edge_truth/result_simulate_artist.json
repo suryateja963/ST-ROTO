@@ -1,0 +1,117 @@
+{
+ "ai_off": true,
+ "frames": 20,
+ "save_status": "imported Roto edits: truth_01_p1_st7e55c638, truth_02_p1_st4b4ae644, truth_03_p1_stc278fd3b, truth_04_p1_st6a762c45, truth_05_p1_st9acba7b8, truth_06_p1_st26a6e00b, truth_07_p1_stbce35c27, truth_08_p1_st812e6a2a, truth_09_p1_st07b1d700, truth_09_p2_st20a57b1d, truth_10_p1_st7ac53507, truth_10_p2_st6",
+ "export": {
+  "drawn": [
+   1,
+   2,
+   3,
+   4,
+   5,
+   6,
+   7,
+   8,
+   9,
+   10,
+   11,
+   12,
+   13,
+   14,
+   15,
+   16,
+   17,
+   18,
+   19,
+   20
+  ],
+  "missing": []
+ },
+ "truth_dir": "<TEMP>/tmp9u69p51a/truth",
+ "compare": {
+  "1": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9841
+  },
+  "2": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.997
+  },
+  "3": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9853
+  },
+  "4": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9991
+  },
+  "5": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9968
+  },
+  "6": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9993
+  },
+  "7": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9971
+  },
+  "8": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9982
+  },
+  "9": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9948
+  },
+  "10": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9978
+  },
+  "11": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9935
+  },
+  "12": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9831
+  },
+  "13": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9979
+  },
+  "14": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9903
+  },
+  "15": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9991
+  },
+  "16": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9991
+  },
+  "17": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9972
+  },
+  "18": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9988
+  },
+  "19": {
+   "size_ok": true,
+   "iou_vs_drawn": 0.9973
+  },
+  "20": {
+   "size_ok": true,
+   "iou_vs_drawn": 1.0
+  }
+ },
+ "hole_respected": true,
+ "iou_min": 0.9831,
+ "iou_mean": 0.9953,
+ "passed": true
+}
