@@ -110,7 +110,7 @@ def project(tmp_path, right_cy=50):
 
 def test_store_views_pairs_and_review(tmp_path):
     s, bus = project(tmp_path)
-    assert s.schema_version() == 11
+    assert s.schema_version() >= 11
     assert s.row("objects", "car_left")["view"] == "left" and s.row("objects", "mono")["view"] is None
     assert [o["id"] for o in stereo.counterparts(s, "car_left")] == ["car_right"]
     assert stereo.counterparts(s, "mono") == []

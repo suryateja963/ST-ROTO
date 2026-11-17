@@ -31,7 +31,8 @@ from . import colour, pixels, session
 from .roto_export import export_preview, import_edits, sync_shot
 from .track import apply_results, models_root, track_object, track_objects
 
-PROMPT_SOURCES = ["Roto shape", "mask node", "mask file"]
+PROMPT_SOURCES = ["Roto shape", "mask node", "mask file", "Cryptomatte"]
+AUTO_CONVENTION = "auto (measure)"
 AUTO_MODEL = "auto (by free GPU memory)"
 MODELS = ["sam2.1-hiera-tiny", "sam2.1-hiera-large", AUTO_MODEL]
 SAME_MODEL = "same as model"
@@ -174,6 +175,7 @@ def create(source=None, project_path: str = ""):
                   "in this view.")
     pv.clearFlag(nuke.STARTLINE)
     group.addKnob(pv)
+    _add_channel_knobs(group)
     rp = _button(group, "stroto_reprompt", "Re-prompt here", "n.on_reprompt_here(nuke.thisNode())")
     rp.setTooltip("For a frame the review flags (or your eye) say is wrong: drag the box around the object on THIS "
                   "frame, press Re-prompt here. The object named above is re-tracked in both directions with this "
@@ -259,6 +261,7 @@ def create(source=None, project_path: str = ""):
     with group:
         inp = nuke.nodes.Input(name="Input1")
         roto = nuke.nodes.Roto(name="STROTO_shapes", output="alpha")
+        roto["replace"].setValue(True)                        # T-110: alpha = the shapes, also on plates with alpha
         roto.setInput(0, inp)
         clamp = _make_clamp(roto)                             # T-098: holdout / garbage subtract; keep alpha 0-1
         out = nuke.nodes.Output(name="Output1")
@@ -268,6 +271,13 @@ def create(source=None, project_path: str = ""):
         pixels.configure_write(w, pixels.temp_pixel_path(group.name()))
         w["disable"].setValue(True)
     _add_motionblur_links(group)
+    rk = nuke.Link_Knob("stroto_replace_alpha", "replace input alpha")
+    rk.setLink("STROTO_shapes.replace")
+    rk.setTooltip("On (default): the node's alpha is exactly the shapes. Off: the shapes are added over the input's "
+                  "alpha (Nuke's Roto default) - on plates that already have alpha (CG renders, many EXRs) that "
+                  "alpha is then 1 almost everywhere. Every other channel passes through unchanged either way "
+                  "(measured, T-110). Nodes made before T-110 keep 'off'.")
+    group.addKnob(rk)
     group["knobChanged"].setValue(KNOB_CHANGED)
     group["onCreate"].setValue(ON_CREATE)
     _INNER[group.fullName()] = {"write": w, "roto": roto, "src": source}
@@ -366,6 +376,52 @@ def create_from_selection():
     if not project:
         g["stroto_status"].setValue("set a project file (save the script first for an automatic one)")
     return g
+
+
+def _add_channel_knobs(group):
+    """Extra channels as hints (T-110, REQ-113). Not AI controls: the checks also work with AI disabled."""
+    from st_roto.channels import CONVENTIONS
+    group.addKnob(nuke.Text_Knob("stroto_div_ch", "extra channels"))
+    lc = _button(group, "stroto_ch_list", "List channels", "n.on_list_channels(nuke.thisNode())")
+    lc.setTooltip("Shows the layers of the node's input (depth, motion vectors, Cryptomatte, normals, position, ...) "
+                  "and its Cryptomatte layers with their object names. Every input channel passes through the node "
+                  "unchanged; only alpha is replaced by the shapes.")
+    group.addKnob(nuke.Text_Knob("stroto_ch_layers", "", "(press List channels)"))
+    st = nuke.String_Knob("stroto_ch_stats", "medians of")
+    st.setTooltip("Channels whose median inside each shape is recorded per frame, e.g. 'depth.Z' or 'depth.Z, "
+                  "P.green, N.blue'. A spike (a frame differing from both neighbours, same direction, by more than "
+                  "a quarter of the shot's usual range) flags the frame: the shape probably grabbed something nearer "
+                  "or further away.")
+    group.addKnob(st)
+    mv = nuke.String_Knob("stroto_ch_motion", "motion vectors")
+    mv.setTooltip("Forward motion-vector layer (pixels to the next frame), e.g. 'forward' (channels .u/.v). Each "
+                  "shape moved by the vectors must match the next frame's shape (IoU >= 0.85), else CHECK.")
+    group.addKnob(mv)
+    mb = nuke.String_Knob("stroto_ch_motion_back", "backward")
+    mb.setTooltip("Backward vector layer, e.g. 'backward'. Strongly recommended: with it, places where something "
+                  "else covers or reveals the object are left out of the motion check (without it, occlusions "
+                  "raise CHECK flags: measured).")
+    mb.clearFlag(nuke.STARTLINE)
+    group.addKnob(mb)
+    cv = nuke.Enumeration_Knob("stroto_ch_motion_conv", "vector convention", [AUTO_CONVENTION] + list(CONVENTIONS))
+    cv.setTooltip("Renderers differ in the sign of motion vectors. 'auto' measures it on the plate (the vectors "
+                  "must move frame f onto frame f+1) and reports it; an axis that cannot be measured (nothing moves "
+                  "that way) uses Nuke's convention.")
+    cv.clearFlag(nuke.STARTLINE)
+    group.addKnob(cv)
+    cl = nuke.String_Knob("stroto_ch_crypto", "Cryptomatte layer")
+    cl.setTooltip("e.g. CryptoObject, CryptoAsset, CryptoMaterial. Empty = the input's only Cryptomatte layer.")
+    group.addKnob(cl)
+    cm = nuke.String_Knob("stroto_ch_crypto_map", "Cryptomatte objects")
+    cm.setTooltip("Which Cryptomatte names each ST-ROTO object should match, as JSON {\"object\": [\"name\", ...]}. "
+                  "Filled automatically when you prompt an object from Cryptomatte; editable. The check flags frames "
+                  "where the shape and the matte differ (IoU < 0.9).")
+    cm.clearFlag(nuke.STARTLINE)
+    group.addKnob(cm)
+    ck = _button(group, "stroto_ch_check", "Check with channels", "n.on_check_channels(nuke.thisNode())")
+    ck.setTooltip("Renders the chosen channels for the whole shot and checks every object's shapes against them. "
+                  "Results are stored with the project (undoable) and appear as 'check' review flags in the status, "
+                  "the Objects pane and the timeline.")
 
 
 def _button(group, name, label, code, new_line=True):
@@ -904,6 +960,10 @@ def on_prompt_from_mask(group):
                 note = "; the shape %r was only a prompt and was removed from the Roto" % removed
         elif kind == "mask node":
             mask = _mask_from_node(source, frame, h, w, prompt_view(group))
+        elif kind == "Cryptomatte":
+            mask, layer, names = _mask_from_crypto(group, source, frame)
+            _set_crypto_map(group, name, layer, names)
+            note = "; the channel check will compare %s with Cryptomatte %s %s" % (name, layer, ", ".join(names))
         else:
             mask = _mask_from_file(source, frame, h, w)
         text = prompts.set_from_mask(group["stroto_points"].value(), frame, mask, obj=name)
@@ -915,6 +975,234 @@ def on_prompt_from_mask(group):
     _status(group, "prompt for %s on frame %d from %s %r: box + %d click(s)%s - now Track"
             % (name, frame, kind, source, len(p["points"]), note))
     return p
+
+
+def _crypto_layer(group, src=None):
+    """The Cryptomatte layer to use: the node's 'Cryptomatte layer', else the input's only one (from its metadata).
+    Returns (layer, manifest {name: id}). Raises ValueError with what the input offers."""
+    from st_roto import channels as chn
+    src = src or _inner(group, "src", None)
+    try:
+        found = chn.find_layers(src.metadata())
+    except Exception:                                         # noqa: BLE001
+        found = {}
+    want = group["stroto_ch_crypto"].value().strip() if "stroto_ch_crypto" in group.knobs() else ""
+    if want:
+        return want, found.get(want, {})
+    if len(found) == 1:
+        return next(iter(found.items()))
+    if not found:
+        raise ValueError("the input has no Cryptomatte metadata; set 'Cryptomatte layer' (e.g. CryptoObject)")
+    raise ValueError("the input has several Cryptomatte layers (%s): set 'Cryptomatte layer'" % ", ".join(sorted(found)))
+
+
+def _render_ch(ctx, frame, view):
+    """Main thread: every channel of `frame` (pixels.render_channels); exceptions are returned (callback rule)."""
+    try:
+        return pixels.render_channels(ctx["write"], frame, ctx["channel_path"], view)
+    except Exception as e:                                    # noqa: BLE001
+        return e
+
+
+def _mask_from_crypto(group, source, frame):
+    """Coverage > 0.5 of the Cryptomatte names in `source` (comma separated) on `frame` (prompt view)."""
+    from st_roto import channels as chn
+    names = [n.strip() for n in source.split(",") if n.strip()]
+    layer, manifest = _crypto_layer(group)
+    unknown = [n for n in names if manifest and n not in manifest]
+    if unknown:
+        raise ValueError("not in the %s manifest: %s (it has: %s)" % (layer, ", ".join(unknown),
+                                                                      ", ".join(sorted(manifest)[:30])))
+    ctx = {"write": _inner(group, "write", "STROTO_pixels"),
+           "channel_path": pixels.temp_pixel_path(group.name() + "_ch")[:-4] + ".exr"}
+    ch = _render_ch(ctx, frame, prompt_view(group))
+    if isinstance(ch, Exception):
+        raise ValueError("could not render the channels of frame %d: %s" % (frame, str(ch).splitlines()[0]))
+    mask = chn.crypto_mask(ch, layer, names) > 0.5
+    if not mask.any():
+        raise ValueError("%s %s covers no pixel on frame %d" % (layer, ", ".join(names), frame))
+    return mask, layer, names
+
+
+def _crypto_map(group):
+    """{object name: {"layer", "names"}} from the node's 'Cryptomatte objects' knob (JSON). Raises ValueError."""
+    if "stroto_ch_crypto_map" not in group.knobs():
+        return {}
+    text = group["stroto_ch_crypto_map"].value().strip()
+    if not text:
+        return {}
+    try:
+        raw = json.loads(text)
+    except ValueError as e:
+        raise ValueError("'Cryptomatte objects' is not valid JSON: %s" % e)
+    out = {}
+    for obj, v in raw.items():
+        if isinstance(v, dict):
+            out[obj] = {"layer": v.get("layer"), "names": list(v.get("names") or [])}
+        else:
+            out[obj] = {"layer": None, "names": [v] if isinstance(v, str) else list(v)}
+    return out
+
+
+def _set_crypto_map(group, obj, layer, names):
+    if "stroto_ch_crypto_map" not in group.knobs():
+        return
+    try:
+        cur = _crypto_map(group)
+    except ValueError:
+        cur = {}
+    cur[obj] = {"layer": layer, "names": list(names)}
+    group["stroto_ch_crypto_map"].setValue(json.dumps(cur, sort_keys=True))
+
+
+def on_list_channels(group):
+    """T-110: the input's layers and Cryptomatte layers (names) in the node; returns {"layers", "cryptomatte"}."""
+    from st_roto import channels as chn
+    src = _inner(group, "src", None)
+    layers = chn.layers_of(src.channels())
+    try:
+        crypto = chn.find_layers(src.metadata())
+    except Exception:                                         # noqa: BLE001
+        crypto = {}
+    text = "layers: %s" % ", ".join(layers)
+    if crypto:
+        text += " | Cryptomatte: %s" % "; ".join("%s (%s)" % (k, ", ".join(sorted(v)[:12]) + (" ..." if len(v) > 12 else ""))
+                                                 for k, v in sorted(crypto.items()))
+    group["stroto_ch_layers"].setValue(text)
+    _status(group, text)
+    return {"layers": layers, "cryptomatte": {k: sorted(v) for k, v in crypto.items()}}
+
+
+def on_check_channels(group, background: bool = True):
+    """T-110 (REQ-113): render the chosen channels for the whole shot and check every object's shapes (channel
+    medians, motion vectors, Cryptomatte); store the reports (one undo step) -> CHECK review flags."""
+    from st_roto import channels as chn, quality
+    try:
+        store, bus, src, project, shot = _shot_for(group)
+        if shot is None:
+            raise ValueError("nothing tracked or imported yet for %s" % src.name())
+        write, roto = _inner(group, "write", "STROTO_pixels"), _inner(group, "roto", "STROTO_shapes")
+        height, width = int(src.height()), int(src.width())
+        import_edits(store, bus, shot["id"], roto["curves"], height, int(nuke.frame()))   # latest artist edits
+        frames = list(range(int(src.firstFrame()), int(src.lastFrame()) + 1))
+        stats = [s.strip() for s in group["stroto_ch_stats"].value().split(",") if s.strip()]
+        ml = group["stroto_ch_motion"].value().strip()
+        bl = group["stroto_ch_motion_back"].value().strip()
+        conv_choice = group["stroto_ch_motion_conv"].value()
+        motion = None
+        if ml:
+            motion = {"u": ml + ".u", "v": ml + ".v"}
+            if bl:
+                motion.update(bu=bl + ".u", bv=bl + ".v")
+        cmap = _crypto_map(group)
+        objs = [o for o in store.objects(shot["id"]) if views.main_shape(store, o["id"]) is not None]
+        if not objs:
+            raise ValueError("no object with shapes")
+        crypto = {}
+        if cmap:
+            default_layer = None
+            for o in objs:
+                spec = cmap.get(o["name"]) or cmap.get(o.get("pair") or "")
+                if spec and spec["names"]:
+                    if not spec.get("layer"):
+                        default_layer = default_layer or _crypto_layer(group, src)[0]
+                    crypto[o["id"]] = {"layer": spec.get("layer") or default_layer, "names": spec["names"]}
+        if not (stats or motion or crypto):
+            raise ValueError("choose what to check: 'medians of' (e.g. depth.Z), 'motion vectors' (e.g. forward) "
+                             "or 'Cryptomatte objects'")
+        vs_ = script_views()
+        pv = prompt_view(group)
+        by_view = {}
+        for o in objs:
+            v = o.get("view") if o.get("view") in vs_ and len(vs_) > 1 else pv
+            by_view.setdefault(v, []).append(o)
+        ctx = {"write": write, "channel_path": pixels.temp_pixel_path(group.name() + "_ch")[:-4] + ".exr"}
+    except (ValueError, NodeBudgetError) as e:
+        _status(group, "error: channels: %s" % e); return None
+    names = {o["id"]: o["name"] for o in objs}
+
+    def fetch(f, view):
+        r = nuke.executeInMainThreadWithResult(_render_ch, (ctx, f, view)) if background else _render_ch(ctx, f, view)
+        if isinstance(r, pixels.FrameUnavailable):
+            return None
+        if isinstance(r, Exception):
+            raise r
+        return r
+
+    def work(job):
+        import numpy as np
+        ro = store_ro(project)
+        try:
+            keyed = {}
+            for o in objs:
+                per = {}
+                for s in ro.shapes(o["id"]):
+                    for k in ro.keys(s["id"]):
+                        per.setdefault(k["frame"], []).append(k["points"])
+                keyed[o["id"]] = per
+            res, conv_info = {}, {}
+            for v, group_objs in by_view.items():
+                conv = conv_choice
+                if motion and conv_choice == AUTO_CONVENTION:
+                    pairs = [f for f in frames[::max(1, len(frames) // 6)] if f + 1 in frames][:6]
+                    errs = []
+                    for f in pairs:
+                        job.check()
+                        a, b = fetch(f, v), fetch(f + 1, v)
+                        if a is None or b is None:
+                            continue
+                        try:
+                            rgb_a = np.stack([a["R"], a["G"], a["B"]], -1)
+                            rgb_b = np.stack([b["R"], b["G"], b["B"]], -1)
+                            errs.append(chn.vector_errors(rgb_a, rgb_b, chn.resolve(a, motion["u"]),
+                                                          chn.resolve(a, motion["v"])))
+                        except ValueError:
+                            continue                         # nothing moves on this frame
+                    if not errs:
+                        raise ValueError("could not measure the vector convention (no frame where the vectors move "
+                                         "anything): choose it in 'vector convention'")
+                    conv_info[v] = chn.choose_convention(errs)
+                    conv = conv_info[v]["convention"]
+                m = dict(motion, convention=conv) if motion else None
+
+                def progress(i, n, v=v):
+                    job.check()
+                    job.report(i / float(max(1, n)), "frame %d%s" % (frames[i], (" (%s)" % v) if v else ""))
+                out = chn.check_objects(
+                    frames, {o["id"]: (lambda f, oid=o["id"]: keyed[oid].get(f, [])) for o in group_objs},
+                    lambda f, v=v: fetch(f, v), height, width, stats=stats, motion=m,
+                    crypto={o["id"]: crypto[o["id"]] for o in group_objs if o["id"] in crypto}, progress=progress)
+                res.update(out)
+            return {"reports": res, "conventions": conv_info}
+        finally:
+            ro.close()
+
+    def apply(job):
+        ops = []
+        for oid, rep in job.result["reports"].items():
+            old = store.channel_reports(oid)
+            ops += [{"op": "set_channel_report", "object_id": oid, "frame": f, "data": None} for f in old if f not in rep]
+            ops += [{"op": "set_channel_report", "object_id": oid, "frame": f, "data": r} for f, r in sorted(rep.items())]
+        if ops:
+            bus.execute({"op": "batch", "ops": ops})
+        parts = []
+        for oid, rep in job.result["reports"].items():
+            flags = [x for x in views.review_for_object(store, oid) if x[2].startswith("channels:")]
+            parts.append("%s: %d frames%s" % (names[oid], len(rep),
+                                              ("; CHECK " + quality.ranges([f for f, _, _ in flags])) if flags else ", no flags"))
+        what = ([", ".join(stats)] if stats else []) + (["motion %s%s" % (ml, "/" + bl if bl else "")] if motion else []) \
+            + (["Cryptomatte"] if crypto else [])
+        msg = "channels checked (%s): %s" % ("; ".join(what), " | ".join(parts))
+        for v, c in job.result["conventions"].items():
+            msg += "; vectors%s: %s (measured%s)" % ((" " + v) if v else "", c["convention"],
+                                                    (", %s axis not measurable: Nuke's sign used" % "/".join(c["undetermined"]))
+                                                    if c["undetermined"] else "")
+        if motion and not bl:
+            msg += "; no backward layer: occlusions may raise motion flags"
+        job.applied = msg
+        group["stroto_status"].setValue(msg)
+
+    return _run(group, "channels", work, apply, background)
 
 
 def _mask_from_roto_shape(group, source, frame, h, w):

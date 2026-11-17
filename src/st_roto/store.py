@@ -13,9 +13,17 @@ import json
 import os
 import sqlite3
 
-SCHEMA_VERSION = 11
+SCHEMA_VERSION = 12
 
 _MIGRATIONS = {
+    12: [
+        # Extra-channel checks (T-110, REQ-113): per object and frame, what the artist-selected channels say
+        # (channel medians inside the shape, agreement with motion vectors / Cryptomatte), JSON.
+        """CREATE TABLE channel_reports (
+            object_id TEXT NOT NULL REFERENCES objects(id) ON DELETE CASCADE,
+            frame INTEGER NOT NULL, data TEXT NOT NULL,
+            PRIMARY KEY (object_id, frame))""",
+    ],
     11: [
         # Stereo / multi-view (T-109, REQ-115): the Nuke view an object belongs to (NULL = every view) and the
         # correspondence key shared by the same subject's objects in different views.
@@ -207,6 +215,11 @@ class ProjectStore:
     def reports(self, shape_id: str):
         return [dict(r) for r in self.conn.execute(
             "SELECT frame, object_score, iou_pred FROM key_reports WHERE shape_id = ? ORDER BY frame", (shape_id,))]
+
+    def channel_reports(self, object_id: str) -> dict:
+        """{frame: report dict} of an object's extra-channel checks (T-110)."""
+        return {r["frame"]: json.loads(r["data"]) for r in self.conn.execute(
+            "SELECT frame, data FROM channel_reports WHERE object_id = ? ORDER BY frame", (object_id,))}
 
     def operations(self):
         return [dict(r) for r in self.conn.execute("SELECT * FROM operations ORDER BY seq")]

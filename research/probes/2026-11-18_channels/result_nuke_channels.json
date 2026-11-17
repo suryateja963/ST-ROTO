@@ -1,0 +1,138 @@
+{
+ "read_layers": [
+  "CryptoObject00",
+  "CryptoObject01",
+  "N",
+  "P",
+  "backward",
+  "depth",
+  "forward",
+  "rgba"
+ ],
+ "read_channels": [
+  "rgba.red",
+  "rgba.green",
+  "rgba.blue",
+  "rgba.alpha",
+  "depth.Z",
+  "forward.u",
+  "forward.v",
+  "backward.u",
+  "backward.v",
+  "CryptoObject00.alpha",
+  "CryptoObject00.blue",
+  "CryptoObject00.green",
+  "CryptoObject00.red",
+  "CryptoObject01.alpha",
+  "CryptoObject01.blue",
+  "CryptoObject01.green",
+  "CryptoObject01.red",
+  "N.X",
+  "N.Y",
+  "N.Z",
+  "P.X",
+  "P.Y",
+  "P.Z"
+ ],
+ "crypto_metadata": {
+  "exr/cryptomatte/3ae39a5/conversion": "uint32_to_float32",
+  "exr/cryptomatte/3ae39a5/hash": "MurmurHash3_32",
+  "exr/cryptomatte/3ae39a5/manifest": "{\"background\": \"e213fe84\", \"distractor\": \"7ccd98d9\", \"target\": \"762f3099\", \"occluder\": \"7a109748\"}",
+  "exr/cryptomatte/3ae39a5/name": "CryptoObject"
+ },
+ "nuke_cryptomatte_node": {
+  "knobs": [
+   "cryptoLayer",
+   "cryptoLayerChoice",
+   "expression",
+   "matteList",
+   "matteOnly",
+   "matteOutput",
+   "unpremultiply"
+  ],
+  "layer_choice": [],
+  "frames": {
+   "0": {
+    "iou_vs_truth": 1.0,
+    "alpha_sum_over_truth": 1.0001
+   },
+   "10": {
+    "iou_vs_truth": 1.0,
+    "alpha_sum_over_truth": 0.9996
+   },
+   "20": {
+    "iou_vs_truth": 1.0,
+    "alpha_sum_over_truth": 1.0001
+   }
+  }
+ },
+ "st_roto_pass_through": {
+  "group_layers": [
+   "CryptoObject00",
+   "CryptoObject01",
+   "N",
+   "P",
+   "backward",
+   "depth",
+   "forward",
+   "rgba"
+  ],
+  "written_channels": [
+   "A",
+   "B",
+   "CryptoObject00.A",
+   "CryptoObject00.B",
+   "CryptoObject00.G",
+   "CryptoObject00.R",
+   "CryptoObject01.A",
+   "CryptoObject01.B",
+   "CryptoObject01.G",
+   "CryptoObject01.R",
+   "G",
+   "N.X",
+   "N.Y",
+   "N.Z",
+   "P.X",
+   "P.Y",
+   "P.Z",
+   "R",
+   "backward.u",
+   "backward.v",
+   "depth.Z",
+   "forward.u",
+   "forward.v"
+  ],
+  "max_abs_diff_vs_source": {
+   "A": 0.0,
+   "B": 0.0,
+   "CryptoObject00.A": 0.0,
+   "CryptoObject00.B": 0.0,
+   "CryptoObject00.G": 0.0,
+   "CryptoObject00.R": 0.0,
+   "CryptoObject01.A": 0.0,
+   "CryptoObject01.B": 0.0,
+   "CryptoObject01.G": 0.0,
+   "CryptoObject01.R": 0.0,
+   "G": 0.0,
+   "N.X": 0.0,
+   "N.Y": 0.0,
+   "N.Z": 0.0,
+   "P.X": 0.0,
+   "P.Y": 0.0,
+   "P.Z": 0.0,
+   "R": 0.0,
+   "backward.u": 0.0,
+   "backward.v": 0.0,
+   "depth.Z": 0.0,
+   "forward.u": 0.0,
+   "forward.v": 0.0
+  }
+ },
+ "render_layer_depth": [
+  "depth.Z"
+ ],
+ "render_layer_forward": [
+  "forward.u",
+  "forward.v"
+ ]
+}

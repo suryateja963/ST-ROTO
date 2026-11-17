@@ -2094,6 +2094,104 @@ def test_stereo_views(res):
     return bool(ok)
 
 
+CG = ROOT + "/research/probes/2026-11-18_channels/out/cg"
+
+
+def test_extra_channels(res):
+    """T-110 (REQ-113) on the synthetic CG shot (research/probes/2026-11-18_channels: depth, forward/backward
+    vectors, normals, position, Cryptomatte; exact truth): List channels; prompt from Cryptomatte -> Track; every
+    input layer passes through the node unchanged while alpha carries the shape; Check with channels (depth median,
+    motion with measured convention, Cryptomatte) gives no flag on the clean track; a wrong key (the distractor)
+    is flagged by all three; the check also runs with AI disabled."""
+    if not os.path.exists(CG + "/meta.json"):
+        res["skipped"] = "CG frames not generated (make_synthetic_cg.py)"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto import channels as chn, exr, stereo, views
+    from st_roto import model as m
+    from st_roto.geometry import mask_to_points
+    from st_roto_nuke import session
+    meta = json.load(open(CG + "/meta.json"))
+    vw, vh, n = meta["w"], meta["h"], meta["frames"]
+    nuke.root()["format"].setValue(nuke.addFormat("%d %d 1 stroto_cg" % (vw, vh)))
+    rd = nuke.nodes.Read(file=CG + "/cg.####.exr", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "cg.stroto")
+    g = stnode.create(rd, proj)
+
+    def gt(f):
+        return cv2.imread(CG + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE) > 127
+    lst = stnode.on_list_channels(g)
+    res["list"] = lst
+    ok = all(x in lst["layers"] for x in ("rgba", "depth", "forward", "backward", "N", "P", "CryptoObject00"))
+    ok &= lst["cryptomatte"].get("CryptoObject") == sorted(meta["names"])
+    # prompt from Cryptomatte on frame 0
+    nuke.frame(0)
+    g["stroto_object"].setValue("target")
+    g["stroto_prompt_from"].setValue("Cryptomatte")
+    g["stroto_prompt_source"].setValue("target")
+    p = stnode.on_prompt_from_mask(g)
+    res["prompt_status"] = g["stroto_status"].value()
+    res["crypto_map"] = g["stroto_ch_crypto_map"].value()
+    ok &= p is not None and json.loads(res["crypto_map"]) == {"target": {"layer": "CryptoObject", "names": ["target"]}}
+    job = stnode.on_track(g, background=False)
+    res["track_status"] = g["stroto_status"].value()
+    if job is None or job.status != "done":
+        res["error"] = job.error if job else "no job"; return False
+    store, bus = session.project(proj)
+    shot = store.conn.execute("SELECT id FROM shots").fetchone()["id"]
+    obj = {o["name"]: o for o in store.objects(shot)}["target"]
+    sid = views.main_shape(store, obj["id"])["id"]
+    q = {k["frame"]: iou(stereo.mask_from_keys([k["points"]] + [kk["points"] for s in views.part_shapes(store, sid)
+                                                                for kk in store.keys(s["id"]) if kk["frame"] == k["frame"]],
+                                               vh, vw), gt(k["frame"]))
+         for k in store.keys(sid)}
+    res["iou"] = {"min": round(min(q.values()), 4), "mean": round(float(np.mean(list(q.values()))), 4), "frames": len(q)}
+    ok &= len(q) == n and res["iou"]["mean"] > 0.97
+    # pass-through: every source layer unchanged, alpha = the shapes
+    wr = nuke.nodes.Write(inputs=[g])
+    path = OUT + "/channels_through.exr"
+    wr["file"].setValue(path); wr["file_type"].setValue("exr"); wr["datatype"].setValue("32 bit float")
+    wr["channels"].setValue("all")
+    nuke.execute(wr, 10, 10)
+    got, src = exr.read_channels(path), exr.read_channels(CG + "/cg.0010.exr")
+    diffs = {k: float(np.abs(got[k].astype(np.float64) - src[k].astype(np.float64)).max())
+             for k in src if k != "A" and k in got}
+    res["pass_through_max_diff"] = max(diffs.values())
+    res["pass_through_missing"] = sorted(set(src) - set(got))
+    res["alpha_vs_truth_frame10"] = round(iou(got["A"] > 0.5, gt(10)), 4)
+    ok &= res["pass_through_max_diff"] == 0.0 and not res["pass_through_missing"] and res["alpha_vs_truth_frame10"] > 0.95
+    # check with channels
+    g["stroto_ch_stats"].setValue("depth.Z")
+    g["stroto_ch_motion"].setValue("forward")
+    g["stroto_ch_motion_back"].setValue("backward")
+    jc = stnode.on_check_channels(g, background=False)
+    res["check_status"] = g["stroto_status"].value()
+    if jc is None or jc.status != "done":
+        res["check_error"] = jc.error if jc else "no job"; return False
+    rep = store.channel_reports(obj["id"])
+    res["check"] = {"frames": len(rep), "conventions": {str(k): v["convention"] for k, v in jc.result["conventions"].items()},
+                    "min_motion_iou": min(r["motion_iou"] for r in rep.values() if "motion_iou" in r),
+                    "min_crypto_iou": min(r["crypto_iou"] for r in rep.values()),
+                    "flags": [x for x in views.review_for_object(store, obj["id"]) if x[2].startswith("channels:")]}
+    res["per_frame_truth_motion_crypto"] = {f: (round(q[f], 4), rep[f].get("motion_iou"), rep[f]["crypto_iou"])
+                                            for f in sorted(rep)}
+    ok &= len(rep) == n and not res["check"]["flags"]
+    ok &= list(res["check"]["conventions"].values()) == [meta["vector_convention"]]
+    # a wrong key on frame 12 (the distractor disc), as an artist edit
+    p12 = (787.5 - 450 * 12 / (n - 1.0), 420 - 90 * np.sin(np.pi * 12 / (n - 1.0)))
+    yy, xx = np.mgrid[0:vh, 0:vw] + 0.5
+    bad = mask_to_points(64 - np.hypot(xx - p12[0], yy - p12[1]), count=int(store.row("shapes", sid)["point_count"]))
+    bus.execute({"op": "set_key", "shape_id": sid, "frame": 12, "points": bad}, actor=m.ACTOR_ARTIST)
+    g["stroto_ai_off"].setValue(True)                        # the channel check is not an AI feature
+    jc2 = stnode.on_check_channels(g, background=False)
+    res["check2_status"] = g["stroto_status"].value()
+    ok &= jc2 is not None and jc2.status == "done"
+    fl = [x for x in views.review_for_object(store, obj["id"]) if x[2].startswith("channels:")]
+    res["flags_after_wrong_key"] = fl
+    f12 = " ".join(r for f, _, r in fl if f == 12)
+    ok &= "depth.Z" in f12 and "Cryptomatte" in f12 and "motion" in f12
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
@@ -2105,7 +2203,7 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_system_report, test_memory_aware_model, test_retrack_flagged_large,
          test_collaboration_ui, test_propagation_controls, test_roles_and_merge,
          test_matte_outputs, test_prompt_from_mask, test_model_manager,
-         test_delivery_package, test_stereo_views)
+         test_delivery_package, test_stereo_views, test_extra_channels)
 
 
 def main():

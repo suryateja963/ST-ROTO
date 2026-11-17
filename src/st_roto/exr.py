@@ -120,16 +120,23 @@ def next_version_dir(directory: str) -> str:
 
 
 def read_channels(path: str) -> dict:
-    """{channel name: H x W array} (tests and tools). OpenEXR's Python API groups R, G, B(, A) into one 'RGB'/'RGBA'
-    entry (H x W x n); those are split back into single channels."""
+    """{channel name: H x W array}. OpenEXR's Python API groups R, G, B(, A) - also inside layers, e.g.
+    CryptoObject00.R/G/B/A (measured, T-110) - unless asked for separate channels."""
     import OpenEXR
     out = {}
-    with OpenEXR.File(path) as f:
+    with OpenEXR.File(path, separate_channels=True) as f:
         for k, v in f.channels().items():
             px = np.array(v.pixels)
-            if k in ("RGB", "RGBA") and px.ndim == 3:
+            if k in ("RGB", "RGBA") and px.ndim == 3:            # defensive: older bindings group anyway
                 for i, c in enumerate(k):
                     out[c] = px[..., i]
             else:
                 out[k] = px
     return out
+
+
+def read_header(path: str) -> dict:
+    """{attribute: value} of an EXR header (strings for text attributes, e.g. Cryptomatte manifests)."""
+    import OpenEXR
+    with OpenEXR.File(path) as f:
+        return {k: (v.decode("utf-8", "replace") if isinstance(v, bytes) else v) for k, v in f.header().items()}

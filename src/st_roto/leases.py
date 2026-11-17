@@ -127,6 +127,8 @@ def _objects_of(conn, op):
         return {r["object_id"]} if r else set()
     if kind == "create_shape":
         return {op["row"]["object_id"]}
+    if kind == "set_channel_report":
+        return {op["object_id"]}
     if kind in ("update_object", "delete_subtree"):
         return {op.get("id") or op.get("object_id")}
     if kind == "create_object" and op["row"].get("parent_id"):

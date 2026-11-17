@@ -26,6 +26,9 @@ def review_for_object(store, object_id: str) -> list:
         out += review_frames(reps, keyed, areas if reps else None)
     from .stereo import review_for_object as stereo_review          # T-109: corresponding objects in other views
     out += stereo_review(store, object_id)
+    from . import channels as _channels                        # T-110: artist-selected extra channels
+    from .quality import CHECK
+    out += [(f, CHECK, "channels: " + r) for f, r in _channels.review_flags(store.channel_reports(object_id))]
     return sorted(out)
 
 

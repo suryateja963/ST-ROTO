@@ -1,0 +1,401 @@
+{
+ "convention_single_frame": {
+  "0": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 4.5803,
+   "margin_v": 1.4157,
+   "undetermined": []
+  },
+  "1": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 4.3523,
+   "margin_v": 1.4201,
+   "undetermined": []
+  },
+  "2": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 3.1515,
+   "margin_v": 1.3085,
+   "undetermined": []
+  },
+  "3": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 2.7359,
+   "margin_v": 1.2199,
+   "undetermined": []
+  },
+  "4": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 3.8399,
+   "margin_v": 1.1976,
+   "undetermined": []
+  },
+  "5": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 4.6409,
+   "margin_v": 1.1763,
+   "undetermined": []
+  },
+  "6": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 3.2908,
+   "margin_v": 1.172,
+   "undetermined": []
+  },
+  "7": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 2.1524,
+   "margin_v": 1.1117,
+   "undetermined": []
+  },
+  "8": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 1.228,
+   "margin_v": 1.0562,
+   "undetermined": []
+  },
+  "9": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 1.7847,
+   "margin_v": 1.0793,
+   "undetermined": []
+  },
+  "10": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 1.7338,
+   "margin_v": 1.0027,
+   "undetermined": [
+    "v"
+   ]
+  },
+  "11": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 1.5596,
+   "margin_v": 1.0004,
+   "undetermined": [
+    "v"
+   ]
+  },
+  "12": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 1.6158,
+   "margin_v": 1.0194,
+   "undetermined": [
+    "v"
+   ]
+  },
+  "13": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 1.3897,
+   "margin_v": 1.0272,
+   "undetermined": []
+  },
+  "14": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 1.698,
+   "margin_v": 1.0283,
+   "undetermined": []
+  },
+  "15": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 2.5065,
+   "margin_v": 1.0919,
+   "undetermined": []
+  },
+  "16": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 3.4185,
+   "margin_v": 1.14,
+   "undetermined": []
+  },
+  "17": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 2.926,
+   "margin_v": 1.1005,
+   "undetermined": []
+  },
+  "18": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 4.0971,
+   "margin_v": 1.2071,
+   "undetermined": []
+  },
+  "19": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 4.845,
+   "margin_v": 1.3108,
+   "undetermined": []
+  },
+  "20": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 3.2335,
+   "margin_v": 1.1848,
+   "undetermined": []
+  },
+  "21": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 4.019,
+   "margin_v": 1.1986,
+   "undetermined": []
+  },
+  "22": {
+   "convention": "u right, v up (Nuke)",
+   "margin_u": 2.545,
+   "margin_v": 1.1486,
+   "undetermined": []
+  }
+ },
+ "convention_seconds_per_frame": 0.20162608312523883,
+ "convention_all_frames": {
+  "convention": "u right, v up (Nuke)",
+  "margin_u": 2.2518,
+  "margin_v": 1.0977,
+  "undetermined": []
+ },
+ "convention_correct": true,
+ "single_frame_decided_both": 20,
+ "single_frame_wrong_when_decided": 0,
+ "check_seconds_per_frame": 0.08618326981862386,
+ "clean": {
+  "flags": [],
+  "min_motion_iou": 0.9976,
+  "min_crypto_iou": 0.9974,
+  "depth": [
+   20.0,
+   19.652174,
+   19.304348,
+   18.956522,
+   18.608696,
+   18.26087,
+   17.913044,
+   17.565218,
+   17.217392,
+   16.869566,
+   16.52174,
+   16.173914,
+   15.826087,
+   15.478261,
+   15.130435,
+   14.782609,
+   14.434783,
+   14.086957,
+   13.73913,
+   13.391304,
+   13.043478,
+   12.695652,
+   12.347826,
+   12.0
+  ]
+ },
+ "injected": {
+  "wrong_object": {
+   "caught": 3,
+   "of": 3,
+   "rows": [
+    {
+     "frame": 5,
+     "caught": true,
+     "by_rule": {
+      "depth": true,
+      "motion": true,
+      "crypto": true
+     },
+     "values": {
+      "motion_iou": 0.0,
+      "crypto_iou": 0.0
+     },
+     "depth": 40.0
+    },
+    {
+     "frame": 12,
+     "caught": true,
+     "by_rule": {
+      "depth": true,
+      "motion": true,
+      "crypto": true
+     },
+     "values": {
+      "motion_iou": 0.0007,
+      "crypto_iou": 0.0113
+     },
+     "depth": 6.0
+    },
+    {
+     "frame": 18,
+     "caught": true,
+     "by_rule": {
+      "depth": true,
+      "motion": true,
+      "crypto": true
+     },
+     "values": {
+      "motion_iou": 0.0,
+      "crypto_iou": 0.0
+     },
+     "depth": 40.0
+    }
+   ]
+  },
+  "shifted_30px": {
+   "caught": 3,
+   "of": 3,
+   "rows": [
+    {
+     "frame": 5,
+     "caught": true,
+     "by_rule": {
+      "depth": false,
+      "motion": true,
+      "crypto": true
+     },
+     "values": {
+      "motion_iou": 0.7364,
+      "crypto_iou": 0.7156
+     },
+     "depth": 18.26087
+    },
+    {
+     "frame": 12,
+     "caught": true,
+     "by_rule": {
+      "depth": false,
+      "motion": true,
+      "crypto": true
+     },
+     "values": {
+      "motion_iou": 0.6418,
+      "crypto_iou": 0.387
+     },
+     "depth": 15.826087
+    },
+    {
+     "frame": 18,
+     "caught": true,
+     "by_rule": {
+      "depth": false,
+      "motion": true,
+      "crypto": true
+     },
+     "values": {
+      "motion_iou": 0.6393,
+      "crypto_iou": 0.6208
+     },
+     "depth": 13.73913
+    }
+   ]
+  },
+  "stuck_previous_frame": {
+   "caught": 3,
+   "of": 3,
+   "rows": [
+    {
+     "frame": 5,
+     "caught": true,
+     "by_rule": {
+      "depth": false,
+      "motion": true,
+      "crypto": true
+     },
+     "values": {
+      "motion_iou": 0.8481,
+      "crypto_iou": 0.8231
+     },
+     "depth": 18.26087
+    },
+    {
+     "frame": 12,
+     "caught": true,
+     "by_rule": {
+      "depth": false,
+      "motion": true,
+      "crypto": true
+     },
+     "values": {
+      "motion_iou": 0.4609,
+      "crypto_iou": 0.3385
+     },
+     "depth": 15.826087
+    },
+    {
+     "frame": 18,
+     "caught": true,
+     "by_rule": {
+      "depth": false,
+      "motion": true,
+      "crypto": true
+     },
+     "values": {
+      "motion_iou": 0.737,
+      "crypto_iou": 0.7115
+     },
+     "depth": 13.73913
+    }
+   ]
+  },
+  "scaled_1.3": {
+   "caught": 3,
+   "of": 3,
+   "rows": [
+    {
+     "frame": 5,
+     "caught": true,
+     "by_rule": {
+      "depth": false,
+      "motion": true,
+      "crypto": true
+     },
+     "values": {
+      "motion_iou": 0.5995,
+      "crypto_iou": 0.5911
+     },
+     "depth": 18.26087
+    },
+    {
+     "frame": 12,
+     "caught": true,
+     "by_rule": {
+      "depth": false,
+      "motion": true,
+      "crypto": true
+     },
+     "values": {
+      "motion_iou": 0.5336,
+      "crypto_iou": 0.5657
+     },
+     "depth": 15.826087
+    },
+    {
+     "frame": 18,
+     "caught": true,
+     "by_rule": {
+      "depth": false,
+      "motion": true,
+      "crypto": true
+     },
+     "values": {
+      "motion_iou": 0.6053,
+      "crypto_iou": 0.5921
+     },
+     "depth": 13.73913
+    }
+   ]
+  }
+ },
+ "clean_forward_only": {
+  "flags": [
+   [
+    11,
+    "shape does not follow the motion vectors from the previous frame (IoU 0.71)"
+   ],
+   [
+    12,
+    "shape does not follow the motion vectors from the previous frame (IoU 0.28)"
+   ],
+   [
+    13,
+    "shape does not follow the motion vectors from the previous frame (IoU 0.57)"
+   ]
+  ],
+  "min_motion_iou": 0.2827
+ }
+}

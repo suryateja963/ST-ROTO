@@ -62,14 +62,18 @@ def _subtree(conn, object_id):
         objs.append(dict(r))
         frontier.extend(x["id"] for x in conn.execute("SELECT id FROM objects WHERE parent_id = ? ORDER BY id", (oid,)))
     shapes, keys, reports, feathers = [], [], [], []
+    channel = []
     for o in objs:
+        channel += [dict(r) for r in conn.execute("SELECT * FROM channel_reports WHERE object_id = ? ORDER BY frame",
+                                                   (o["id"],))]
         for s in conn.execute("SELECT * FROM shapes WHERE object_id = ? ORDER BY id", (o["id"],)):
             shapes.append(dict(s))
             for k in conn.execute("SELECT * FROM shape_keys WHERE shape_id = ? ORDER BY frame", (s["id"],)):
                 d = dict(k); d["points"] = json.loads(d["points"]); keys.append(d)
             reports += [dict(r) for r in conn.execute("SELECT * FROM key_reports WHERE shape_id = ? ORDER BY frame", (s["id"],))]
             feathers += [dict(r) for r in conn.execute("SELECT * FROM key_feather WHERE shape_id = ? ORDER BY frame", (s["id"],))]
-    return {"objects": objs, "shapes": shapes, "keys": keys, "reports": reports, "feathers": feathers}
+    return {"objects": objs, "shapes": shapes, "keys": keys, "reports": reports, "feathers": feathers,
+            "channel_reports": channel}
 
 
 def _insert(conn, table, row):
@@ -136,7 +140,26 @@ def _restore_subtree(conn, op, actor):
         _insert(conn, "key_reports", r)
     for r in snap.get("feathers", []):
         _insert(conn, "key_feather", r)
+    for r in snap.get("channel_reports", []):
+        _insert(conn, "channel_reports", r)
     return {"op": "delete_subtree", "object_id": snap["objects"][0]["id"]}
+
+
+def _set_channel_report(conn, op, actor):
+    """Store the extra-channel checks of one object frame (op: object_id, frame, data dict; None = remove), T-110.
+    Diagnostics only: allowed for every actor, also on locked objects (they describe, never change, the shape)."""
+    if conn.execute("SELECT 1 FROM objects WHERE id = ?", (op["object_id"],)).fetchone() is None:
+        raise KeyError("no object %s" % op["object_id"])
+    frame = int(op["frame"])
+    prev = conn.execute("SELECT data FROM channel_reports WHERE object_id = ? AND frame = ?",
+                        (op["object_id"], frame)).fetchone()
+    if op.get("data") is None:
+        conn.execute("DELETE FROM channel_reports WHERE object_id = ? AND frame = ?", (op["object_id"], frame))
+    else:
+        conn.execute("INSERT OR REPLACE INTO channel_reports (object_id, frame, data) VALUES (?, ?, ?)",
+                     (op["object_id"], frame, json.dumps(op["data"], sort_keys=True)))
+    return {"op": "set_channel_report", "object_id": op["object_id"], "frame": frame,
+            "data": json.loads(prev["data"]) if prev else None}
 
 
 _OBJECT_FIELDS = ("name", "locked", "color", "parent_id", "role", "view", "pair")
@@ -342,7 +365,7 @@ OPS = {
     "create_shape": _create_shape, "delete_shape": _delete_shape, "restore_shape": _restore_shape,
     "update_shape": _update_shape,
     "set_key": _set_key, "delete_key": _delete_key,
-    "set_report": _set_report, "set_key_feather": _set_key_feather,
+    "set_report": _set_report, "set_channel_report": _set_channel_report, "set_key_feather": _set_key_feather,
     "set_lease": _leases.apply_set_lease, "set_role": _leases.apply_set_role,
     "set_user_key": _signing.apply_set_user_key,
 }

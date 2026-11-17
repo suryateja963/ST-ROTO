@@ -88,6 +88,46 @@ def render_frame(write_node, frame: int, path: str, view: str = None):
     return img[:, :, ::-1].copy()                 # BGR -> RGB
 
 
+def render_channels(write_node, frame: int, path: str, view: str = None, channels: str = "all") -> dict:
+    """Every channel (or one layer) of `frame` as {EXR channel name: HxW float array} (T-110): the pixel Write is
+    switched to a 32-bit float EXR for this render and restored afterwards (rgba comes back as R/G/B/A, other
+    layers keep Nuke's names, e.g. depth.Z, forward.u, CryptoObject00.R). Main thread. Raises FrameUnavailable."""
+    import nuke
+    from st_roto import exr
+    knobs = ("file", "proxy", "file_type", "datatype", "channels", "compression")
+    saved = {k: write_node[k].value() for k in knobs if k in write_node.knobs()}
+    try:
+        write_node["file"].setValue(path.replace("\\", "/"))
+        write_node["proxy"].setValue(path.replace("\\", "/"))
+        write_node["file_type"].setValue("exr")
+        write_node["datatype"].setValue("32 bit float")
+        write_node["channels"].setValue(channels)
+        if "compression" in write_node.knobs():
+            write_node["compression"].setValue("none")
+        write_node["disable"].setValue(False)
+        try:
+            if view:
+                nuke.execute(write_node, frame, frame, 1, views=[view])
+            else:
+                nuke.execute(write_node, frame, frame)
+        except RuntimeError as e:
+            text = str(e)
+            if any(m in text.lower() for m in _MISSING):
+                raise FrameUnavailable(frame, text.strip().splitlines()[-1][:300])
+            raise
+        return exr.read_channels(path)
+    finally:
+        write_node["disable"].setValue(True)
+        if "file_type" in saved:                      # file_type first so its knobs exist again
+            write_node["file_type"].setValue(saved["file_type"])
+        for k, v in saved.items():
+            if k != "file_type":
+                try:
+                    write_node[k].setValue(v)
+                except Exception:                     # noqa: BLE001 - e.g. a knob of the other file type
+                    pass
+
+
 def fit_to_format(img, width: int, height: int):
     """Bring an image of another size to width x height like Nuke's default Reformat (resize type 'width',
     centred, black outside / cropped). Returns the image unchanged if it already has that size."""

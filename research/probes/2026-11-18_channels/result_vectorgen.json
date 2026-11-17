@@ -1,0 +1,95 @@
+{
+ "vg_knobs": [
+  "Advanced",
+  "Tolerances",
+  "autolabel",
+  "bookmark",
+  "cached",
+  "computedVectorFlag",
+  "disable",
+  "dope_sheet",
+  "flickerCompensation",
+  "gl_color",
+  "gpuName",
+  "help",
+  "hide_input",
+  "icon",
+  "indicators",
+  "knobChanged",
+  "label",
+  "lifetimeEnd",
+  "lifetimeStart",
+  "maskFlag",
+  "matteChannel",
+  "motionEstimation",
+  "name",
+  "note_font",
+  "note_font_color",
+  "note_font_size",
+  "onCreate",
+  "onDestroy",
+  "output",
+  "panel",
+  "postage_stamp",
+  "postage_stamp_frame",
+  "rootNodeUpdated",
+  "selected",
+  "serializeKnob",
+  "smoothness",
+  "smoothnessLocal",
+  "strengthReg",
+  "tile_color",
+  "updateUI",
+  "useGPUIfAvailable",
+  "useLifetime",
+  "vectorDetail",
+  "vectorDetailLocal",
+  "vectorDetailReg",
+  "vectorSourceFlag",
+  "warpSourceFlag",
+  "weightBlue",
+  "weightGreen",
+  "weightRed",
+  "xpos",
+  "ypos"
+ ],
+ "vg_channels": [
+  "backward",
+  "forward",
+  "rgba"
+ ],
+ "write_channels_knob_values": "ERROR: AttributeError: 'ChannelMask_Knob' object has no attribute 'values'",
+ "frame6": {
+  "channels": [
+   "B",
+   "G",
+   "R",
+   "backward.u",
+   "backward.v",
+   "forward.u",
+   "forward.v"
+  ],
+  "backward.u": {
+   "target_median": 0.0,
+   "background_median": 0.0
+  },
+  "backward.v": {
+   "target_median": 0.0,
+   "background_median": 0.0
+  },
+  "forward.u": {
+   "target_median": 0.0,
+   "background_median": 0.0
+  },
+  "forward.v": {
+   "target_median": 0.0,
+   "background_median": 0.0
+  },
+  "truth_canonical_px_per_frame": {
+   "target_dx": 13.829787234042554,
+   "target_dy_rows_down": 12.074491694948701,
+   "background_dx": -6.382978723404255,
+   "background_dy": 0.0
+  }
+ }
+}

@@ -6,6 +6,7 @@ Updated 2026-11-17.
 
 | ID | Task | Evidence |
 |---|---|---|
+| T-110 | Extra channels (REQ-113, §13.2): every input layer passes through the node bit-identical; new nodes REPLACE input alpha with the shapes (DEF-011: on plates with alpha the node's alpha was 1 everywhere); st_roto.channels: Cryptomatte (MurmurHash3 = published vectors; Nuke's own Cryptomatte node reads our test file at IoU 1.0), motion vectors (convention measured per shot: correct, 0 wrong single-frame decisions; object-centric occlusion handling), channel-median spikes (depth, N, P, any); schema v12 channel_reports; node: List channels, prompt from Cryptomatte, Check with channels (CHECK review flags, undoable, works with AI off). Synthetic CG shot: 0 false flags on correct shapes, 12/12 injected errors caught; in Nuke: AI track IoU 0.991, no flags (motion IoU >= 0.981), a wrong key flagged by depth + motion + Cryptomatte. Three rule fixes found by measurement (spike rule, object-centric occlusion, 3 px inset sampling) | `research/probes/2026-11-18_channels/RESULTS.md`, `src/st_roto/channels.py`, `tests/unit/test_channels.py`, `tests/nuke` `test_extra_channels` |
 | T-109 | Stereo / multi-view (REQ-115): Nuke mechanics measured (per-view render needs views=[v]: a Write without %V FAILS in a 2-view script, so Track could not run in any stereo script before; shape view attributes nv/view1 survive save+reopen); schema v11 objects.view/pair; st_roto.stereo: disparity search (0.25 px mean error), prompt transfer (box IoU 0.9998), consistency CHECK flags (synthetic: 0 false flags, 20/20 injected errors caught); node: track every view, prompt view, per-view Roto shapes, re-track and mattes per view. Nuke test: IoU 0.991-0.994 both views, disparity -30.0 px (truth -30), each shape renders only in its view, matte IoU 0.999+. Bug found + fixed: plain Track after a stereo Track re-tracked the prompt as a third object | `research/probes/2026-11-17_stereo/RESULTS.md`, `src/st_roto/stereo.py`, `tests/unit/test_stereo.py`, `tests/nuke` `test_stereo_views` |
 | T-108 | Delivery packages (REQ-180): 'Delivery package' button - latest mattes + shape export, project settings, models used (licence, revision, approval), processing / provenance / quality reports (JSON + MD), dependencies, checksummed MANIFEST; delivery.verify. Nuke test end to end | `src/st_roto/delivery.py`, `tests/unit/test_delivery.py`, `tests/nuke` `test_delivery_package` |
 | T-107 | Benchmark methodology published before any comparison (REQ-190): docs/BENCHMARK_METHODOLOGY.md v1 (rules, data, 10 metric definitions, category weights, overall score, artist-correction protocol without time, competitor access status: none run) + st_roto.metrics (unit-tested) | `docs/BENCHMARK_METHODOLOGY.md`, `src/st_roto/metrics.py` |
@@ -113,7 +114,6 @@ None.
 
 | ID | Task |
 |---|---|
-| T-110 | Extra channels (REQ-113): use depth / motion vectors / Cryptomatte as hints; pass channels through |
 | T-111 | Viewer overlays and presets (REQ-120 remainder): confidence overlay in the viewer, settings presets |
 | T-112 | Node family (REQ-040): separate Track / Refine / Matte / Export nodes within the Non-commercial node budget |
 | T-113 | Alembic export (REQ-180 remainder, "where suitable") |
@@ -123,4 +123,5 @@ None.
 | T-117 | Verify other Nuke versions / editions (REQ-030, acceptance 16) - needs those installations |
 | T-118 | Real production shot done by an artist with ST-ROTO (acceptance 3/4) - needs the owner or an artist |
 | T-119 | Stereo Track checkpoints + Resume (T-109 follow-up: stereo runs are not checkpointed yet) |
+| T-121 | Shapes directly from Cryptomatte (no AI) and propagating a hand-drawn shape along motion vectors (traditional-roto assists, T-110 follow-up); channel check reduced render above the NC limit |
 | T-120 | Multi-camera correspondence from camera data (§13.4 "when camera information is available"): non-rectified rigs, large vertical disparity, more than two views placed by camera geometry |

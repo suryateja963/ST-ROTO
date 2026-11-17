@@ -1,0 +1,16 @@
+{
+ "defaults": {
+  "output": "rgba",
+  "premultiply": "none"
+ },
+ "replace_False": {
+  "alpha_mean_inside": 1.0,
+  "alpha_mean_outside": 1.0,
+  "max_diff_other_channels": 0.0
+ },
+ "replace_True": {
+  "alpha_mean_inside": 1.0,
+  "alpha_mean_outside": 0.0,
+  "max_diff_other_channels": 0.0
+ }
+}

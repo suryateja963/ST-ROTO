@@ -462,3 +462,15 @@ Measured on a new synthetic stereo shot with exact truth per view (research/prob
 **Mistake found by the new test:** after a stereo Track, a plain Track re-tracked the prompt `target` as a third object (the "already tracked" check compared names only). Fixed (pair key counts) and asserted in the test. Also my own slip: a stray `cat` in a shell command blocked on input and had to be stopped; the edit it carried was redone with the Edit tool.
 
 Not done (on the board): stereo Track is not checkpointed / resumable (T-119); camera data for multi-camera and non-rectified rigs (T-120). Thresholds are provisional (synthetic data only).
+
+## 2026-11-18 - T-110 extra channels (REQ-113)
+
+Built a synthetic CG shot with render passes and exact truth (depth, forward/backward vectors, normals, position, Cryptomatte with manifest), then measured in Nuke: every layer passes through the ST_Roto node bit-identical; Nuke's own Cryptomatte node decodes our file at IoU 1.0 (independent check of the encoding; MurmurHash3 also equals the published test vectors); Nuke's VectorGenerator in headless NC gave unusable vectors (28 % non-zero), so the vector convention is measured from the plate instead of assumed.
+
+Found DEF-011: Nuke's Roto composites shapes over the input alpha, so on plates that already have alpha the node's alpha was 1 almost everywhere. New nodes now replace the input alpha (linked knob), measured exact; older nodes unchanged (D-045).
+
+Built `st_roto.channels` (Cryptomatte decode/encode, vector convention per axis, object-centric occlusion handling, channel-median spikes, multi-object check), schema v12 `channel_reports` (undoable op, kept through delete/undo, lease-aware), review flags, node knobs and buttons (List channels, prompt from Cryptomatte, Check with channels; the check works with AI off).
+
+**Rules I had wrong at first, each caught by measurement:** (1) a relative jump rule flagged position P.Y 6 times on correct shapes (zero crossings) - replaced by a spike rule against the shot's spread; (2) my first occlusion test removed the object's own moving silhouette and hid a stuck shape (IoU 0.997) - replaced by an object-centric test; (3) bilinear vector sampling faked occlusions along every edge - nearest-pixel; (4) on the real AI track, one outline point took the passing distractor's vector (motion IoU 0.88 on a 0.99-correct frame) - points now read vectors 3 px inside the shape (0.993). Also two shell-quoting slips of mine (heredoc with nested quotes, collapsed backslashes) - redone via script files, as CLAUDE.md says.
+
+Result: synthetic shot 0 false flags on correct shapes, 12/12 injected errors caught; in Nuke the AI track has no flags (motion IoU >= 0.981) and a wrong key is flagged by depth, motion and Cryptomatte. Not done (T-121): shapes straight from Cryptomatte, propagation along vectors, reduced render above the NC limit for the check.
