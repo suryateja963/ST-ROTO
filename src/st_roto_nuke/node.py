@@ -33,6 +33,8 @@ from .track import apply_results, models_root, track_object, track_objects
 
 AUTO_MODEL = "auto (by free GPU memory)"
 MODELS = ["sam2.1-hiera-tiny", "sam2.1-hiera-large", AUTO_MODEL]
+SAME_MODEL = "same as model"
+RETRACK_MODELS = [SAME_MODEL, "sam2.1-hiera-large", AUTO_MODEL]
 MATTE_SIZES = ["full resolution", "fit 1920x1080"]
 
 
@@ -116,6 +118,17 @@ def create(source=None, project_path: str = ""):
     ra = _button(group, "stroto_retrack_all", "Re-track all", "n.on_retrack(nuke.thisNode(), every_object=True)",
                  new_line=False)
     ra.setTooltip("Re-tracks every unlocked object of this shot in one pass (each frame is analysed once).")
+    rf = _button(group, "stroto_retrack_flagged", "Re-track flagged",
+                 "n.on_retrack(nuke.thisNode(), every_object=True, flagged_only=True)", new_line=False)
+    rf.setTooltip("Re-tracks only the objects whose review flags say the AI LOST them (REVIEW lost ...), with the "
+                  "'re-track model' - e.g. track everything quickly with the tiny model, then fix the hard objects "
+                  "with the large one.")
+    rm_ = nuke.Enumeration_Knob("stroto_retrack_model", "re-track model", RETRACK_MODELS)
+    rm_.setTooltip("Model for Re-track, Re-track all, Re-track flagged and Re-prompt here. 'same as model' uses the "
+                   "model above. sam2.1-hiera-large was more accurate on real footage (mean IoU +0.045, mostly fewer "
+                   "lost frames; T-080) and ~1.4x slower; it needs ~7.1 GB of free GPU memory (T-092).")
+    rm_.clearFlag(nuke.STARTLINE)
+    group.addKnob(rm_)
     rp = _button(group, "stroto_reprompt", "Re-prompt here", "n.on_reprompt_here(nuke.thisNode())")
     rp.setTooltip("For a frame the review flags (or your eye) say is wrong: drag the box around the object on THIS "
                   "frame, press Re-prompt here. The object named above is re-tracked in both directions with this "
@@ -205,7 +218,8 @@ ON_CREATE = ("try:\n"
 AI_KNOBS = ("stroto_click", "stroto_add_inc", "stroto_add_exc", "stroto_clear", "stroto_clear_all", "stroto_box",
             "stroto_set_box", "stroto_clear_box", "stroto_points", "stroto_points_info", "stroto_click_frame",
             "stroto_model", "stroto_device", "stroto_anchors", "stroto_load", "stroto_preview", "stroto_track",
-            "stroto_resume", "stroto_retrack", "stroto_retrack_all", "stroto_reprompt", "stroto_reprompt_point")
+            "stroto_resume", "stroto_retrack", "stroto_retrack_all", "stroto_reprompt", "stroto_reprompt_point",
+            "stroto_retrack_flagged", "stroto_retrack_model")
 AI_ENV = "ST_ROTO_AI"
 
 
@@ -785,10 +799,11 @@ def on_reprompt_here(group, background: bool = True):
     return on_retrack(group, background, fix={"frame": int(nuke.frame()), "points": pts, "labels": labels})
 
 
-def on_retrack(group, background: bool = True, every_object: bool = False, fix=None):
+def on_retrack(group, background: bool = True, every_object: bool = False, fix=None, flagged_only: bool = False):
     """Re-track the object named in 'object name' (or every unlocked object of the shot, in one pass) using its
     artist keys and prompts as guides (forward + reverse). All results are ONE undo step. fix: a new fix prompt for
-    the current object (on_reprompt_here)."""
+    the current object (on_reprompt_here). flagged_only: only objects with REVIEW lost flags (T-093). The model is
+    the node's 're-track model' (or 'model' when that says 'same as model')."""
     if _refuse_ai(group):
         return None
     from .track import apply_retracks, retrack_objects, retrack_plan
@@ -807,6 +822,17 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
         frames = list(range(int(src.firstFrame()), int(src.lastFrame()) + 1))
         width = int(src.width())
         targets, skipped = _retrack_targets(store, shot["id"], _object_name(group), frames, every_object, retrack_plan)
+        if flagged_only:
+            from st_roto import quality, views
+            keep = []
+            for t in targets:
+                if any(lvl == quality.LOST for _, lvl, _ in views.review_for_object(store, t[1])):
+                    keep.append(t)
+                else:
+                    skipped.append((t[0], "no REVIEW lost flags"))
+            targets = keep
+            if not targets:
+                raise ValueError("no object has REVIEW lost flags: nothing to re-track")
         fixes = None
         if fix is not None:
             if not frames[0] <= fix["frame"] <= frames[-1]:
@@ -822,7 +848,10 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
         _status(group, "error: %s" % e); return None
     get_rgb = _renderer(ctx, background)
     sids = [sid for _, _, sid in targets]
-    model, device, model_note = plan_model(group["stroto_model"].value(), group["stroto_device"].value())
+    choice = group["stroto_retrack_model"].value() if "stroto_retrack_model" in group.knobs() else SAME_MODEL
+    if choice == SAME_MODEL:
+        choice = group["stroto_model"].value()
+    model, device, model_note = plan_model(choice, group["stroto_device"].value())
     try:
         ctransform = _colour(group)
     except ValueError as e:
@@ -853,7 +882,7 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
             kept = len(json.loads(job.result["shapes"][sid]["generator"])["retrack"]["artist_frames"])
             parts.append("%s: %d AI keys changed, %d artist keys kept" % (name, counts[sid], kept)
                          + _review_text(store, oid))
-        msg = "re-tracked %s; device %s" % (" | ".join(parts), job.result["device"])
+        msg = "re-tracked %s; model %s, device %s" % (" | ".join(parts), model, job.result["device"])
         msg += _sequence_note(ctx, job.result.get("missing_frames"))
         for extra in (model_note, job.result.get("oom_fallback")):
             if extra:

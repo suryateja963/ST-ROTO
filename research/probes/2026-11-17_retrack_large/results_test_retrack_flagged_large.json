@@ -1,0 +1,57 @@
+{
+ "nuke": "17.1v3",
+ "nc": true,
+ "test_retrack_flagged_large": {
+  "disc_status": "done: 48 keys (8 points), 0 frames without object; REVIEW check 25; device cuda",
+  "tiny_status": "re-tracked drawn: 41 AI keys changed, 1 artist keys kept; REVIEW lost 16-20, 22; check 15, 21, 23-24; model sam2.1-hiera-tiny, device cuda",
+  "tiny_lost": [
+   16,
+   17,
+   18,
+   19,
+   20,
+   22
+  ],
+  "tiny_iou_10_26": {
+   "10": 0.994,
+   "11": 0.9941,
+   "12": 0.9935,
+   "13": 0.9935,
+   "14": 0.99,
+   "15": 0.9901,
+   "21": 0.9842,
+   "23": 0.4211,
+   "24": 0.9867,
+   "25": 0.995,
+   "26": 0.9941
+  },
+  "disc_flags": [],
+  "large_status": "re-tracked drawn: 94 AI keys changed, 1 artist keys kept; model sam2.1-hiera-large, device cuda; skipped disc (no REVIEW lost flags)",
+  "large_lost": [],
+  "large_iou_10_26": {
+   "10": 0.9965,
+   "11": 0.9953,
+   "12": 0.996,
+   "13": 0.9959,
+   "14": 0.9951,
+   "15": 0.9949,
+   "16": 0.9946,
+   "17": 0.9953,
+   "18": 0.9956,
+   "19": 0.9956,
+   "20": 0.9959,
+   "21": 0.9943,
+   "22": 0.9935,
+   "23": 0.4203,
+   "24": 0.9872,
+   "25": 0.9941,
+   "26": 0.9947
+  },
+  "mean_iou_10_26": {
+   "tiny": 0.9397,
+   "large": 0.9609
+  },
+  "passed": true
+ },
+ "failed": 0
+}

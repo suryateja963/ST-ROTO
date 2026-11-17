@@ -1408,6 +1408,67 @@ def test_memory_aware_model(res):
     return bool(ok)
 
 
+def test_retrack_flagged_large(res):
+    """T-093: 'Re-track flagged' with re-track model = large. Setup as test_review_flags_reverse (hand-drawn key on
+    frame 47, tiny re-track loses the object around the occluder) plus a cleanly tracked second object. Only the
+    flagged object is re-tracked, with the large model; lost frames and IoU before/after are recorded."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    from st_roto_nuke.roto_export import build_shape
+    from st_roto.geometry import mask_to_points, Anchor
+    from st_roto import views
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vh, vw, n = meta["h"], meta["w"], meta["frames"]
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "flag.stroto")
+    g = stnode.create(rd, proj)
+    g["stroto_object"].setValue("disc"); nuke.frame(0)                    # second object: tracks cleanly
+    g["stroto_click"].setValue([1050.0, vh - 560.0]); stnode.on_add_point(g, 1)
+    stnode.on_track(g, background=False)
+    res["disc_status"] = g["stroto_status"].value()
+    curves = stnode._INNER[g.fullName()]["roto"]["curves"]
+    gt47 = cv2.imread(VIDEO + "/gt_%04d.png" % 47, cv2.IMREAD_GRAYSCALE) > 127
+    curves.rootLayer.append(build_shape(curves, "drawn", {47: mask_to_points(gt47.astype(float) - 0.5, count=16)}, vh))
+    nuke.frame(47)
+    store, bus = session.project(proj)
+    stnode.resync(g)
+    shot_id = store.conn.execute("SELECT id FROM shots").fetchone()["id"]
+    obj = [o for o in store.objects(shot_id) if o["name"] != "disc"][0]
+    disc = [o for o in store.objects(shot_id) if o["name"] == "disc"][0]
+    g["stroto_object"].setValue(obj["name"])
+    stnode.on_retrack(g, background=False)                               # tiny ('same as model')
+    res["tiny_status"] = g["stroto_status"].value()
+    sid = views.main_shape(store, obj["id"])["id"]
+
+    def state():
+        lost = sorted(f for f, lvl, _ in views.review_for_object(store, obj["id"]) if lvl == "lost")
+        ious = {}
+        for k in store.keys(sid):
+            if 10 <= k["frame"] <= 26:
+                a = [Anchor(p=np.array(p[:2]), h_in=np.array(p[2:4]), h_out=np.array(p[4:]), corner=False)
+                     for p in k["points"]]
+                gt = cv2.imread(VIDEO + "/gt_%04d.png" % k["frame"], cv2.IMREAD_GRAYSCALE) > 127
+                ious[k["frame"]] = round(iou(rasterize_spline(a, vh, vw), gt), 4)
+        return lost, ious
+    res["tiny_lost"], res["tiny_iou_10_26"] = state()
+    res["disc_flags"] = [x for x in views.review_for_object(store, disc["id"]) if x[1] == "lost"]
+    disc_keys_before = {k["frame"]: k["points"] for k in store.keys(views.main_shape(store, disc["id"])["id"])}
+    g["stroto_retrack_model"].setValue("sam2.1-hiera-large")
+    j = stnode.on_retrack(g, background=False, every_object=True, flagged_only=True)
+    res["large_status"] = g["stroto_status"].value()
+    res["large_lost"], res["large_iou_10_26"] = state()
+    disc_keys_after = {k["frame"]: k["points"] for k in store.keys(views.main_shape(store, disc["id"])["id"])}
+    t, l = res["tiny_iou_10_26"], res["large_iou_10_26"]
+    res["mean_iou_10_26"] = {"tiny": round(float(np.mean(list(t.values()))), 4) if t else None,
+                             "large": round(float(np.mean(list(l.values()))), 4) if l else None}
+    return bool(j is not None and j.status == "done" and res["tiny_lost"] and not res["disc_flags"]
+                and "model sam2.1-hiera-large" in res["large_status"]
+                and "disc (no REVIEW lost flags)" in res["large_status"] and disc_keys_after == disc_keys_before)
+
+
 NET_EVENTS = ("socket.__new__", "socket.bind", "socket.connect", "socket.sendto", "socket.sendmsg",
               "socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyaddr", "socket.getnameinfo",
               "urllib.Request", "http.client.connect", "http.client.send", "ftplib.connect", "smtplib.connect",
@@ -1469,7 +1530,7 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_package_script_relink, test_feather_and_rotopaint, test_point_feather_roundtrip,
          test_vitmatte_mattes, test_box_prompt, test_reprompt_here, test_offline_no_network,
          test_difficult_sequences, test_traditional_roto_without_ai, test_plate_above_render_limit,
-         test_system_report, test_memory_aware_model)
+         test_system_report, test_memory_aware_model, test_retrack_flagged_large)
 
 
 def main():
