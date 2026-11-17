@@ -1,0 +1,35 @@
+{
+ "nuke": "17.1v3",
+ "nc": true,
+ "test_prompt_from_mask": {
+  "shape_status": "prompt for from_shape on frame 0 from Roto shape 'rough': box + 1 click(s); the shape 'rough' was only a prompt and was removed from the Roto - now Track",
+  "rough_left_in_roto": [],
+  "node_status": "prompt for from_node on frame 0 from mask node 'garbage_disc': box + 1 click(s) - now Track",
+  "file_status": "prompt for from_file on frame 0 from mask file '<TEMP>/tmpogx7q6a3/m.####.png': box + 1 click(s) - now Track",
+  "track_status": "done: from_shape: 4 keys (12 points), 0 frames without object | from_node: 4 keys (8 points), 0 frames without object | from_file: 4 keys (12 points), 0 frames without object; device cuda",
+  "iou": {
+   "from_shape": [
+    0.9917,
+    0.9944,
+    4
+   ],
+   "from_file": [
+    0.9909,
+    0.9942,
+    4
+   ],
+   "from_node": [
+    0.9845,
+    0.987,
+    4
+   ]
+  },
+  "rough_mask_iou_vs_truth": {
+   "shape": 0.95,
+   "node_square": 0.6095,
+   "file": 0.8941
+  },
+  "passed": true
+ },
+ "failed": 0
+}

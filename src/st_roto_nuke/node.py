@@ -31,6 +31,7 @@ from . import colour, pixels, session
 from .roto_export import export_preview, import_edits, sync_shot
 from .track import apply_results, models_root, track_object, track_objects
 
+PROMPT_SOURCES = ["Roto shape", "mask node", "mask file"]
 AUTO_MODEL = "auto (by free GPU memory)"
 MODELS = ["sam2.1-hiera-tiny", "sam2.1-hiera-large", AUTO_MODEL]
 SAME_MODEL = "same as model"
@@ -85,6 +86,19 @@ def create(source=None, project_path: str = ""):
     _button(group, "stroto_set_box", "Set box", "n.on_set_box(nuke.thisNode())")
     cb = _button(group, "stroto_clear_box", "Clear box", "n.on_clear_box(nuke.thisNode())", new_line=False)
     cb.setTooltip("Removes the box of the object named above (its points stay).")
+    pf = nuke.Enumeration_Knob("stroto_prompt_from", "prompt from", PROMPT_SOURCES)
+    pf.setTooltip("Make the named object's prompt from a rough mask on the CURRENT frame (T-100): a Roto shape or "
+                  "polygon drawn in this node, the alpha of another node (by name), or a mask image file (#### = "
+                  "frame). The mask becomes its box + a click in each piece (the best prompt on real footage), so "
+                  "the AI draws the exact shape. Then Track.")
+    group.addKnob(pf)
+    ps = nuke.String_Knob("stroto_prompt_source", "source"); ps.clearFlag(nuke.STARTLINE)
+    ps.setTooltip("Roto shape: its name. Mask node: the node's name. Mask file: a path, #### or %04d for the frame.")
+    group.addKnob(ps)
+    up = _button(group, "stroto_prompt_use", "Use as prompt", "n.on_prompt_from_mask(nuke.thisNode())",
+                 new_line=False)
+    up.setTooltip("Replaces the named object's prompts with the box + clicks of that mask on the current frame. A Roto "
+                  "shape drawn only for this (not yet an ST-ROTO object) is removed from the Roto afterwards.")
     pts = nuke.String_Knob("stroto_points", "points (json)"); group.addKnob(pts)
     group.addKnob(nuke.Text_Knob("stroto_points_info", "", "no points"))
     group.addKnob(nuke.Int_Knob("stroto_click_frame", "click frame (if no points)"))
@@ -260,7 +274,8 @@ AI_KNOBS = ("stroto_click", "stroto_add_inc", "stroto_add_exc", "stroto_clear", 
             "stroto_model", "stroto_device", "stroto_anchors", "stroto_load", "stroto_preview", "stroto_track",
             "stroto_resume", "stroto_retrack", "stroto_retrack_all", "stroto_reprompt", "stroto_reprompt_point",
             "stroto_retrack_flagged", "stroto_retrack_model", "stroto_range_mode", "stroto_range_from",
-            "stroto_range_to", "stroto_lock_range", "stroto_unlock_range", "stroto_exclude")
+            "stroto_range_to", "stroto_lock_range", "stroto_unlock_range", "stroto_exclude",
+            "stroto_prompt_from", "stroto_prompt_source", "stroto_prompt_use")
 AI_ENV = "ST_ROTO_AI"
 
 
@@ -743,6 +758,125 @@ def on_add_point(group, label: int):
         _status(group, "error: %s" % e); return
     group["stroto_points"].setValue(text)
     group["stroto_points_info"].setValue(prompts.summary(text, _object_name(group)))
+
+
+def on_prompt_from_mask(group):
+    """T-100 (REQ-060): rough Roto shape / another node's alpha / a mask file on the current frame -> the named
+    object's prompt (box + interior clicks, st_roto.prompts.from_mask)."""
+    frame, name = int(nuke.frame()), _object_name(group)
+    h, w = _height(group), int(group.width())
+    kind = group["stroto_prompt_from"].value()
+    source = group["stroto_prompt_source"].value().strip()
+    note = ""
+    try:
+        if not source:
+            raise ValueError("set 'source' (shape name, node name or file path)")
+        if kind == "Roto shape":
+            mask, removed = _mask_from_roto_shape(group, source, frame, h, w)
+            if removed:
+                note = "; the shape %r was only a prompt and was removed from the Roto" % removed
+        elif kind == "mask node":
+            mask = _mask_from_node(source, frame, h, w)
+        else:
+            mask = _mask_from_file(source, frame, h, w)
+        text = prompts.set_from_mask(group["stroto_points"].value(), frame, mask, obj=name)
+    except (ValueError, IOError, OSError) as e:
+        _status(group, "error: prompt from %s: %s" % (kind, e)); return None
+    group["stroto_points"].setValue(text)
+    group["stroto_points_info"].setValue(prompts.summary(text, name))
+    p = prompts.from_mask(mask)
+    _status(group, "prompt for %s on frame %d from %s %r: box + %d click(s)%s - now Track"
+            % (name, frame, kind, source, len(p["points"]), note))
+    return p
+
+
+def _mask_from_roto_shape(group, source, frame, h, w):
+    """Canonical bool mask of the Roto shape named `source` (exact name, or ST-ROTO label without its tag) at
+    `frame` (held / interpolated like the mattes). Returns (mask, removed name or None)."""
+    import numpy as np
+    from st_roto.geometry import Anchor, rasterize_spline
+    from st_roto import matte as _matte
+    from .roto_export import TAG_RE, read_keys, _remove
+    curves = _inner(group, "roto", "STROTO_shapes")["curves"]
+    hit = None
+    for it in curves.rootLayer:
+        nm = getattr(it, "name", "") or ""
+        if nm == source or TAG_RE.sub("", nm) == source:
+            hit = it
+            break
+    if hit is None:
+        raise ValueError("no Roto shape named %r in this node" % source)
+    keys = read_keys(hit, h)
+    pts, _how = _matte.key_points_at([{"frame": f, "points": p} for f, p in sorted(keys.items())], frame)
+    if not pts:
+        raise ValueError("shape %r has no points" % source)
+    a = [Anchor(p=np.array(q[:2]), h_in=np.array(q[2:4]), h_out=np.array(q[4:6]), corner=False) for q in pts]
+    mask = rasterize_spline(a, h, w)
+    removed = None
+    if not TAG_RE.search(hit.name or ""):                    # drawn only as a prompt: not an ST-ROTO object
+        removed = hit.name
+        _remove(curves.rootLayer, hit)
+        curves.changed()
+    return mask, removed
+
+
+def _mask_from_node(source, frame, h, w):
+    """Alpha (> 0.5) of the node named `source` at `frame`, rendered through a temporary Write, fitted to the shot
+    size like a default Reformat if it differs."""
+    import cv2
+    src = nuke.toNode(source)
+    if src is None:
+        raise ValueError("no node named %r (or the Non-commercial 10-node limit was reached)" % source)
+    if "rgba.alpha" not in src.channels():
+        raise ValueError("node %r has no alpha channel" % source)
+    path = pixels.temp_pixel_path("mask_" + source)
+    with nuke.root():
+        wr = nuke.nodes.Write(inputs=[src])
+    try:
+        wr["file"].setValue(path.replace("\\", "/")); wr["proxy"].setValue(path.replace("\\", "/"))
+        wr["file_type"].setValue("tiff"); wr["datatype"].setValue("32 bit float")
+        wr["compression"].setValue("none"); wr["channels"].setValue("alpha")
+        try:
+            nuke.execute(wr, frame, frame)
+        except RuntimeError as e:
+            raise ValueError("could not render %r on frame %d: %s" % (source, frame, str(e).splitlines()[0]))
+    finally:
+        nuke.delete(wr)
+    img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+    if img is None:
+        raise IOError("rendered alpha of %r could not be read" % source)
+    a = img if img.ndim == 2 else img[:, :, -1]
+    if a.shape != (h, w):
+        a = pixels.fit_to_format(a.astype("float32"), w, h)
+    return a > 0.5
+
+
+def _mask_from_file(source, frame, h, w):
+    """A mask image (PNG/TIFF/JPEG: alpha if present, else grey; EXR: A / alpha / first channel) > half its range."""
+    import re
+    import numpy as np
+    import cv2
+    path = re.sub(r"#+", lambda m: "%0*d" % (len(m.group(0)), frame), source)
+    if "%" in path:
+        path = path % frame
+    if not os.path.exists(path):
+        raise IOError("mask file not found: %s" % path)
+    if path.lower().endswith(".exr"):
+        from st_roto import exr
+        ch = exr.read_channels(path)
+        a = next((ch[k] for k in ("A", "alpha", "rgba.alpha", "R", "Y") if k in ch), next(iter(ch.values())))
+        a = np.asarray(a, np.float32)
+        lim = 0.5
+    else:
+        img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            raise IOError("cannot read %s" % path)
+        a = img[:, :, 3] if img.ndim == 3 and img.shape[2] == 4 else (img if img.ndim == 2 else img[:, :, 0])
+        a = a.astype(np.float32)
+        lim = 0.5 * (65535.0 if img.dtype == np.uint16 else 255.0 if img.dtype == np.uint8 else 1.0)
+    if a.shape != (h, w):
+        a = pixels.fit_to_format(a, w, h)
+    return a > lim
 
 
 def on_set_box(group):

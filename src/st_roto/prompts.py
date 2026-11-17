@@ -130,3 +130,40 @@ def objects_for_tracker(text: str, default: str = None) -> list:
         g["points"] = [g["points"][i] for i in order]
         g["labels"] = [g["labels"][i] for i in order]
     return gs
+
+
+# ------------------------------------------------------------------------------------------------ masks as prompts
+def from_mask(mask, max_pieces: int = 3, min_fraction: float = 0.02):
+    """A rough mask -> the prompt measured best on real footage (T-082): its tight box + the most interior pixel of
+    each piece (largest first, at most `max_pieces`, pieces under `min_fraction` of the mask ignored). T-100: used
+    for Roto shapes / polygons, mattes from other nodes and imported mask files. SAM 2 would take a MASK prompt as
+    the final answer on its frame (a rough polygon would stay rough); a box + clicks lets it draw the object itself.
+    mask: H x W bool (canonical, y down). Returns {"box": (x0, y0, x1, y1), "points": [(x, y), ...]}."""
+    import numpy as np
+    import cv2
+    m = np.asarray(mask) > 0.5
+    if not m.any():
+        raise ValueError("the mask is empty on this frame")
+    ys, xs = np.nonzero(m)
+    box = (float(xs.min()), float(ys.min()), float(xs.max() + 1), float(ys.max() + 1))
+    n, lab, stats, _ = cv2.connectedComponentsWithStats(m.astype(np.uint8))
+    total = float(m.sum())
+    order = sorted(range(1, n), key=lambda i: -stats[i, cv2.CC_STAT_AREA])
+    points = []
+    for i in order[:max_pieces]:
+        if stats[i, cv2.CC_STAT_AREA] < min_fraction * total and points:
+            continue
+        d = cv2.distanceTransform((lab == i).astype(np.uint8), cv2.DIST_L2, 5)
+        y, x = np.unravel_index(int(np.argmax(d)), d.shape)
+        points.append((float(x) + 0.5, float(y) + 0.5))
+    return {"box": box, "points": points}
+
+
+def set_from_mask(text: str, frame: int, mask, obj: str = None) -> str:
+    """Replace object `obj`'s prompts with the box + interior clicks of `mask` on `frame` (from_mask)."""
+    p = from_mask(mask)
+    t = clear(text, obj, obj)
+    t = set_box(t, frame, *p["box"], obj=obj)
+    for x, y in p["points"]:
+        t = add(t, frame, x, y, INCLUDE, obj=obj)
+    return t

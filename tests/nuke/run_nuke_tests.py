@@ -1758,6 +1758,88 @@ def test_matte_outputs(res):
     return bool(ok)
 
 
+def test_prompt_from_mask(res):
+    """T-100 / REQ-060: deliberately ROUGH masks from the three sources become prompts (box + interior clicks) and
+    the AI then tracks the exact objects: a crude polygon of the target drawn in the node's Roto (removed after use),
+    a rough square around the distractor disc in ANOTHER Roto node (its alpha), and a shrunken mask PNG of the target
+    on disk. One Track pass for all three; every key compared with the truth."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    from st_roto_nuke.roto_export import build_shape
+    from st_roto.geometry import Anchor, mask_to_points
+    from st_roto import views
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vh, vw, n = meta["h"], meta["w"], 4
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "pm.stroto")
+    g = stnode.create(rd, proj)
+    curves = stnode._INNER[g.fullName()]["roto"]["curves"]
+    yy, xx = np.mgrid[0:vh, 0:vw] + 0.5
+    tgt = lambda f: cv2.imread(VIDEO + "/gt_%04d.png" % f, cv2.IMREAD_GRAYSCALE) > 127               # noqa: E731
+
+    def disc(f):
+        s = f / 47.0
+        return (np.hypot(xx - (1050 - 600 * s), yy - (560 - 120 * np.sin(np.pi * s))) <= 85) & ~tgt(f)
+    nuke.frame(0)
+    # 1) crude polygon in the node's own Roto
+    cs, _ = cv2.findContours(tgt(0).astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    poly = np.zeros((vh, vw), np.uint8)
+    cv2.fillPoly(poly, [cv2.approxPolyDP(max(cs, key=cv2.contourArea), 6.0, True)], 1)
+    rough1 = cv2.dilate(poly, np.ones((9, 9), np.uint8)) > 0
+    curves.rootLayer.append(build_shape(curves, "rough", {0: mask_to_points(rough1.astype(float) - 0.5, count=10)}, vh))
+    g["stroto_object"].setValue("from_shape"); g["stroto_prompt_from"].setValue("Roto shape")
+    g["stroto_prompt_source"].setValue("rough")
+    p1 = stnode.on_prompt_from_mask(g)
+    res["shape_status"] = g["stroto_status"].value()
+    res["rough_left_in_roto"] = [it.name for it in curves.rootLayer if it.name == "rough"]
+    # 2) rough square around the disc in ANOTHER Roto node
+    other = nuke.nodes.Roto(name="garbage_disc", output="alpha")
+    other["format"].setValue("HD_720")
+    ys, xs = np.nonzero(disc(0))
+    sq = np.zeros((vh, vw), bool); sq[ys.min() - 12:ys.max() + 12, xs.min() - 12:xs.max() + 12] = True
+    other["curves"].rootLayer.append(build_shape(other["curves"], "sq", {0: mask_to_points(sq.astype(float) - 0.5,
+                                                                                         count=8)}, vh))
+    g["stroto_object"].setValue("from_node"); g["stroto_prompt_from"].setValue("mask node")
+    g["stroto_prompt_source"].setValue("garbage_disc")
+    p2 = stnode.on_prompt_from_mask(g)
+    res["node_status"] = g["stroto_status"].value()
+    # 3) shrunken mask PNG on disk
+    mdir = tempfile.mkdtemp().replace("\\", "/")
+    cv2.imwrite(mdir + "/m.0000.png", (cv2.erode(tgt(0).astype(np.uint8), np.ones((13, 13), np.uint8)) * 255))
+    g["stroto_object"].setValue("from_file"); g["stroto_prompt_from"].setValue("mask file")
+    g["stroto_prompt_source"].setValue(mdir + "/m.####.png")
+    p3 = stnode.on_prompt_from_mask(g)
+    res["file_status"] = g["stroto_status"].value()
+    job = stnode.on_track(g, background=False)
+    res["track_status"] = g["stroto_status"].value()[:300]
+    if job is None or job.status != "done":
+        res["error"] = job.error if job else "no job"; return False
+    store, _ = session.project(proj)
+    shot = store.conn.execute("SELECT id FROM shots").fetchone()["id"]
+    truth = {"from_shape": tgt, "from_node": disc, "from_file": tgt}
+    res["iou"] = {}
+    for o in store.objects(shot):
+        if o["name"] not in truth:
+            continue
+        sid = views.main_shape(store, o["id"])["id"]
+        vals = []
+        for k in store.keys(sid):
+            a = [Anchor(p=np.array(q[:2]), h_in=np.array(q[2:4]), h_out=np.array(q[4:]), corner=False) for q in k["points"]]
+            vals.append(iou(rasterize_spline(a, vh, vw), truth[o["name"]](k["frame"])))
+        res["iou"][o["name"]] = [round(min(vals), 4), round(float(np.mean(vals)), 4), len(vals)]
+    rough_iou = {"shape": round(iou(rough1, tgt(0)), 4), "node_square": round(iou(sq, disc(0)), 4),
+                 "file": round(iou(cv2.erode(tgt(0).astype(np.uint8), np.ones((13, 13), np.uint8)) > 0, tgt(0)), 4)}
+    res["rough_mask_iou_vs_truth"] = rough_iou
+    ok = (p1 is not None and p2 is not None and p3 is not None and res["rough_left_in_roto"] == []
+          and "was only a prompt and was removed" in res["shape_status"]
+          and sorted(res["iou"]) == ["from_file", "from_node", "from_shape"]
+          and all(v[0] > 0.97 and v[2] == n for v in res["iou"].values()))
+    return bool(ok)
+
+
 NET_EVENTS = ("socket.__new__", "socket.bind", "socket.connect", "socket.sendto", "socket.sendmsg",
               "socket.getaddrinfo", "socket.gethostbyname", "socket.gethostbyaddr", "socket.getnameinfo",
               "urllib.Request", "http.client.connect", "http.client.send", "ftplib.connect", "smtplib.connect",
@@ -1821,7 +1903,7 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_difficult_sequences, test_traditional_roto_without_ai, test_plate_above_render_limit,
          test_system_report, test_memory_aware_model, test_retrack_flagged_large,
          test_collaboration_ui, test_propagation_controls, test_roles_and_merge,
-         test_matte_outputs)
+         test_matte_outputs, test_prompt_from_mask)
 
 
 def main():

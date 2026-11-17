@@ -410,3 +410,7 @@ Added premultiplied / straight foreground RGB in the matte EXRs (convention in t
 ## 2026-11-17 - Privacy slip (my mistake)
 
 Commit 1ee7c06 (T-099) contained the Windows user name inside a truncated temp path in research/probes/2026-11-17_matte_outputs/result_file_lock.json. The privacy check printed the matches, but my one-line commit command did not stop on them and pushed. No email address was involved. Fixed forward (path redacted) and added tools/dev/commit_checked.ps1, which refuses to commit when the check finds anything; all further commits go through it. The old commit remains in the public history unless the owner decides to rewrite it (force push).
+
+## 2026-11-17 - T-100 rough masks as prompts; D-042
+
+Owner decided to keep the git history (D-042). Built prompts from rough masks: a Roto shape/polygon in the node, another node's alpha, or a mask file become box + interior clicks (not a SAM mask prompt, which would keep the rough edge on its frame). Nuke test with deliberately rough inputs (IoU 0.95, 0.61, 0.89 vs truth) tracked at 0.985-0.994.
