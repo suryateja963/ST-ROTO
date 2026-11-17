@@ -554,3 +554,48 @@ def discard_checkpoint(directory):
     import shutil
     if directory and os.path.isdir(directory):
         shutil.rmtree(directory, ignore_errors=True)
+
+# ------------------------------------------------------------------------------------------------ stereo resume (T-119)
+STEREO_META = "stereo.json"
+
+
+def result_to_json(res: dict) -> dict:
+    """track_objects() result -> JSON-safe dict (frame keys as strings)."""
+    def obj(r):
+        o = dict(r)
+        o["keys"] = {str(f): p for f, p in r["keys"].items()}
+        o["parts"] = [{str(f): p for f, p in part.items()} for part in r.get("parts", [])]
+        o["reports"] = {str(f): list(v) for f, v in r.get("reports", {}).items()}
+        o["holes"] = {str(f): n for f, n in (r.get("holes") or {}).items()}
+        return o
+    return dict(res, objects=[obj(r) for r in res["objects"]])
+
+
+def result_from_json(d: dict) -> dict:
+    """Inverse of result_to_json (frame keys back to int)."""
+    def obj(o):
+        r = dict(o)
+        r["keys"] = {int(f): p for f, p in o["keys"].items()}
+        r["parts"] = [{int(f): p for f, p in part.items()} for part in o.get("parts", [])]
+        r["reports"] = {int(f): tuple(v) for f, v in o.get("reports", {}).items()}
+        r["holes"] = {int(f): n for f, n in (o.get("holes") or {}).items()}
+        return r
+    return dict(d, objects=[obj(o) for o in d["objects"]])
+
+
+def read_stereo_checkpoint(directory):
+    """The stereo run's meta (views, hero, objects, frames, settings, finished passes, derived prompts) or None."""
+    p = os.path.join(directory or "", STEREO_META)
+    if not directory or not os.path.exists(p):
+        return None
+    with open(p, encoding="utf-8") as fh:
+        meta = json.load(fh)
+    return meta if meta.get("format") == "st_roto.stereo_checkpoint" else None
+
+
+def write_stereo_checkpoint(directory, meta):
+    os.makedirs(directory, exist_ok=True)
+    tmp = os.path.join(directory, STEREO_META + ".part")
+    with open(tmp, "w", encoding="utf-8") as fh:
+        json.dump(meta, fh)
+    os.replace(tmp, os.path.join(directory, STEREO_META))

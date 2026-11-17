@@ -1691,14 +1691,25 @@ def on_track(group, background: bool = True, resume: bool = False):
     `resume=True` ('Resume track') continues it from the checkpoint with identical results."""
     if _refuse_ai(group):
         return None
-    from .track import discard_checkpoint, read_checkpoint
+    from .track import discard_checkpoint, read_checkpoint, read_stereo_checkpoint
     try:
         ctx = _context(group, need_prompts=not resume)
         if not ctx["project"]:
             raise ValueError("set a project file")
         ck = checkpoint_dir(ctx["project"], ctx["src"].name())
         saved = read_checkpoint(ck) if resume else None
-        if resume:
+        smeta = read_stereo_checkpoint(ck) if resume else None
+        if resume and smeta is not None:                    # T-119: an interrupted STEREO run
+            if smeta["colour"] != colour.transform_id(ctx["colour"]):
+                raise ValueError("'AI input colour' changed since the interrupted run (it used %s); set it back to "
+                                 "resume" % smeta["colour"])
+            if smeta["hero"] != ctx.get("view") or smeta["views"] != script_views():
+                raise ValueError("the script's views or the prompt view changed since the interrupted stereo run "
+                                 "(it used %s, prompt view %s)" % (", ".join(smeta["views"]), smeta["hero"]))
+            ctx.update(objects=[dict(o, points=[tuple(p) for p in o["points"]]) for o in smeta["objects"]],
+                       model=smeta["model"], anchors=smeta["anchors"], parts=smeta["parts"])
+            frames = list(smeta["frames"])
+        elif resume:
             if saved is None:
                 raise ValueError("nothing to resume for %s" % ctx["src"].name())
             d = saved["definition"]
@@ -1716,8 +1727,8 @@ def on_track(group, background: bool = True, resume: bool = False):
     # an object counts as tracked under its own name and under its stereo pair key (T-109: target -> target_left)
     existing = {o["name"] for o in rows} | {o["pair"] for o in rows if o.get("pair")}
     skipped_note = ""
-    # T-109: stereo = every view tracked independently (one object per view); not checkpointed (no Resume yet)
-    stereo = stereo_on(group) and not resume
+    # T-109: stereo = every view tracked independently (one object per view); T-119: checkpointed, resumable
+    stereo = (stereo_on(group) and not resume) or (resume and smeta is not None)
     all_views = script_views()
     if stereo:
         from st_roto.stereo import view_object_name
@@ -1749,7 +1760,7 @@ def on_track(group, background: bool = True, resume: bool = False):
     def work(job):
         def run(device, again):
             if stereo:
-                return _track_stereo(job, ctx, frames, get_rgb, background, device, all_views)
+                return _track_stereo(job, ctx, frames, get_rgb, background, device, all_views, ck=ck, resume=again)
             return track_objects(get_rgb, frames, ctx["objects"], model=ctx["model"], device=device, job=job,
                                  colour_transform=ctx["colour"], anchors=ctx["anchors"],
                                  parts=ctx.get("parts", True), checkpoint_dir=ck, resume=again)
@@ -1760,9 +1771,9 @@ def on_track(group, background: bool = True, resume: bool = False):
                 raise
             # T-092: the GPU ran out of memory mid-run: free it and continue on the CPU from the last checkpoint
             _release_gpu_sessions()
-            if stereo:                                      # not checkpointed: the whole stereo run on the CPU
-                res = run("cpu", False)
-                res["oom_fallback"] = "the GPU ran out of memory; the stereo run was redone on the CPU"
+            if stereo:                                      # T-119: continue the stereo run from its checkpoint
+                res = run("cpu", read_stereo_checkpoint(ck) is not None)
+                res["oom_fallback"] = "the GPU ran out of memory; the stereo run continued on the CPU"
                 return res
             m = read_checkpoint(ck)
             res = run("cpu", m is not None)
@@ -1808,57 +1819,111 @@ def on_track(group, background: bool = True, resume: bool = False):
         group["stroto_status"].setValue(msg)
 
     def hint():
+        sm = read_stereo_checkpoint(ck)
+        if sm is not None:                                  # T-119: say which view and frame a resume starts at
+            for v in [sm["hero"]] + [x for x in sm["views"] if x != sm["hero"]]:
+                if v in sm["done"]:
+                    continue
+                m = read_checkpoint(os.path.join(ck, "pass_%s" % v))
+                return (" - 'Resume track' continues the %s view from frame %s (%s)" % (
+                    v, m["next_frame"] if m else sm["frames"][0],
+                    "finished: " + ", ".join(sm["done"]) if sm["done"] else "no view finished yet"))
+            return ""
         m = read_checkpoint(ck)
         return (" - 'Resume track' continues from frame %s" % m["next_frame"]) if m else ""
 
     return _run(group, "track", work, apply, background, stop_hint=hint)
 
 
-def _track_stereo(job, ctx, frames, get_rgb, background, device, all_views):
+def _track_stereo(job, ctx, frames, get_rgb, background, device, all_views, ck=None, resume=False):
     """T-109: track every prompted object in the prompt view, then find each object in every other view on its
     prompt frame (st_roto.stereo.estimate_disparity on the prompt-view result) and track it there independently,
     prompted with a box + the artist's clicks moved by that disparity. Results are named <name>_<view> and carry
-    view + pair. Returns track_objects()-like {"objects", "device", ..., "transfers": {(name, view): info}}."""
+    view + pair. Returns track_objects()-like {"objects", "device", ..., "transfers": {(name, view): info}}.
+    T-119: with `ck` the run is checkpointed per pass: <ck>/stereo.json records the views, the prompt-view objects,
+    the settings, the prompts derived for each other view and which passes are finished (their results in
+    <ck>/result_<view>.json); the running pass checkpoints every 10 frames in <ck>/pass_<view>/ (T-048). resume=True
+    reloads finished passes and continues the interrupted one from its checkpoint."""
     from st_roto import stereo as st
+    from .track import (read_checkpoint, read_stereo_checkpoint, result_from_json, result_to_json,
+                        write_stereo_checkpoint)
     hero = ctx["view"]
     w, h = ctx["width"], ctx["height"]
     kw = dict(model=ctx["model"], device=device, job=job, colour_transform=ctx["colour"], anchors=ctx["anchors"],
               parts=ctx.get("parts", True))
-    res = track_objects(get_rgb, frames, ctx["objects"], **kw)
+    meta = read_stereo_checkpoint(ck) if (ck and resume) else None
+    if meta is None and ck:
+        meta = {"format": "st_roto.stereo_checkpoint", "version": 1, "hero": hero, "views": list(all_views),
+                "frames": list(frames), "colour": colour.transform_id(ctx["colour"]), "model": ctx["model"],
+                "anchors": ctx["anchors"], "parts": ctx.get("parts", True),
+                "objects": [dict(o, points=[list(p) for p in o["points"]]) for o in ctx["objects"]],
+                "done": [], "derived": {}, "transfers": []}
+        write_stereo_checkpoint(ck, meta)
+
+    def run_pass(view, objs, getter):
+        """One view's pass: reloaded if finished, else tracked (continuing its own checkpoint when resuming)."""
+        if meta is not None and view in meta["done"]:
+            with open(os.path.join(ck, "result_%s.json" % view), encoding="utf-8") as fh:
+                return result_from_json(json.load(fh))
+        pdir = os.path.join(ck, "pass_%s" % view) if ck else None
+        again = bool(resume and pdir and read_checkpoint(pdir) is not None)
+        r = track_objects(getter, frames, objs, checkpoint_dir=pdir, resume=again, **kw)
+        if meta is not None:
+            with open(os.path.join(ck, "result_%s.json" % view), "w", encoding="utf-8") as fh:
+                json.dump(result_to_json(r), fh)
+            meta["done"].append(view)
+            write_stereo_checkpoint(ck, meta)
+        return r
+
+    res = run_pass(hero, ctx["objects"], get_rgb)
     out = [dict(r, name=st.view_object_name(o["name"], hero), view=hero, pair=o["name"])
            for o, r in zip(ctx["objects"], res["objects"])]
     missing = set(res.get("missing_frames") or ())
     transfers = {}
+    if meta is not None:
+        transfers = {(t[0], t[1]): t[2] for t in meta.get("transfers", [])}
     for v in [x for x in all_views if x != hero]:
         if job is not None:
             job.check()                                     # cancelled -> jobs.Cancelled
         get_v = _renderer(ctx, background, v)
-        derived = []
-        for o, r in zip(ctx["objects"], res["objects"]):
-            f = o["frame"]
-            keys = [r["keys"].get(f)] + [p.get(f) for p in r.get("parts", [])]
-            mask = st.mask_from_keys([k for k in keys if k], h, w)
-            box = st.mask_box(mask)
-            if box is None:
-                transfers[(o["name"], v)] = "not tracked: the AI found nothing in %s on frame %d" % (hero, f); continue
-            try:
-                d = st.estimate_disparity(get_rgb(f), get_v(f), mask)
-            except (ValueError, pixels.FrameUnavailable) as e:
-                transfers[(o["name"], v)] = "not tracked: %s" % e; continue
-            p = st.transfer_prompt(o, d["dx"], d["dy"], box, w, h)
-            if p is None:
-                transfers[(o["name"], v)] = "not tracked: outside the %s view" % v; continue
-            transfers[(o["name"], v)] = d
-            derived.append(p)
+        if meta is not None and v in meta["derived"]:
+            derived = [dict(p, points=[tuple(q) for q in p["points"]]) for p in meta["derived"][v]]
+        else:
+            derived = []
+            for o, r in zip(ctx["objects"], res["objects"]):
+                f = o["frame"]
+                keys = [r["keys"].get(f)] + [p.get(f) for p in r.get("parts", [])]
+                mask = st.mask_from_keys([k for k in keys if k], h, w)
+                box = st.mask_box(mask)
+                if box is None:
+                    transfers[(o["name"], v)] = "not tracked: the AI found nothing in %s on frame %d" % (hero, f)
+                    continue
+                try:
+                    d = st.estimate_disparity(get_rgb(f), get_v(f), mask)
+                except (ValueError, pixels.FrameUnavailable) as e:
+                    transfers[(o["name"], v)] = "not tracked: %s" % e; continue
+                p = st.transfer_prompt(o, d["dx"], d["dy"], box, w, h)
+                if p is None:
+                    transfers[(o["name"], v)] = "not tracked: outside the %s view" % v; continue
+                transfers[(o["name"], v)] = d
+                derived.append(p)
+            if meta is not None:
+                meta["derived"][v] = [dict(p, points=[list(q) for q in p["points"]]) for p in derived]
+                meta["transfers"] = [[k[0], k[1], t] for k, t in transfers.items()]
+                write_stereo_checkpoint(ck, meta)
         if not derived:
             continue
-        rv = track_objects(get_v, frames, derived, **kw)
+        rv = run_pass(v, derived, get_v)
         out += [dict(r, name=st.view_object_name(p["name"], v), view=v, pair=p["name"])
                 for p, r in zip(derived, rv["objects"])]
         missing |= set(rv.get("missing_frames") or ())
         if rv.get("device_fallback"):
             res["device_fallback"], res["device_reason"] = True, rv.get("device_reason")
+    res = dict(res)
     res["objects"], res["transfers"], res["missing_frames"] = out, transfers, sorted(missing)
+    if ck:
+        from .track import discard_checkpoint
+        discard_checkpoint(ck)                              # finished: the whole stereo checkpoint goes
     return res
 
 

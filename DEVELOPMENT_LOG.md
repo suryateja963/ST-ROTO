@@ -500,3 +500,7 @@ Archived versions are complete mini models roots (versions/<name>/<id>/), so the
 ## 2026-11-18 - T-115 edge decontamination, spill, chatter (REQ-101)
 
 Decontamination solves I = aF + (1-a)B with background / foreground colours pushed out from sure pixels; spill is a channel-limit despill with automatic screen colour; both feed the mattes' RGB, recorded in the EXR header. Measured on synthetic composites with exact truth: fringe 42x lower over a green screen, 3.2x over a natural background. Chatter reduction smooths AI key trajectories (quadratic fit; artist / locked keys anchor). **Honest result:** where edges wobble per frame it cuts temporal error by 41-48 %, but on the real (already clean) track of the synthetic shot it made temporal error 12 % worse - so it is opt-in, not default. Found by the unit test: a linear fit at run ends bent real acceleration; such frames are now left unchanged.
+
+## 2026-11-18 - T-119 stereo Track resume
+
+Stereo runs are now a sequence of checkpointed passes (stereo.json + result per finished view + the running pass's own T-048 checkpoint). Resume continues the interrupted view and reuses the prompts already derived for the other views. Test: cancelled in the right view's pass, resumed, and compared with an uninterrupted run: identical keys (max difference 0.0) for both views.

@@ -2591,6 +2591,90 @@ def test_edge_colour_and_chatter(res):
     return bool(ok)
 
 
+def test_stereo_resume(res):
+    """T-119: a stereo Track cancelled during the RIGHT view's pass (left finished) keeps a stereo checkpoint and
+    says where a resume starts; 'Resume track' (prompts cleared) finishes it; the result equals an uninterrupted
+    stereo run exactly (both views, every key) and the checkpoint is removed."""
+    if not os.path.exists(STEREO + "/meta.json"):
+        res["skipped"] = "stereo frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto import views
+    from st_roto_nuke import session
+    from st_roto_nuke.track import read_checkpoint, read_stereo_checkpoint
+    meta = json.load(open(STEREO + "/meta.json"))
+    vw, vh, n = meta["w"], meta["h"], 20
+    nuke.root()["views"].fromScript("left #ff0000\nright #00ff00")
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=STEREO + "/%V/frame_####.png", first=0, last=n - 1)
+    proj1 = os.path.join(tempfile.mkdtemp(), "sr1.stroto")
+    g = stnode.create(rd, proj1)
+    gt0 = cv2.imread(STEREO + "/left/gt_0000.png", cv2.IMREAD_GRAYSCALE) > 127
+    ys, xs = np.nonzero(gt0)
+    box = [xs.min() - 4.0, vh - ys.max() - 5.0, xs.max() + 5.0, vh - ys.min() + 4.0]
+
+    def prompt():
+        g["stroto_object"].setValue("target")
+        nuke.frame(0)
+        g["stroto_box"].setValue(box)
+        stnode.on_set_box(g)
+    prompt()
+    g["stroto_stereo"].setValue(True)
+    real = stnode._renderer
+    calls = {"right": 0}
+
+    def cancelling(ctx, background, view=None):
+        inner = real(ctx, background, view)
+
+        def get_rgb(f):
+            if (view or ctx.get("view")) == "right":
+                calls["right"] += 1
+                if calls["right"] == 14:                         # right pass, frame ~12 (after the transfer render)
+                    stnode._JOBS[g.fullName()].cancel()
+            return inner(f)
+        return get_rgb
+    stnode._renderer = cancelling
+    j1 = stnode.on_track(g, background=False)
+    stnode._renderer = real
+    ck = stnode.checkpoint_dir(proj1, rd.name())
+    sm = read_stereo_checkpoint(ck)
+    pm = read_checkpoint(os.path.join(ck, "pass_right"))
+    res["after_cancel"] = {"job": j1.status, "status": g["stroto_status"].value(), "done": sm and sm["done"],
+                           "right_next_frame": pm and pm["next_frame"]}
+    ok = j1.status == "cancelled" and sm is not None and sm["done"] == ["left"] and pm is not None
+    ok &= "continues the right view from frame %s" % pm["next_frame"] in res["after_cancel"]["status"]
+    stnode.on_clear_points(g, every_object=True)                   # resuming needs no prompts on the node
+    j2 = stnode.on_resume_track(g, background=False)
+    res["resume_status"] = g["stroto_status"].value()
+    ok &= j2 is not None and j2.status == "done" and "(resumed)" in res["resume_status"] and not os.path.exists(ck)
+
+    def keys_of(proj):
+        st, _ = session.project(proj)
+        shot = st.conn.execute("SELECT id FROM shots").fetchone()["id"]
+        out = {}
+        for o in st.objects(shot):
+            sid = views.main_shape(st, o["id"])["id"]
+            out[o["name"]] = {k["frame"]: k["points"] for k in st.keys(sid)}
+        return out
+    resumed = keys_of(proj1)
+    # an uninterrupted stereo run of the same prompt, into a second project
+    proj2 = os.path.join(tempfile.mkdtemp(), "sr2.stroto")
+    g["stroto_project"].setValue(proj2)
+    prompt()
+    j3 = stnode.on_track(g, background=False)
+    ok &= j3 is not None and j3.status == "done"
+    fresh = keys_of(proj2)
+    res["objects"] = sorted(resumed)
+    ok &= sorted(resumed) == sorted(fresh) == ["target_left", "target_right"]
+    diff = 0.0
+    for name in fresh:
+        ok &= sorted(resumed[name]) == sorted(fresh[name]) == list(range(n))
+        for f in fresh[name]:
+            diff = max(diff, float(np.abs(np.array(resumed[name][f]) - np.array(fresh[name][f])).max()))
+    res["max_key_difference_resumed_vs_uninterrupted"] = diff
+    ok &= diff == 0.0
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
@@ -2603,7 +2687,8 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_collaboration_ui, test_propagation_controls, test_roles_and_merge,
          test_matte_outputs, test_prompt_from_mask, test_model_manager,
          test_delivery_package, test_stereo_views, test_extra_channels, test_review_overlay_and_presets,
-         test_node_family, test_alembic_export, test_model_versions, test_edge_colour_and_chatter)
+         test_node_family, test_alembic_export, test_model_versions, test_edge_colour_and_chatter,
+         test_stereo_resume)
 
 
 def main():
