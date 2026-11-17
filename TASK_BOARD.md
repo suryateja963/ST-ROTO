@@ -112,3 +112,13 @@ None.
 
 | ID | Task |
 |---|---|
+| T-109 | Stereo (REQ-115): left/right views tracked independently + consistency check |
+| T-110 | Extra channels (REQ-113): use depth / motion vectors / Cryptomatte as hints; pass channels through |
+| T-111 | Viewer overlays and presets (REQ-120 remainder): confidence overlay in the viewer, settings presets |
+| T-112 | Node family (REQ-040): separate Track / Refine / Matte / Export nodes within the Non-commercial node budget |
+| T-113 | Alembic export (REQ-180 remainder, "where suitable") |
+| T-114 | Model versions side by side + rollback (REQ-130 remainder) |
+| T-115 | Edge decontamination / spill correction / chatter reduction (REQ-101 remainder) |
+| T-116 | AMD / Intel GPUs via DirectML (REQ-020 remainder; needs a DirectML ONNX Runtime build - owner approval for the package) |
+| T-117 | Verify other Nuke versions / editions (REQ-030, acceptance 16) - needs those installations |
+| T-118 | Real production shot done by an artist with ST-ROTO (acceptance 3/4) - needs the owner or an artist |
