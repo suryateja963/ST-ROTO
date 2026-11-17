@@ -1,0 +1,7 @@
+{
+ "st_roto_nuke_from": "D:\\ST-ROTO\\tmp\\installer_test\\base\\0.1.0-dev+7f4cb6b\\src\\st_roto_nuke",
+ "model_dir": "D:\\ST-ROTO\\tmp\\installer_test\\base\\0.1.0-dev+7f4cb6b\\models\\onnx\\sam2.1-hiera-tiny",
+ "repo_on_path": false,
+ "track_status": "done: 3 keys (12 points), 0 frames without object; device cuda",
+ "passed": true
+}

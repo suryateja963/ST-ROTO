@@ -7,7 +7,11 @@
 - Nuke 17.1 (Non-commercial works, within its limits: 1920×1080 max, 10 Python-accessible nodes per session)
 - `D:\ST-ROTO` with the development set-up from this repository (`.tools\nuke-py311` packages, exported models in `models\onnx\`). Model weights are not in the repository; see `tools/models/`.
 
-## Enable the plugin (your choice: changes your Nuke set-up)
+## Install with the setup (recommended)
+
+Put `ST-ROTO-Setup.exe` and the `ST-ROTO-<version>.zip` package in one folder and double-click the .exe: choose 1 to install (no administrator rights; files go to `%LOCALAPPDATA%\ST-ROTO`, and one marked block is added to `%USERPROFILE%\.nuke\init.py`). The same menu repairs, rolls back to the previous version or uninstalls (which removes only ST-ROTO's block and files). Command line: `ST-ROTO-Setup.exe status | install --source <zip> | upgrade | rollback | repair | uninstall`. Windows may warn that the .exe is not signed.
+
+## Enable the plugin manually (development checkout)
 
 Option A, environment variable for your user: set `NUKE_PATH` to `D:\ST-ROTO\nuke_plugin` (append with `;` if it already has a value).
 Option B: add this line to `%USERPROFILE%\.nuke\init.py` (create the file if needed):
