@@ -1,0 +1,44 @@
+{
+ "gui": true,
+ "shapes": [
+  "hero_stOs"
+ ],
+ "active_viewer_before": "None",
+ "active_viewer": "<ViewerWindow object at 0x000001FBF0222630>",
+ "viewer_window_methods": [
+  "frameControl",
+  "getStatusMessage",
+  "hideStatusMessage",
+  "showStatusMessage"
+ ],
+ "gl_widgets": [
+  [
+   "QWidget",
+   "Viewer_Window",
+   872,
+   412
+  ]
+ ],
+ "after_nuke_frame_5": {
+  "viewer_knobs": [],
+  "update_ui": 0
+ },
+ "get_status_message": "None",
+ "callbacks_600ms_after_frame_5": {
+  "viewer_knobs": [
+   "frame"
+  ],
+  "update_ui": 1
+ },
+ "magenta_pixels": 162,
+ "green_pixels_when_magenta": 0,
+ "magenta_pixels_when_green": 0,
+ "green_pixels": 178,
+ "magenta_pixels_ao0": 0,
+ "calls_total": {
+  "viewer_knob": [
+   "frame"
+  ],
+  "update_ui": 4
+ }
+}

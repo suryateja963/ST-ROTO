@@ -1,0 +1,26 @@
+{
+ "mode": "load",
+ "overlay_attribute_names": {
+  "kAlphaOverlayAttribute": "ao",
+  "kBlueOverlayAttribute": "bo",
+  "kGreenOverlayAttribute": "go",
+  "kRedOverlayAttribute": "ro"
+ },
+ "reloaded_values": {
+  "1": [
+   0.0,
+   1.0,
+   0.0
+  ],
+  "5": [
+   1.0,
+   1.0,
+   0.0
+  ],
+  "9": [
+   1.0,
+   0.0,
+   0.0
+  ]
+ }
+}

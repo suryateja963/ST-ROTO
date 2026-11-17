@@ -1,0 +1,20 @@
+{
+ "gui": true,
+ "status_after_show": "shapes shown in the viewer (magenta = lost, yellow = check); edit them there, then 'Save Roto edits to project'",
+ "f2": {
+  "magenta": 0,
+  "yellow": 879,
+  "this_frame": "frame 2: no flags"
+ },
+ "f4": {
+  "magenta": 165,
+  "yellow": 879,
+  "this_frame": "frame 4: hero LOST: channels: shape differs from the Cryptomatte matte (IoU 0.20); object lost between frames where it is visible"
+ },
+ "f7": {
+  "magenta": 0,
+  "yellow": 1064,
+  "this_frame": "frame 7: hero CHECK: channels: shape differs from the Cryptomatte matte (IoU 0.30)"
+ },
+ "passed": true
+}

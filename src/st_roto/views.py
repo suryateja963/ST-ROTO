@@ -155,3 +155,35 @@ def timeline(store, shot_id: str) -> list:
         out.append({"id": o["id"], "name": o["name"], "role": o.get("role") or "add", "keys": keys,
                     "flags": flags, "locked": sorted(locked)})
     return out
+
+
+def review_levels(store, shot_id: str) -> dict:
+    """{object_id: {frame: (level, reason)}} - the worst review flag per object and frame (LOST before CHECK), with
+    every reason of that frame joined. Used by the viewer overlay (T-111) and the 'this frame' readout."""
+    from .quality import LOST
+    out = {}
+    for o in store.objects(shot_id):
+        per = {}
+        for f, level, why in review_for_object(store, o["id"]):
+            lv, rs = per.get(f, (None, []))
+            per[f] = (LOST if LOST in (lv, level) else level, rs + [why])
+        out[o["id"]] = {f: (lv, "; ".join(rs)) for f, (lv, rs) in per.items()}
+    return out
+
+
+def colour_runs(levels: dict, first: int, last: int, colours: dict) -> list:
+    """Overlay colour keys for frames first..last from {frame: level}: [(frame, (r, g, b, a))] keyed at the first and
+    last frame of every run of equal colour, so linear interpolation between keys is constant on whole frames.
+    Frames without a level get (0, 0, 0, 0) = Nuke's default outline colour (measured, T-111)."""
+    default = (0.0, 0.0, 0.0, 0.0)
+    out, run_start, cur = [], None, None
+    for f in range(first, last + 1):
+        c = colours.get(levels.get(f), default) if levels.get(f) else default
+        if c != cur:
+            if cur is not None and run_start != f - 1:
+                out.append((f - 1, cur))
+            out.append((f, c))
+            cur, run_start = c, f
+    if cur is not None and run_start != last:
+        out.append((last, cur))
+    return out

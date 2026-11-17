@@ -65,6 +65,7 @@ def create(source=None, project_path: str = ""):
         group.setInput(0, source)
     group.addKnob(nuke.Tab_Knob("stroto_tab", "ST-ROTO"))
     k = nuke.File_Knob("stroto_project", "project file"); group.addKnob(k); k.setValue(project_path)
+    _add_preset_knobs(group)
     group.addKnob(nuke.String_Knob("stroto_object", "object name", "object1"))
     group.addKnob(nuke.Text_Knob("stroto_div1", "prompts"))
     xy = nuke.XY_Knob("stroto_click", "point")
@@ -176,6 +177,7 @@ def create(source=None, project_path: str = ""):
     pv.clearFlag(nuke.STARTLINE)
     group.addKnob(pv)
     _add_channel_knobs(group)
+    _add_review_view_knobs(group)
     rp = _button(group, "stroto_reprompt", "Re-prompt here", "n.on_reprompt_here(nuke.thisNode())")
     rp.setTooltip("For a frame the review flags (or your eye) say is wrong: drag the box around the object on THIS "
                   "frame, press Re-prompt here. The object named above is re-tracked in both directions with this "
@@ -292,6 +294,11 @@ KNOB_CHANGED = ("k = nuke.thisKnob()\n"
                 "if k is not None and k.name() == 'stroto_ai_off':\n"
                 "    try:\n"
                 "        import st_roto_nuke.node as n; n.apply_ai_visibility(nuke.thisNode())\n"
+                "    except Exception:\n"
+                "        pass\n"
+                "if k is not None and k.name() == 'stroto_review_colours':\n"
+                "    try:\n"
+                "        import st_roto_nuke.node as n; n.on_review_colours_toggled(nuke.thisNode())\n"
                 "    except Exception:\n"
                 "        pass\n")
 ON_CREATE = ("try:\n"
@@ -422,6 +429,241 @@ def _add_channel_knobs(group):
     ck.setTooltip("Renders the chosen channels for the whole shot and checks every object's shapes against them. "
                   "Results are stored with the project (undoable) and appear as 'check' review flags in the status, "
                   "the Objects pane and the timeline.")
+
+
+PRESET_NONE = "(choose a preset)"
+
+
+def _add_preset_knobs(group):
+    """Settings presets (T-111, REQ-121): built-in, studio (ST_ROTO_PRESET_DIR) and your own."""
+    from st_roto import presets as _p
+    pk = nuke.Enumeration_Knob("stroto_preset", "preset", [PRESET_NONE] + [e["name"] for e in _p.list_presets()])
+    pk.setTooltip("Named sets of this node's SETTINGS (model, edges, matte options, channels to check, stereo, ...). "
+                  "Never prompts, objects, frame ranges or paths. Built-in presets, your studio's (folder in "
+                  "ST_ROTO_PRESET_DIR) and your own (Save settings as).")
+    group.addKnob(pk)
+    a = _button(group, "stroto_preset_apply", "Apply", "n.on_apply_preset(nuke.thisNode())", new_line=False)
+    a.setTooltip("Sets this node's settings from the chosen preset; settings the preset does not name stay as they are.")
+    _button(group, "stroto_preset_refresh", "Refresh", "n.on_refresh_presets(nuke.thisNode())", new_line=False)
+    nm = nuke.String_Knob("stroto_preset_name", "new preset")
+    nm.setTooltip("Name for 'Save settings as' (letters, digits, space, _ . ( ) + -).")
+    group.addKnob(nm)
+    sv = _button(group, "stroto_preset_save", "Save settings as", "n.on_save_preset(nuke.thisNode())",
+                 new_line=False)
+    sv.setTooltip("Saves this node's current settings as your preset (in %USERPROFILE%/.st_roto/presets, or "
+                  "ST_ROTO_USER_PRESET_DIR). A preset of yours with the same name is replaced.")
+    _button(group, "stroto_preset_delete", "Delete", "n.on_delete_preset(nuke.thisNode())", new_line=False)
+
+
+_LINKED = {"stroto_replace_alpha": "replace"}                  # preset key -> inner Roto knob (Link_Knob targets)
+_LINKED.update({name: target for name, _label, target in (
+    ("stroto_mb_mode", "", "motionblur_mode"), ("stroto_mb_samples", "", "global_motionblur"),
+    ("stroto_mb_shutter", "", "global_motionblur_shutter"),
+    ("stroto_mb_offset", "", "global_motionblur_shutter_offset_type"))})
+
+
+def _setting_knob(group, key):
+    """The knob holding a preset setting: the node's own, or the inner Roto's for linked knobs (None if absent)."""
+    if key in _LINKED:
+        if key not in group.knobs():
+            return None
+        roto = _inner(group, "roto", "STROTO_shapes")
+        return roto[_LINKED[key]] if _LINKED[key] in roto.knobs() else None
+    return group[key] if key in group.knobs() else None
+
+
+def current_settings(group) -> dict:
+    """This node's preset settings (st_roto.presets.SETTINGS) with their current values."""
+    from st_roto import presets as _p
+    out = {}
+    for key, kind in _p.SETTINGS.items():
+        k = _setting_knob(group, key)
+        if k is None:
+            continue
+        v = k.value()
+        if kind == "bool":
+            v = bool(v)
+        elif kind == "int":
+            v = int(v)
+        elif kind == "float":
+            v = float(v)
+        else:
+            v = str(v)
+        out[key] = v
+    return out
+
+
+def on_refresh_presets(group):
+    from st_roto import presets as _p
+    names = [e["name"] for e in _p.list_presets()]
+    cur = group["stroto_preset"].value()
+    group["stroto_preset"].setValues([PRESET_NONE] + names)
+    group["stroto_preset"].setValue(cur if cur in names else PRESET_NONE)
+    return names
+
+
+def on_apply_preset(group, name: str = None):
+    """Apply a preset to this node. Returns {"applied": [keys], "skipped": [(key, why)]} or None on error."""
+    from st_roto import presets as _p
+    name = name or group["stroto_preset"].value()
+    if not name or name == PRESET_NONE:
+        _status(group, "error: choose a preset"); return None
+    try:
+        pr = _p.load(name)
+    except (KeyError, ValueError) as e:
+        _status(group, "error: preset: %s" % e); return None
+    applied, skipped = [], [(p, "invalid") for p in pr["problems"]]
+    for key, v in pr["settings"].items():
+        k = _setting_knob(group, key)
+        if k is None:
+            skipped.append((key, "this node has no such setting (made with an older ST-ROTO)")); continue
+        if _p.SETTINGS[key] == "choice" and hasattr(k, "values") and v not in k.values():
+            skipped.append((key, "%r is not offered here" % v)); continue
+        k.setValue(v)
+        applied.append(key)
+    if "stroto_ai_off" in applied:
+        apply_ai_visibility(group)
+    msg = "preset %r (%s) applied: %d setting(s)" % (name, pr["origin"], len(applied))
+    if skipped:
+        msg += "; skipped %s" % "; ".join("%s (%s)" % s for s in skipped)
+    _status(group, msg)
+    return {"applied": applied, "skipped": skipped, "origin": pr["origin"]}
+
+
+def on_save_preset(group, name: str = None, description: str = ""):
+    from st_roto import presets as _p
+    name = (name or group["stroto_preset_name"].value()).strip()
+    try:
+        path = _p.save(name, current_settings(group), description)
+    except (ValueError, OSError) as e:
+        _status(group, "error: preset: %s" % e); return None
+    on_refresh_presets(group)
+    group["stroto_preset"].setValue(name)
+    _status(group, "saved preset %r (%d settings) to %s" % (name, len(current_settings(group)), path))
+    return path
+
+
+def on_delete_preset(group, name: str = None):
+    from st_roto import presets as _p
+    name = name or group["stroto_preset"].value()
+    try:
+        path = _p.delete(name)
+    except (KeyError, ValueError) as e:
+        _status(group, "error: preset: %s" % e); return None
+    on_refresh_presets(group)
+    _status(group, "deleted preset %r (%s)" % (name, path))
+    return path
+
+
+def _add_review_view_knobs(group):
+    """Review state in the viewer (T-111, REQ-120). Nuke Non-commercial cannot draw custom viewer graphics from Python
+    (NDK only, T-033) and its viewer has no Python text API (measured): the shapes' own outlines are coloured per
+    frame instead, and a readout names the flags of the current frame."""
+    group.addKnob(nuke.Text_Knob("stroto_div_rv", "review in viewer"))
+    rc = nuke.Boolean_Knob("stroto_review_colours", "review colours on shapes")
+    rc.setValue(True)
+    rc.setTooltip("Outlines of the node's shapes in the viewer: MAGENTA on frames flagged 'lost', YELLOW on 'check' "
+                  "frames, Nuke's usual colour elsewhere. Visible while the shapes' Roto controls are open (Show "
+                  "shapes in viewer). Updated after every Track, Re-track, Save Roto edits and channel check.")
+    group.addKnob(rc)
+    ss = _button(group, "stroto_show_shapes", "Show shapes in viewer", "n.on_show_shapes(nuke.thisNode())",
+                 new_line=False)
+    ss.setTooltip("Opens the controls of the node's Roto so its shapes (and their review colours) are drawn in the "
+                  "viewer and can be edited.")
+    tf = nuke.Text_Knob("stroto_this_frame", "this frame", "-")
+    tf.setTooltip("The review flags of the frame the viewer shows (updated when the frame changes).")
+    group.addKnob(tf)
+
+
+_REVIEW = {}            # group full name -> {"group": Node, "levels": {object name: {frame: (level, reason)}}}
+_VIEWER_CB = []
+
+
+def _sync(group, store, shot_id, curves, height):
+    """sync_shot, then the review colours (T-111) and the 'this frame' readout cache."""
+    rep = sync_shot(store, shot_id, curves, height)
+    _refresh_review(group, store, shot_id, curves)
+    return rep
+
+
+def _refresh_review(group, store, shot_id, curves):
+    from .roto_export import apply_review_colours
+    on = bool(group["stroto_review_colours"].value()) if "stroto_review_colours" in group.knobs() else True
+    try:
+        res = apply_review_colours(store, shot_id, curves, enabled=on)
+    except Exception:                                         # noqa: BLE001 - never break a sync over colours
+        res = {"levels": {}, "error": traceback.format_exc().strip().splitlines()[-1]}
+    levels = res.get("levels") or {}
+    if not on:
+        from st_roto import views as _v
+        levels = _v.review_levels(store, shot_id)
+    names = {o["id"]: o["name"] for o in store.objects(shot_id)}
+    _REVIEW[group.fullName()] = {"group": group, "levels": {names.get(k, k): v for k, v in levels.items()}}
+    _ensure_viewer_callback()
+    _show_this_frame(group.fullName(), int(nuke.frame()))
+    return res
+
+
+def _show_this_frame(full_name, frame):
+    entry = _REVIEW.get(full_name)
+    if not entry:
+        return
+    g = entry["group"]
+    if "stroto_this_frame" not in g.knobs():
+        return
+    parts = []
+    for name, per in sorted(entry["levels"].items()):
+        if frame in per:
+            lv, why = per[frame]
+            parts.append("%s %s: %s" % (name, lv.upper(), why))
+    g["stroto_this_frame"].setValue(("frame %d: " % frame + " | ".join(parts)) if parts else "frame %d: no flags" % frame)
+
+
+def _on_viewer_frame():
+    """Viewer knobChanged callback (measured T-111: fires with knob 'frame' when the frame changes)."""
+    try:
+        k = nuke.thisKnob()
+        if k is None or k.name() != "frame":
+            return
+        f = int(nuke.frame())
+        for name in list(_REVIEW):
+            _show_this_frame(name, f)
+    except Exception:                                         # noqa: BLE001 - callbacks must never raise
+        pass
+
+
+def _ensure_viewer_callback():
+    if not _VIEWER_CB:
+        try:
+            nuke.addKnobChanged(_on_viewer_frame, nodeClass="Viewer")
+            _VIEWER_CB.append(True)
+        except Exception:                                     # noqa: BLE001
+            pass
+
+
+def on_review_colours_toggled(group):
+    """knobChanged: colours on / off on the existing shapes right away (no other change)."""
+    try:
+        store, bus, src, project, shot = _shot_for(group)
+    except (ValueError, NodeBudgetError):
+        return None
+    if shot is None:
+        return None
+    return _refresh_review(group, store, shot["id"], _inner(group, "roto", "STROTO_shapes")["curves"])
+
+
+def on_show_shapes(group):
+    """T-111: open the inner Roto's controls so the shapes and their review colours are drawn in the viewer."""
+    roto = _inner(group, "roto", "STROTO_shapes")
+    try:
+        store, bus, src, project, shot = _shot_for(group)
+        if shot is not None:
+            _refresh_review(group, store, shot["id"], roto["curves"])
+    except (ValueError, NodeBudgetError):
+        pass
+    roto.showControlPanel()
+    _status(group, "shapes shown in the viewer (magenta = lost, yellow = check); edit them there, then 'Save Roto "
+                   "edits to project'")
 
 
 def _button(group, name, label, code, new_line=True):
@@ -1185,6 +1427,7 @@ def on_check_channels(group, background: bool = True):
             ops += [{"op": "set_channel_report", "object_id": oid, "frame": f, "data": r} for f, r in sorted(rep.items())]
         if ops:
             bus.execute({"op": "batch", "ops": ops})
+        _refresh_review(group, store, shot["id"], roto["curves"])         # T-111: new flags show on the shapes
         parts = []
         for oid, rep in job.result["reports"].items():
             flags = [x for x in views.review_for_object(store, oid) if x[2].startswith("channels:")]
@@ -1484,7 +1727,7 @@ def on_track(group, background: bool = True, resume: bool = False):
             for r in result["objects"]:
                 r.setdefault("view", ctx["view"]); r.setdefault("pair", r["name"])
         ids = apply_results(bus, shot_id, result["objects"])
-        rep = sync_shot(store, shot_id, ctx["roto"]["curves"], ctx["height"])
+        rep = _sync(group, store, shot_id, ctx["roto"]["curves"], ctx["height"])
         parts = []
         for r, (oid, _) in zip(result["objects"], ids):
             extra = (", %d extra piece(s)" % len(r["parts"])) if r.get("parts") else ""
@@ -1701,7 +1944,7 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
 
     def apply(job):
         counts = apply_retracks(bus, store, job.result["shapes"])
-        rep = sync_shot(store, shot["id"], curves, height)
+        rep = _sync(group, store, shot["id"], curves, height)
         parts = []
         for name, oid, sid in targets:
             kept = len(json.loads(job.result["shapes"][sid]["generator"])["retrack"]["artist_frames"])
@@ -2013,7 +2256,7 @@ def resync(group, import_first: bool = True):
                "first": int(src.firstFrame()), "last": int(src.lastFrame())}
         shot = {"id": _ensure_shot(store, bus, ctx)}
     imp = import_edits(store, bus, shot["id"], curves, _height(group), int(nuke.frame())) if import_first else None
-    rep = sync_shot(store, shot["id"], curves, _height(group))
+    rep = _sync(group, store, shot["id"], curves, _height(group))
     rep["import"] = imp
     notes = []
     if imp and (imp["imported"] or imp["new_objects"]):

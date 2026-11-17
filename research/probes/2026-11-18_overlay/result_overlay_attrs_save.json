@@ -1,0 +1,77 @@
+{
+ "mode": "save",
+ "overlay_attribute_names": {
+  "kAlphaOverlayAttribute": "ao",
+  "kBlueOverlayAttribute": "bo",
+  "kGreenOverlayAttribute": "go",
+  "kRedOverlayAttribute": "ro"
+ },
+ "defaults": {
+  "ao": 0.0,
+  "bo": 0.0,
+  "go": 0.0,
+  "ro": 0.0
+ },
+ "animated_values": {
+  "1": [
+   0.0,
+   1.0,
+   0.0
+  ],
+  "3": [
+   0.688,
+   1.0,
+   0.0
+  ],
+  "5": [
+   1.0,
+   1.0,
+   0.0
+  ],
+  "7": [
+   1.0,
+   0.688,
+   0.0
+  ],
+  "9": [
+   1.0,
+   0.0,
+   0.0
+  ],
+  "12": [
+   1.0,
+   0.0,
+   0.0
+  ]
+ },
+ "keys_on_red": 3,
+ "curve_api": {
+  "curve_type": "<class '_curvelib.AnimCurve'>",
+  "curve_dir": [
+   "addKey",
+   "constantValue",
+   "curveTension",
+   "curveType",
+   "evaluate",
+   "evaluateY",
+   "expressionString",
+   "getFlag",
+   "getKey",
+   "getNumberOfKeys",
+   "isDefault",
+   "kDefaultConstantValue",
+   "kDefaultCurveFlag",
+   "kDefaultCurveTension",
+   "kDefaultCurveType",
+   "name",
+   "removeAllKeys",
+   "removeKey",
+   "reset",
+   "setFlag",
+   "useExpression"
+  ]
+ },
+ "save": [
+  "overlay.nknc"
+ ]
+}

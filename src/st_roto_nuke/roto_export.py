@@ -443,3 +443,48 @@ def _remove(layer, item):
 def _safe_name(name: str) -> str:
     out = "".join(c if (c.isalnum() or c == "_") else "_" for c in name)
     return out if out and not out[0].isdigit() else "s_" + out
+
+
+# Review colours in the viewer (T-111, measured in research/probes/2026-11-18_overlay): a shape's overlay colour
+# attributes ro/go/bo/ao are animatable and draw its outline in that colour while the Roto's controls are open;
+# ao = 0 falls back to Nuke's default outline colour (red), so LOST uses magenta, not red.
+OVERLAY_ATTRS = ("ro", "go", "bo", "ao")
+REVIEW_COLOURS = {"lost": (1.0, 0.0, 1.0, 1.0), "check": (1.0, 0.85, 0.0, 1.0)}
+
+
+def apply_review_colours(store, shot_id: str, curves_knob, enabled: bool = True, first: int = None,
+                         last: int = None) -> dict:
+    """Key every ST-ROTO shape's overlay colour per frame from its object's review flags (magenta = lost, yellow =
+    check, Nuke's default elsewhere); enabled=False removes those keys. Returns {"shapes", "flagged_frames"}."""
+    shot = store.row("shots", shot_id) or {}
+    shapes = views.shot_shapes(store, shot_id)
+    levels = views.review_levels(store, shot_id) if enabled else {}
+    if first is None or last is None:
+        fs = [k["frame"] for s in shapes for k in store.keys(s["id"])]
+        first = shot.get("first_frame") if shot.get("first_frame") is not None else (min(fs) if fs else 0)
+        last = shot.get("last_frame") if shot.get("last_frame") is not None else (max(fs) if fs else 0)
+    obj_of = {host_tag(s["id"]): s["object_id"] for s in shapes}
+    done, flagged = 0, 0
+    for it in curves_knob.rootLayer:
+        mt = TAG_RE.search(getattr(it, "name", "") or "")
+        if not mt or mt.group(1) not in obj_of:
+            continue
+        try:
+            a = it.getAttributes()
+        except AttributeError:
+            continue
+        for nm in OVERLAY_ATTRS:
+            crv = a.getCurve(nm)
+            if crv is not None:
+                crv.removeAllKeys()
+            a.set(nm, 0.0)
+        if enabled:
+            lv = {f: x[0] for f, x in levels.get(obj_of[mt.group(1)], {}).items()}
+            flagged += sum(1 for f in lv if first <= f <= last)
+            for f, rgba in views.colour_runs(lv, first, last, REVIEW_COLOURS):
+                for nm, val in zip(OVERLAY_ATTRS, rgba):
+                    a.set(f, nm, float(val))
+        done += 1
+    if done:
+        curves_knob.changed()
+    return {"shapes": done, "flagged_frames": flagged, "levels": levels}

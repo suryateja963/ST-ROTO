@@ -2192,6 +2192,81 @@ def test_extra_channels(res):
     return bool(ok)
 
 
+def test_review_overlay_and_presets(res):
+    """T-111 (REQ-120/121): review colours keyed on the Roto shapes per frame (lost = magenta, check = yellow,
+    Nuke's default elsewhere), switched off again; the 'this frame' readout; presets: built-in applied, own preset
+    saved / re-applied (incl. a linked inner-Roto knob), refreshed list, deleted."""
+    import st_roto_nuke.node as stnode
+    from st_roto import model as m
+    from st_roto.geometry import mask_to_points
+    from st_roto_nuke import session
+    from st_roto_nuke.roto_export import sync_shot
+    OID, SID = "0a0b0c0d" + "0" * 24, "1a2b3c4d" + "0" * 24          # real ids are hex (shape tags)
+    os.environ["ST_ROTO_USER_PRESET_DIR"] = os.path.join(tempfile.mkdtemp(), "presets")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=9)
+    proj = os.path.join(tempfile.mkdtemp(), "ov.stroto")
+    g = stnode.create(rd, proj)
+    store, bus = session.project(proj)
+    bus.execute({"op": "create_shot", "row": {"id": "S", "name": rd.name(), "width": 1280, "height": 720,
+                                              "first_frame": 0, "last_frame": 9}})
+    bus.execute({"op": "create_object", "row": {"id": OID, "shot_id": "S", "name": "hero"}}, actor=m.ACTOR_AI)
+    bus.execute({"op": "create_shape", "row": {"id": SID, "object_id": OID, "name": "hero", "point_count": 12}},
+                actor=m.ACTOR_AI)
+    yy, xx = np.mgrid[0:720, 0:1280] + 0.5
+    for f in range(10):
+        if f != 4:
+            bus.execute({"op": "set_key", "shape_id": SID, "frame": f,
+                         "points": mask_to_points(80 - np.hypot(xx - 400 - 5 * f, yy - 360), count=12)},
+                        actor=m.ACTOR_AI)
+        bus.execute({"op": "set_report", "shape_id": SID, "frame": f, "object_score": -5.0 if f == 4 else 5.0,
+                     "iou_pred": 0.95})
+    bus.execute({"op": "set_channel_report", "object_id": OID, "frame": 7, "data": {"crypto_iou": 0.3}})
+    roto = stnode._inner(g, "roto", "STROTO_shapes")
+    sync_shot(store, "S", roto["curves"], 720)
+    r = stnode.on_review_colours_toggled(g)
+    res["flagged_frames"] = r["flagged_frames"]
+    shape = list(roto["curves"].rootLayer)[0]
+    a = shape.getAttributes()
+
+    def col(f):
+        return [round(a.getValue(f, n), 3) for n in ("ro", "go", "bo", "ao")]
+    res["colours"] = {f: col(f) for f in (3, 4, 5, 6, 7, 8)}
+    ok = (res["colours"][4] == [1.0, 0.0, 1.0, 1.0] and res["colours"][7] == [1.0, 0.85, 0.0, 1.0]
+          and all(res["colours"][f][3] == 0.0 for f in (3, 5, 6, 8)))
+    stnode._show_this_frame(g.fullName(), 7)
+    res["this_frame_7"] = g["stroto_this_frame"].value()
+    stnode._show_this_frame(g.fullName(), 2)
+    res["this_frame_2"] = g["stroto_this_frame"].value()
+    ok &= "hero CHECK" in res["this_frame_7"] and "Cryptomatte" in res["this_frame_7"] and "no flags" in res["this_frame_2"]
+    g["stroto_review_colours"].setValue(False)
+    stnode.on_review_colours_toggled(g)
+    res["colours_off"] = {f: col(f) for f in (4, 7)}
+    ok &= all(v[3] == 0.0 for v in res["colours_off"].values())
+    # presets
+    res["preset_menu"] = g["stroto_preset"].values()
+    ok &= "Quick look" in res["preset_menu"] and "CG plate with passes" in res["preset_menu"]
+    ra = stnode.on_apply_preset(g, "Quick look")
+    res["apply_builtin"] = ra
+    ok &= ra is not None and g["stroto_edges"].value() == "hard" and g["stroto_matte_size"].value() == "fit 1920x1080"
+    g["stroto_band"].setValue(7)
+    roto["replace"].setValue(False)
+    path = stnode.on_save_preset(g, "T111 test")
+    res["saved"] = bool(path and os.path.exists(path))
+    ok &= res["saved"] and "T111 test" in g["stroto_preset"].values()
+    g["stroto_band"].setValue(2)
+    roto["replace"].setValue(True)
+    rb = stnode.on_apply_preset(g, "T111 test")
+    res["apply_own"] = {"band": int(g["stroto_band"].value()), "replace": bool(roto["replace"].value()),
+                        "skipped": rb and rb["skipped"]}
+    ok &= res["apply_own"]["band"] == 7 and res["apply_own"]["replace"] is False and not rb["skipped"]
+    stnode.on_apply_preset(g, "CG plate with passes")
+    res["cg_preset"] = {"stats": g["stroto_ch_stats"].value(), "replace": bool(roto["replace"].value())}
+    ok &= res["cg_preset"] == {"stats": "depth.Z", "replace": True}
+    ok &= stnode.on_delete_preset(g, "T111 test") is not None and "T111 test" not in g["stroto_preset"].values()
+    ok &= stnode.on_delete_preset(g, "Stereo") is None and "only your own" in g["stroto_status"].value()
+    return bool(ok)
+
+
 TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeated_tracking_stable,
          test_prompts_preview_sync_protection, test_import_artist_edits, test_retrack_with_corrections,
          test_review_flags_reverse, test_multi_object_track, test_render_mattes_exr,
@@ -2203,7 +2278,7 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_system_report, test_memory_aware_model, test_retrack_flagged_large,
          test_collaboration_ui, test_propagation_controls, test_roles_and_merge,
          test_matte_outputs, test_prompt_from_mask, test_model_manager,
-         test_delivery_package, test_stereo_views, test_extra_channels)
+         test_delivery_package, test_stereo_views, test_extra_channels, test_review_overlay_and_presets)
 
 
 def main():
