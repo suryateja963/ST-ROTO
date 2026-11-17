@@ -366,3 +366,7 @@ Measured the product Track on 12 cases. All bit depths/formats tested (PNG16, TI
 ## 2026-11-17 - T-090 matte size: full resolution and fit 1920x1080 (OQ-28)
 
 Owner asked for both. Added the 'matte size' knob (full resolution default; fit 1920x1080 = area-average of the full-resolution matte into the largest box with the plate's proportions, recorded in the EXR header). Probe in Nuke NC on 1280x720, 3840x2160 and 7680x4320 with guided and hard edges: all combinations work, Nuke reads every EXR exactly, IoU 0.995-0.996 in both modes, fitted = exact downscale of full, 3-11x smaller files, no time saved (computed at full resolution; 8K guided ~14 s/frame). Noted: above HD in NC the guided filter is guided by the reduced-then-upscaled plate. Probe result files contained temp paths with the Windows user name; redacted before committing.
+
+## 2026-11-17 - D-041 default matte size
+
+Owner chose fit 1920x1080 as the Non-commercial default. The node now sets 'matte size' from the edition (NC: fit 1920x1080; others: full resolution); nodes made before the knob follow the same default. Nuke test on a UHD plate: default fit, hard mattes 1920x1080, IoU 0.995; matte, AI-off, ViTMatte and sequence tests still pass.

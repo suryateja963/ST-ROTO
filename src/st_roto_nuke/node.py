@@ -33,6 +33,15 @@ from .track import apply_results, models_root, track_object, track_objects
 
 MODELS = ["sam2.1-hiera-tiny", "sam2.1-hiera-large"]
 MATTE_SIZES = ["full resolution", "fit 1920x1080"]
+
+
+def default_matte_size():
+    """D-041 (owner, 2026-11-17): Nuke Non-commercial -> 'fit 1920x1080' (its own output limit); other editions ->
+    'full resolution'."""
+    try:
+        return MATTE_SIZES[1] if nuke.env.get("nc") else MATTE_SIZES[0]
+    except Exception:                                         # noqa: BLE001
+        return MATTE_SIZES[0]
 DEVICES = ["auto", "cpu"]
 POINT_COUNTS = ["auto", "8", "12", "16", "24", "32", "48"]
 _JOBS = {}            # group full name -> last Job
@@ -128,9 +137,11 @@ def create(source=None, project_path: str = ""):
     soft.setTooltip("Refine a narrow band around each shape's edge against the plate (guided filter, no AI model). "
                     "Off: hard mattes identical to the shapes.")
     msz = nuke.Enumeration_Knob("stroto_matte_size", "matte size", MATTE_SIZES)
+    msz.setValue(default_matte_size())
     msz.setTooltip("full resolution: EXR mattes at the plate's size. fit 1920x1080: mattes computed at full "
                    "resolution, then area-averaged down to fit 1920x1080 with the plate's proportions (Nuke "
-                   "Non-commercial's own output limit). Plates that already fit are never scaled.")
+                   "Non-commercial's own output limit). Plates that already fit are never scaled. Default: fit 1920x1080 in "
+                   "Nuke Non-commercial, full resolution in other editions.")
     msz.clearFlag(nuke.STARTLINE)
     group.addKnob(msz)
     band = nuke.Int_Knob("stroto_band", "edge band"); band.setValue(3); band.clearFlag(nuke.STARTLINE); group.addKnob(band)
@@ -807,8 +818,9 @@ def on_render_mattes(group, background: bool = True):
                              % (ai_disabled_reason(group) or ai_runtime_problem()))
         dev = group["stroto_device"].value()
         band, radius = max(1, int(group["stroto_band"].value())), max(1, int(group["stroto_radius"].value()))
-        out_size = (1920, 1080) if ("stroto_matte_size" in group.knobs()
-                                    and group["stroto_matte_size"].value() == "fit 1920x1080") else None
+        size_choice = (group["stroto_matte_size"].value() if "stroto_matte_size" in group.knobs()
+                       else default_matte_size())             # nodes made before T-090 follow the edition default
+        out_size = (1920, 1080) if size_choice == "fit 1920x1080" else None
         ctransform = _colour(group)
         ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name()),
                "width": int(src.width()), "height": int(src.height()), "group": group}

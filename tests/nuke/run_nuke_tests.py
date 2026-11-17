@@ -1315,8 +1315,23 @@ def test_plate_above_render_limit(res):
         res["key_iou"][k["frame"]] = round(iou(rasterize_spline(a, H, W), gts[k["frame"]]), 4)
     fit = stnode._INNER[g.fullName()].get("fit")
     res["fit_disabled_after"] = bool(fit is not None and fit["disable"].value())
-    return bool(sorted(res["key_iou"]) == list(range(n)) and min(res["key_iou"].values()) > 0.99
-                and "frames reduced to 1920x1080 (from 3840x2160)" in res["status"] and res["fit_disabled_after"])
+    ok = (sorted(res["key_iou"]) == list(range(n)) and min(res["key_iou"].values()) > 0.99
+          and "frames reduced to 1920x1080 (from 3840x2160)" in res["status"] and res["fit_disabled_after"])
+    # D-041: in Non-commercial the matte size defaults to 'fit 1920x1080'; hard mattes come out 1920x1080
+    from st_roto import exr
+    res["matte_size_default"] = g["stroto_matte_size"].value()
+    g["stroto_edges"].setValue("hard")
+    jm = stnode.on_render_mattes(g, background=False)
+    res["matte_status"] = g["stroto_status"].value()[:200]
+    a = exr.read_channels(jm.result["files"][1])["A"] if jm is not None and jm.status == "done" else None
+    res["matte_shape"] = None if a is None else [a.shape[1], a.shape[0]]
+    if a is not None:
+        gt_small = cv2.resize(gts[1].astype(np.float32), (1920, 1080), interpolation=cv2.INTER_AREA) > 0.5
+        res["matte_iou"] = round(iou(a > 0.5, gt_small), 4)
+    ok &= (res["matte_size_default"] == ("fit 1920x1080" if nuke.env.get("nc") else "full resolution")
+           and res["matte_shape"] == ([1920, 1080] if nuke.env.get("nc") else [W, H])
+           and res.get("matte_iou", 0) > 0.99)
+    return bool(ok)
 
 
 NET_EVENTS = ("socket.__new__", "socket.bind", "socket.connect", "socket.sendto", "socket.sendmsg",

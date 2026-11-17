@@ -48,6 +48,7 @@ values at 10 sample pixels). Plates: synthetic shot, `research/probes/2026-11-17
 
 ## Licence note
 
-Which setting to use in Nuke Non-commercial remains the owner's decision (Foundry NC terms); the default stays
-*full resolution* (unchanged behaviour) until the owner chooses. Tests: `tests/unit/test_exr_mattes.py::
+Owner's decision (2026-11-17, D-041): **fit 1920x1080 is the default in Nuke Non-commercial**; full resolution
+stays the default in other editions. Verified by `tests/nuke` `test_plate_above_render_limit` (UHD plate in NC:
+knob defaults to fit, hard mattes 1920x1080, IoU 0.995). Tests: `tests/unit/test_exr_mattes.py::
 test_mattes_fitted_into_a_box`; this probe (`result_hd.json`, `result_uhd4k.json`, `result_uhd8k.json`).
