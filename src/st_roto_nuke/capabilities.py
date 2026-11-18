@@ -26,6 +26,9 @@ def facts(group=None) -> dict:
     gi = cap.gpu_info()
     f["gpus"], f["gpu_error"] = gi["gpus"], gi["error"]
     f["ram"] = cap.ram_info()
+    f["adapters"] = cap.display_adapters()
+    from st_roto import runtime_choice
+    f["ort_build"], f["ort_build_reason"] = runtime_choice.active()
     f["ai_disabled"] = stnode.ai_disabled_reason(group) if group is not None else _env_ai_off()
     f["ai_runtime_problem"] = None
     if not f["ai_disabled"]:

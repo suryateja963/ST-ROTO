@@ -37,7 +37,8 @@ import zipfile
 
 APP = "ST-ROTO"
 BEGIN, END = "# >>> ST-ROTO >>>", "# <<< ST-ROTO <<<"
-PAYLOAD = ("src", "nuke_plugin", os.path.join(".tools", "nuke-py311"), os.path.join("models", "manifests"),
+PAYLOAD = ("src", "nuke_plugin", os.path.join(".tools", "nuke-py311"), os.path.join(".tools", "nuke-py311-dml"),
+           os.path.join("models", "manifests"),
            "LICENSE", "NOTICE", "VERSION", os.path.join("docs", "USER_GUIDE_v0.md"))
 MODEL_SETS = {"none": (), "tiny": ("sam2.1-hiera-tiny",),
               "all": ("sam2.1-hiera-tiny", "sam2.1-hiera-large", "vitmatte-small-composition-1k")}

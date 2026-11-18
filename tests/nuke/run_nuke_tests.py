@@ -10,7 +10,11 @@ import json, os, sys, tempfile, traceback
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")).replace("\\", "/")
 sys.path[:0] = [ROOT + "/src"]
-sys.path.append(ROOT + "/.tools/nuke-py311")
+from st_roto import runtime_choice as _rc                 # noqa: E402 - same ONNX Runtime choice as the plugin (T-116)
+_build, _why = _rc.choose(os.environ.get(_rc.ENV, ""), _rc.nvidia_driver_present(),
+                          os.path.isdir(os.path.join(ROOT, _rc.DML_DIR)))
+os.environ[_rc.ACTIVE_ENV], os.environ[_rc.REASON_ENV] = _build, _why
+sys.path += [p.replace("\\", "/") for p in _rc.site_dirs(ROOT, _build)]
 import nuke                                               # noqa: E402
 import numpy as np                                        # noqa: E402
 import cv2                                                # noqa: E402
@@ -1026,6 +1030,59 @@ def test_vitmatte_mattes(res):
     res["meta_method"] = json.loads(__import__("OpenEXR").File(jm.result["files"][0]).header()["st_roto"])["method"]
     res["iou_vs_gt_at_0.5"] = round(iou(a > 0.5, gt), 4)
     ok &= res["meta_method"] == "vitmatte" and 0 < res["soft_px"] < 0.05 * a.size and res["iou_vs_gt_at_0.5"] > 0.97
+    return bool(ok)
+
+
+def test_directml_track(res):
+    """T-116: the DirectML build of ONNX Runtime (AMD / Intel / any DirectX 12 GPU). tools/run_nuke_tests.py starts
+    this test's Nuke with ST_ROTO_RUNTIME=directml (one ONNX Runtime per process). Box prompt -> Track 8 frames on
+    DirectML (status names the device; IoU vs truth), System report shows DirectML, ViTMatte mattes on DirectML."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import onnxruntime as ort
+    res["runtime"], res["runtime_reason"] = _rc.active()
+    res["ort"] = "%s from %s" % (ort.__version__, os.path.relpath(ort.__file__, ROOT))
+    if res["runtime"] != "directml":
+        res["error"] = "start this test with ST_ROTO_RUNTIME=directml (tools/run_nuke_tests.py does)"; return False
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session, capabilities as ncap
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vw, vh, n = meta["w"], meta["h"], 8
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
+    proj = os.path.join(tempfile.mkdtemp(), "dml.stroto")
+    g = stnode.create(rd, proj)
+    gt0 = cv2.imread(VIDEO + "/gt_0000.png", cv2.IMREAD_GRAYSCALE) > 127
+    ys, xs = np.nonzero(gt0)
+    x0, y0, x1, y1 = xs.min() - 4.0, ys.min() - 4.0, xs.max() + 5.0, ys.max() + 5.0
+    g["stroto_object"].setValue("target")
+    nuke.frame(0)
+    g["stroto_box"].setValue([x0, vh - y1, x1, vh - y0])
+    stnode.on_set_box(g)
+    job = stnode.on_track(g, background=False)
+    res["track_status"] = g["stroto_status"].value()
+    if job is None or job.status != "done":
+        res["error"] = job.error if job else "no job"; return False
+    store, bus = session.project(proj)
+    obj = store.objects(store.conn.execute("SELECT id FROM shots").fetchone()["id"])[0]
+    sid = store.shapes(obj["id"])[0]["id"]
+    q = {}
+    for k in store.keys(sid):
+        a = [Anchor(p=np.array(p[:2]), h_in=np.array(p[2:4]), h_out=np.array(p[4:]), corner=False) for p in k["points"]]
+        gt = cv2.imread(VIDEO + "/gt_%04d.png" % k["frame"], cv2.IMREAD_GRAYSCALE) > 127
+        q[k["frame"]] = round(iou(rasterize_spline(a, vh, vw), gt), 4)
+    res["iou"] = q
+    ok = "device directml" in res["track_status"] and sorted(q) == list(range(n)) and min(q.values()) > 0.97
+    f, feats, _text = ncap.report(g)
+    gpu = [x for x in feats if x["feature"].startswith("GPU acceleration")]
+    res["report_gpu"], res["adapters"] = gpu, f.get("adapters")
+    ok &= bool(gpu) and gpu[0]["feature"] == "GPU acceleration (DirectML)" and gpu[0]["status"] == "available"
+    if os.path.isdir(ROOT + "/models/onnx/vitmatte-small-composition-1k"):
+        g["stroto_edges"].setValue("ViTMatte-S (optional AI)")
+        g["stroto_matte_dir"].setValue(os.path.join(tempfile.mkdtemp(), "m").replace("\\", "/"))
+        mj = stnode.on_render_mattes(g, background=False)
+        res["matte_status"] = g["stroto_status"].value()
+        ok &= mj is not None and mj.status == "done" and "ViTMatte-S edges" in res["matte_status"]
     return bool(ok)
 
 
@@ -2855,7 +2912,7 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_matte_outputs, test_prompt_from_mask, test_model_manager,
          test_delivery_package, test_stereo_views, test_extra_channels, test_review_overlay_and_presets,
          test_node_family, test_alembic_export, test_model_versions, test_edge_colour_and_chatter,
-         test_stereo_resume, test_multicam_cameras, test_crypto_shapes_and_propagation)
+         test_stereo_resume, test_multicam_cameras, test_crypto_shapes_and_propagation, test_directml_track)
 
 
 def main():

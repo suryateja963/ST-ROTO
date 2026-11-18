@@ -532,3 +532,7 @@ ViTMatte (now does); the installed copy had no VERSION file, so it would have re
 the README still said "No product code exists yet" (rewritten for users). My own release check first failed on its
 own assertion (the Track status does not name the model); it now checks the loaded ONNX sessions: all 6 from the
 installed large model. Not tested: a second computer.
+
+## 2026-11-18 - T-116 DirectML (AMD / Intel GPUs)
+
+Owner approved onnxruntime-directml. 1.24.4 is the last DirectML build on PyPI. Shipped in its own folder because it is the same Python package as onnxruntime-gpu; one is chosen per Nuke session. Measured in Nuke on the RTX 5060 through DirectML: the same masks as CUDA (IoU >= 0.997 per frame), 7-20 % slower, ~35 % less GPU memory. The System report then showed that this laptop also has an integrated Intel UHD GPU: tracked on it (adapter 1) with IoU >= 0.995 vs CUDA at ~6 s/frame - the first real non-NVIDIA GPU result. One existing unit test asserted the old "DirectML not shipped" text; changed to the new fix hint. AMD stays untested (no hardware).

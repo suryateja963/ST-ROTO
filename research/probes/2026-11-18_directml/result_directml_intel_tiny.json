@@ -1,0 +1,31 @@
+{
+ "runtime": "directml",
+ "ort_version": "1.24.4",
+ "ort_file": ".tools\\nuke-py311-dml\\onnxruntime\\__init__.py",
+ "available_providers": [
+  "DmlExecutionProvider",
+  "CPUExecutionProvider"
+ ],
+ "seconds_total": 85.92,
+ "device": "directml",
+ "device_fallback": false,
+ "device_reason": "",
+ "iou_vs_gt": {
+  "0": 0.9946,
+  "1": 0.9962,
+  "2": 0.996,
+  "3": 0.9956,
+  "4": 0.9948,
+  "5": 0.9951,
+  "6": 0.9945,
+  "7": 0.9952,
+  "8": 0.9948,
+  "9": 0.9944,
+  "10": 0.9943,
+  "11": 0.994
+ },
+ "seconds_warm": 71.17,
+ "gpu_mem_baseline_mib": 323,
+ "gpu_mem_peak_increase_mib": 1,
+ "ms_per_frame_warm": 5930.8
+}

@@ -47,7 +47,7 @@ def test_ai_disabled_and_missing_runtime_explain_themselves():
 def test_cpu_only_machine_and_missing_models():
     feats = cap.evaluate({"edition": "commercial", "providers": ["cpu"], "gpus": [], "models": ALL_MODELS})
     gpu = [x for x in feats if x["feature"].startswith("GPU")][0]
-    assert gpu["status"] == cap.UNAVAILABLE and "CPU" in gpu["reason"] and "DirectML" in gpu["reason"]
+    assert gpu["status"] == cap.UNAVAILABLE and "CPU" in gpu["reason"] and "directml" in gpu["fix"]   # T-116
     none = cap.evaluate({"edition": "commercial", "providers": ["cuda"], "gpus": GPU, "models": {}})
     ai = [x for x in none if x["feature"].startswith("AI tracking")][0]
     assert ai["status"] == cap.UNAVAILABLE and "no exported SAM 2.1 model" in ai["reason"]

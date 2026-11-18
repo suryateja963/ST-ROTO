@@ -21,7 +21,13 @@ def main():
     summary, failed = {}, 0
     for name in test_names():
         log = open(os.path.join(OUT, "log_%s.txt" % name), "w")
-        rc = subprocess.call([exe, "--nc", "-t", RUNNER, name], stdout=log, stderr=subprocess.STDOUT, timeout=1800)
+        env = dict(os.environ)                     # one ONNX Runtime build per process (T-116): DirectML tests
+        if "directml" in name:                     # get the DirectML build, every other test the default choice
+            env["ST_ROTO_RUNTIME"] = "directml"
+        else:
+            env.pop("ST_ROTO_RUNTIME", None)
+        rc = subprocess.call([exe, "--nc", "-t", RUNNER, name], stdout=log, stderr=subprocess.STDOUT, timeout=1800,
+                             env=env)
         log.close()
         path = os.path.join(OUT, "results_%s.json" % name)
         res = json.load(open(path)).get(name, {}) if os.path.exists(path) else {"passed": False, "error": "no result"}

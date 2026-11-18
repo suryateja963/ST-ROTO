@@ -31,24 +31,28 @@ EDITION_LIMITS = {
 # 1024x1024 internally, so the plate size matters little (720p measured).
 MODEL_VRAM_MIB = {"sam2.1-hiera-tiny": 3730, "sam2.1-hiera-large": 6793}
 VRAM_MARGIN = 1.05
+# The same peaks with the DirectML build (T-116, measured on the same GPU: research/probes/2026-11-18_directml). Free
+# memory of non-NVIDIA GPUs cannot be read here, so these are reported, not used for 'auto'.
+DML_VRAM_MIB = {"sam2.1-hiera-tiny": 2556, "sam2.1-hiera-large": 4299}
 
 
-def vram_need(model):
-    """MiB of free GPU memory required before running `model` on the GPU (measured peak + 5 %), or None."""
-    v = MODEL_VRAM_MIB.get(model)
+def vram_need(model, needs=None):
+    """MiB of free GPU memory required before running `model` on the GPU (measured peak + 5 %), or None.
+    needs: the peak table (default MODEL_VRAM_MIB = CUDA; DML_VRAM_MIB for the DirectML build)."""
+    v = (MODEL_VRAM_MIB if needs is None else needs).get(model)
     return None if v is None else int(v * VRAM_MARGIN)
 
 
-def plan_model(choice, device, free_mib, present, loaded=(), auto_choice="auto"):
+def plan_model(choice, device, free_mib, present, loaded=(), auto_choice="auto", needs=None):
     """Memory-aware model/device choice (T-092, REQ-021). Pure.
     choice: a model name or `auto_choice`; device: "auto" | "cuda" | "cpu"; free_mib: free GPU memory or None
     (no NVIDIA GPU / unknown); present: {model: installed}; loaded: models whose sessions are already on the GPU
-    (they need no new memory). Returns (model, device, note). Never silently swaps a model the artist chose:
+    (they need no new memory); needs: peak table (vram_need). Returns (model, device, note). Never silently swaps a model the artist chose:
     if it does not fit, it runs on the CPU and the note says so (and suggests the smaller model)."""
     order = ("sam2.1-hiera-large", "sam2.1-hiera-tiny")
 
     def fits(m):
-        need = vram_need(m)
+        need = vram_need(m, needs)
         return m in loaded or need is None or (free_mib is not None and free_mib >= need)
     if choice == auto_choice:
         if device == "cpu" or free_mib is None:
@@ -57,14 +61,14 @@ def plan_model(choice, device, free_mib, present, loaded=(), auto_choice="auto")
         for m in order:
             if present.get(m) and fits(m):
                 return m, device, "auto model: %s (%d MiB GPU memory free, needs ~%s)" % (
-                    m, free_mib, "0 more: already loaded" if m in loaded else vram_need(m))
+                    m, free_mib, "0 more: already loaded" if m in loaded else vram_need(m, needs))
         m = "sam2.1-hiera-tiny" if present.get("sam2.1-hiera-tiny") else "sam2.1-hiera-large"
         return m, "cpu", ("auto model: not enough free GPU memory (%d MiB free, %s needs ~%d): running on the CPU, "
-                          "much slower; close GPU-heavy programs to use the GPU" % (free_mib, m, vram_need(m)))
+                          "much slower; close GPU-heavy programs to use the GPU" % (free_mib, m, vram_need(m, needs)))
     if device == "cpu" or free_mib is None or fits(choice):
         return choice, device, ""
     note = ("%s needs ~%d MiB of free GPU memory, %d MiB free: running on the CPU, much slower"
-            % (choice, vram_need(choice), free_mib))
+            % (choice, vram_need(choice, needs), free_mib))
     small = "sam2.1-hiera-tiny"
     if choice != small and present.get(small) and fits(small):
         note += "; '%s' fits on the GPU" % small
@@ -87,6 +91,33 @@ def gpu_info(timeout=10):
     if out.returncode != 0:
         return {"gpus": [], "error": "nvidia-smi failed: %s" % (out.stderr or out.stdout).strip()[:200]}
     return {"gpus": parse_nvidia_smi(out.stdout), "error": None}
+
+
+def display_adapters():
+    """Names of the display adapters Windows knows (any vendor: AMD, Intel, NVIDIA...), via user32
+    EnumDisplayDevicesW (no process, no network). [] elsewhere or if unknown. Memory is not available this way."""
+    if sys.platform != "win32":
+        return []
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        class DISPLAY_DEVICEW(ctypes.Structure):
+            _fields_ = [("cb", wintypes.DWORD), ("DeviceName", wintypes.WCHAR * 32),
+                        ("DeviceString", wintypes.WCHAR * 128), ("StateFlags", wintypes.DWORD),
+                        ("DeviceID", wintypes.WCHAR * 128), ("DeviceKey", wintypes.WCHAR * 128)]
+        names, i = [], 0
+        while i < 32:
+            d = DISPLAY_DEVICEW()
+            d.cb = ctypes.sizeof(d)
+            if not ctypes.windll.user32.EnumDisplayDevicesW(None, i, ctypes.byref(d), 0):
+                break
+            if d.DeviceString and d.DeviceString not in names:
+                names.append(d.DeviceString)
+            i += 1
+        return names
+    except Exception:                                         # noqa: BLE001 - a report fact, never an error
+        return []
 
 
 def parse_nvidia_smi(text):
@@ -168,11 +199,21 @@ def evaluate(f):
                             % (g["name"], g["total_mib"], g["free_mib"], g["driver"])))
     elif cuda:
         out.append(_feature("GPU acceleration (CUDA)", LIMITED, "CUDA build installed but no NVIDIA GPU reported (%s)"
-                            % (f.get("gpu_error") or "nvidia-smi listed none"), "check the NVIDIA driver"))
+                            % (f.get("gpu_error") or "nvidia-smi listed none"),
+                            "check the NVIDIA driver, or start Nuke with ST_ROTO_RUNTIME=directml"))
+    elif "directml" in (f.get("providers") or []):
+        out.append(_feature("GPU acceleration (DirectML)", AVAILABLE,
+                            "%s; display adapters: %s. Free GPU memory cannot be read for DirectML, so model 'auto' "
+                            "uses the tiny model; choose the large one yourself if your GPU has enough memory (measured "
+                            "DirectML peaks: tiny %d MiB, large %d MiB)"
+                            % (f.get("ort_build_reason") or "DirectML build", ", ".join(f.get("adapters") or [])
+                               or "unknown", DML_VRAM_MIB["sam2.1-hiera-tiny"], DML_VRAM_MIB["sam2.1-hiera-large"])))
     else:
         out.append(_feature("GPU acceleration", UNAVAILABLE, "this ONNX Runtime build has no GPU provider for this "
-                            "machine (AMD/Intel GPUs need a DirectML build: not shipped yet); AI runs on the CPU, "
-                            "much slower", "NVIDIA GPU + CUDA 12 driver, or a future DirectML build"))
+                            "machine (%s; display adapters: %s); AI runs on the CPU, much slower"
+                            % (f.get("ort_build_reason") or "build unknown", ", ".join(f.get("adapters") or [])
+                               or "unknown"),
+                            "NVIDIA GPU + CUDA 12 driver, or a DirectX 12 GPU with ST_ROTO_RUNTIME=directml"))
     # model fit in VRAM
     if ai_ok and cuda and gpus:
         for name, need in sorted(MODEL_VRAM_MIB.items()):

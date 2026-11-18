@@ -34,7 +34,7 @@ First issue 2026-11-15; second issue 2026-11-15. Full texts read so far: **SAM L
 | OpenEXR Python binding (`openexr` 3.5.4) | BSD-3-Clause, Academy Software Foundation (PyPI metadata; text not yet read) | EXR matte writer (T-070); installed in `.tools/nuke-py311` and `.venv` only. Redistribution permitted with notice |
 | NVIDIA CUDA / cuDNN runtime DLLs | NVIDIA proprietary terms (CUDA EULA key clauses read 2026-11-16) | Redistributables only inside an application, accessed only by it; §1.2.5 forbids use that subjects the SDK to an open-source licence → ST-ROTO reuses Nuke's DLLs and ships none (`docs/RESEARCH_2026-11-16_LICENCES_AND_CATEGORIES.md`) |
 | TensorRT | NVIDIA proprietary terms | Not reviewed |
-| DirectML | MIT (text read) | DLL redistribution terms not stated in that text |
+| DirectML | MIT (text read) | DLL redistribution terms not stated in that text; T-116: shipped as Microsoft's own onnxruntime-directml 1.24.4 wheel from PyPI (MIT), DirectML.dll inside it redistributed unmodified as part of that wheel |
 | OpenVINO | Apache-2.0 (text read) | |
 | PyTorch / libtorch | BSD-3-Clause style (text read) | Nuke ships libtorch 2.7.1; ST-ROTO ships none (TorchScript files only, route A) |
 | Foundry Nuke, NDK | Foundry EULA, updated March 2026 (key clauses read) | Clause 2.1(g): NC licence may not be used "(e) to create any commercial tools or plug ins", nor for commercial/professional purposes or in employment/business. Clause 3: no distribution of the Software incl. plug-ins/SDK. No plug-in development grant. **Never ship Foundry files.** R-23, OQ-01 |

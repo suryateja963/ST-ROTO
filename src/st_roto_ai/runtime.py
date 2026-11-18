@@ -43,6 +43,15 @@ _PROVIDER = {"cuda": "CUDAExecutionProvider", "directml": "DmlExecutionProvider"
 CUDA_OPTIONS = {}
 
 
+def dml_options():
+    """DirectML EP options. ST_ROTO_DML_DEVICE picks the adapter (0 = ONNX Runtime's first, the high-performance GPU
+    on the hybrid laptop measured in T-116; 1, 2... = the others, e.g. an integrated Intel GPU)."""
+    try:
+        return {"device_id": int(os.environ.get("ST_ROTO_DML_DEVICE", "0") or 0)}
+    except ValueError:
+        return {"device_id": 0}
+
+
 def shrink_run_options():
     """RunOptions that return unused CUDA pool memory to the driver at the end of a run (ORT run config
     'memory.enable_memory_arena_shrinkage'). Use for the large, variable-shape calls (memory attention)."""
@@ -120,7 +129,8 @@ def create_session(path: str, device: str = "auto", log_severity: int = 3):
     so = ort.SessionOptions()
     so.log_severity_level = log_severity
     requested = order[0]
-    providers = [(_PROVIDER[d], dict(CUDA_OPTIONS)) if d == "cuda" else _PROVIDER[d] for d in order]
+    providers = [(_PROVIDER[d], dict(CUDA_OPTIONS)) if d == "cuda" else
+                 (_PROVIDER[d], dml_options()) if d == "directml" else _PROVIDER[d] for d in order]
     if "CPUExecutionProvider" not in providers:
         providers.append("CPUExecutionProvider")
     sess = ort.InferenceSession(path, so, providers=providers)

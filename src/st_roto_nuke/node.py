@@ -817,13 +817,15 @@ def plan_model(choice, device):
     loaded = _loaded_models()
     gi = cap.gpu_info() if device != "cpu" else {"gpus": []}
     free = gi["gpus"][0]["free_mib"] if gi["gpus"] else None
-    model, dev, note = cap.plan_model(choice, device, free, present, loaded, auto_choice=AUTO_MODEL)
+    from st_roto import runtime_choice
+    needs = cap.DML_VRAM_MIB if runtime_choice.active()[0] == "directml" else None   # T-116
+    model, dev, note = cap.plan_model(choice, device, free, present, loaded, auto_choice=AUTO_MODEL, needs=needs)
     if dev != device and dev == "cpu" and loaded - {model}:
         # memory held by OTHER cached models may be what is missing: release it and look again
         _release_gpu_sessions()
         gi = cap.gpu_info()
         free = gi["gpus"][0]["free_mib"] if gi["gpus"] else None
-        model, dev, note = cap.plan_model(choice, device, free, present, _loaded_models(), auto_choice=AUTO_MODEL)
+        model, dev, note = cap.plan_model(choice, device, free, present, _loaded_models(), auto_choice=AUTO_MODEL, needs=needs)
     return model, dev, note
 
 

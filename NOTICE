@@ -49,6 +49,8 @@ each package's full licence text is in its *.dist-info folder:
   protobuf 7.36.2, Google LLC - BSD-3-Clause
   flatbuffers 25.12.19, Google LLC - Apache License 2.0
   packaging 26.3, Donald Stufft and individual contributors - Apache License 2.0 or BSD-2-Clause
+  onnxruntime-directml 1.24.4 (folder .tools/nuke-py311-dml), Microsoft Corporation - MIT License; includes
+    DirectML.dll (Microsoft), redistributed unmodified as part of Microsoft's wheel
   msvcp140 (Microsoft Visual C++ runtime, shipped inside the packages above under Microsoft's
     redistribution terms)
 

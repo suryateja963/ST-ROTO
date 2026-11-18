@@ -1,0 +1,53 @@
+{
+ "tiny": {
+  "frames": 48,
+  "iou_dml_vs_cuda_mean": 0.99975,
+  "iou_dml_vs_cuda_min": 0.99729,
+  "cuda": {
+   "ort": "1.26.0",
+   "device": "cuda",
+   "fallback": false,
+   "iou_vs_gt_mean": 0.9856,
+   "iou_vs_gt_min": 0.5721,
+   "ms_per_frame_warm": 353.8,
+   "seconds_first_run": 22.26
+  },
+  "directml": {
+   "ort": "1.24.4",
+   "device": "directml",
+   "fallback": false,
+   "iou_vs_gt_mean": 0.9857,
+   "iou_vs_gt_min": 0.5722,
+   "ms_per_frame_warm": 374.4,
+   "seconds_first_run": 21.8
+  }
+ },
+ "large": {
+  "frames": 48,
+  "iou_dml_vs_cuda_mean": 0.99989,
+  "iou_dml_vs_cuda_min": 0.99822,
+  "cuda": {
+   "ort": "1.26.0",
+   "device": "cuda",
+   "fallback": false,
+   "iou_vs_gt_mean": 0.9864,
+   "iou_vs_gt_min": 0.5709,
+   "ms_per_frame_warm": 544.6,
+   "seconds_first_run": 33.08
+  },
+  "directml": {
+   "ort": "1.24.4",
+   "device": "directml",
+   "fallback": false,
+   "iou_vs_gt_mean": 0.9864,
+   "iou_vs_gt_min": 0.5709,
+   "ms_per_frame_warm": 654.4,
+   "seconds_first_run": 38.25
+  }
+ },
+ "tiny_intel_uhd_directml_12_frames": {
+  "frames": 12,
+  "iou_intel_dml_vs_cuda_mean": 0.99901,
+  "min": 0.99509
+ }
+}
