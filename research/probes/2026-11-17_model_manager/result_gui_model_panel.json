@@ -20,6 +20,6 @@
    "apache-2.0"
   ]
  ],
- "verify_info": "sam2.1-hiera-tiny: all files verified (12 files, 1.6 s)",
+ "verify_info": "sam2.1-hiera-tiny: all files verified (12 files, 1.7 s)",
  "passed": true
 }

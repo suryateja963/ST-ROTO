@@ -1,0 +1,207 @@
+# ST-ROTO Developer Guide
+
+This guide is for people who change ST-ROTO's code, tests, models or releases. Users should read `docs/MANUAL.md`.
+
+The owner's specification is `docs/MASTER_PROMPT.md`, and it is authoritative. Decisions are recorded in `DECISION_REGISTER.md`, requirement IDs in `REQUIREMENTS_REGISTER.md`, and the measured evidence for every claim in `research/probes/*/RESULTS.md`. Working rules and measured pitfalls for automated contributors are in `CLAUDE.md`. Read its "Measured pitfalls" section before touching the Nuke adapter.
+
+## 1. Architecture
+
+```
+nuke_plugin/            init.py (sys.path, ONNX Runtime build choice), menu.py (menus)
+src/st_roto/            CORE: pure Python 3.7+ and numpy. No nuke, Qt or onnxruntime imports.
+src/st_roto_ai/         AI layer: ONNX Runtime + numpy. No nuke or Qt imports. Optional (AI-off works without it).
+src/st_roto_nuke/       Nuke adapter: knobs, rendering pixels out of Nuke, Roto export/import, panels, jobs.
+.tools/nuke-py311/      packages imported inside Nuke (onnxruntime-gpu 1.26.0, numpy, OpenCV, OpenEXR). Not in git.
+.tools/nuke-py311-dml/  onnxruntime-directml 1.24.4 (T-116). Not in git.
+models/manifests/       licence, revision, approval and SHA-256 checksums of every model file (in git)
+models/onnx/            exported models (not in git: built by tools/models, shipped in release zips)
+```
+
+**Layering is enforced** by `tests/unit/test_layering.py`:
+- `st_roto` must not import `nuke`, Qt or `onnxruntime`;
+- `st_roto_ai` must not import `nuke` or Qt;
+- every module in `st_roto` must stay Python 3.7 compatible (CI runs 3.7–3.11), because Nuke 13 uses Python 3.7.
+
+**Main flow of a Track:**
+
+1. `st_roto_nuke.node.on_track` gathers everything on the main thread (`_context`): source node, prompts, colour transform, model plan, excluded frames and scene cuts.
+2. A background `Job` (`st_roto.jobs`, run by `node._run`) calls `track.track_objects(get_rgb, frames, objects, ...)`:
+   - `get_rgb(frame)` renders a frame through the node's inner Write into a float TIFF (`st_roto_nuke.pixels`). This happens on the main thread, via `nuke.executeInMainThreadWithResult`.
+   - `st_roto_ai.sam2.Sam2MultiVideo` encodes each frame once, and every object keeps its own tracker memory. Large state is spilled to disk (`st_roto_ai.spill`). The run is checkpointed every 10 frames (`track.read_checkpoint`).
+   - Masks become splines: `st_roto.pieces.Sequencer` keeps a constant topology per shape, and `st_roto.geometry` provides sub-pixel contours and Bezier fitting.
+3. `apply(job)` runs on the main thread:
+   - `import_edits` first captures any artist edits made in Roto;
+   - `track.apply_results` writes the keys through the **command bus**, as one batch, which is one undo step;
+   - `roto_export.sync_shot` rebuilds the native Roto shapes, and never overwrites shapes the artist edited in Roto.
+
+**Project state** lives in `st_roto.store.ProjectStore`, one SQLite file per project, at schema version 12:
+
+| Tables | Holds |
+|---|---|
+| `shots`, `objects`, `shapes`, `shape_keys` | the shot, its objects and shapes, and the keys with their points and provenance |
+| `key_reports`, `channel_reports` | AI quality reports and channel checks |
+| `key_feather` | per-point feather |
+| `operations` | the op log, used for undo and replication |
+| `host_exports` | what was last written to Nuke |
+| `leases`, `presence`, `members`, `user_keys`, `sync_peers`, `branch_candidates` | collaboration |
+| `meta` | project metadata |
+
+**Every change is an operation** (`st_roto.commands.CommandBus.execute`). Each op is applied in a transaction and logged with its inverse:
+
+| Ops | |
+|---|---|
+| `create_shot`, `update_shot`, `delete_shot` | shots |
+| `create_object`, `update_object`, `delete_subtree`, `restore_subtree` | objects |
+| `create_shape`, `update_shape`, `delete_shape`, `restore_shape` | shapes |
+| `set_key`, `delete_key`, `set_key_feather` | keys |
+| `set_report`, `set_channel_report` | reports |
+| `set_lease`, `set_role`, `set_user_key` | collaboration |
+| `batch` | a group of ops applied as one step |
+
+The bus enforces the protection rules (REQ-042):
+- The **actor** (`ai`, `artist`, `import`) sets each key's provenance (`ai_generated`, `artist_created`, `artist_modified_ai`, `imported_native`).
+- AI writes never replace artist keys and never touch locked frames, for every actor.
+- Leases and roles are checked for ops made locally.
+
+## 2. Code map (public functions per module)
+
+**Core: `st_roto`**
+
+| Module | Purpose | Main entry points |
+|---|---|---|
+| `model` | vocabulary: provenance origins, actors, roles | `origin_for_write`, `validate_points`, `new_id` |
+| `store` | SQLite project store | `ProjectStore` |
+| `commands` | op log, undo/redo, batches, protection | `CommandBus`, `ProtectedError` |
+| `geometry` | contours, Bezier fitting, rasterising | `trace_contours`, `fit_closed_contour`, `fit_fixed_count`, `mask_to_points`, `rasterize_spline`, `Anchor` |
+| `pieces` | masks → constant-topology shapes, split objects | `Sequencer`, `choose_count` |
+| `prompts` | clicks, boxes and mask prompts stored on the node | `add`, `set_box`, `objects_for_tracker`, `from_mask` |
+| `quality` | review flags (lost / check) | `review_frames`, `area_jumps` |
+| `views` | read-only views for UIs: objects, timeline, roles | `object_rows`, `review_for_object`, `timeline`, `combine_roles` |
+| `matte` | guided-filter edges, offsets, decontamination, despill | `refine_alpha`, `object_alpha`, `decontaminate`, `despill` |
+| `exr` | multi-layer EXR mattes | `write_mattes`, `read_channels` |
+| `interchange` | JSON round trip and SVG | `export_shot`, `import_shot`, `svg_frame` |
+| `geomexport` | geometry for Alembic | `curve_points`, `mesh_polygon` |
+| `persistence` | backups, crash recovery, packages, fingerprints | `backup`, `recover`, `pack`, `unpack`, `fingerprint_sequence` |
+| `delivery` | delivery packages | `build`, `verify` |
+| `colour` | model-input colour transforms (OCIO optional) | `to_model_input`, `OcioTransform` |
+| `channels` | Cryptomatte, motion vectors, channel checks | `crypto_mask`, `warp_points_robust`, `check_objects` |
+| `stereo`, `cameras` | multi-view correspondence and checks | `estimate_disparity`, `estimate_shift_epipolar`, `fundamental`, `triangulate` |
+| `chatter` | temporal smoothing of point paths | `smooth_keys` |
+| `scenecut` | scene-cut detection (T-123) | `thumbnail`, `detect`, `segment` |
+| `frames` | typed frame lists (`12-14, 30`) | `parse`, `ranges` |
+| `capabilities` | hardware facts, memory-aware model plan, System report | `plan_model`, `evaluate`, `gpu_info`, `display_adapters` |
+| `runtime_choice` | CUDA or DirectML build per Nuke session (T-116) | `choose`, `site_dirs`, `active` |
+| `presets` | node settings presets | `list_presets`, `load`, `save` |
+| `jobs` | cancellable background jobs | `Job`, `Cancelled` |
+| `leases`, `signing`, `sync` | collaboration prototype: leases, Ed25519-signed ops, replication | `acquire`, `Signer`, `verify_log`, `export_changes`, `import_changes` |
+| `metrics`, `calibration` | benchmark metrics, review-threshold calibration | `iou`, `boundary_f`, `sequence_scores` |
+
+**AI layer: `st_roto_ai`**
+
+| Module | Purpose |
+|---|---|
+| `runtime` | ONNX Runtime sessions with an honest device report (requested vs active provider), session cache, arena shrinkage, DirectML options |
+| `registry` | licence, approval, revision and checksum gate before any model file loads; storage locations; model versions and rollback |
+| `sam2` | SAM 2.1 image and video tracker port (5 ONNX graphs + numpy memory logic), validated against PyTorch at IoU ≥ 0.99997 |
+| `resize` | antialiased resize matching torch exactly |
+| `vitmatte` | optional learned matting |
+| `spill` | bounded-RAM store for tracker state |
+
+**Nuke adapter: `st_roto_nuke`**
+
+| Module | Purpose |
+|---|---|
+| `node` | the ST_Roto group: knobs, callbacks, every `on_*` button handler, jobs |
+| `family` | ST_RotoMatte and ST_RotoOutput |
+| `track` | prompts → tracking → ops; re-track plans; checkpoints |
+| `pixels` | frames out of Nuke, the resolution cap, missing frames |
+| `roto_export` | native Roto shapes in and out, views, roles, review colours |
+| `mattes` | the EXR matte pass |
+| `alembic` | Alembic through Nuke's USD |
+| `assist` | Cryptomatte shapes and vector propagation (no AI) |
+| `session` | one open project per file, auto-backup, crash marker |
+| `packages` | unpacking and relinking |
+| `capabilities` | System report facts |
+| `panel`, `model_panel`, `models_ui` | Objects and Models panes |
+| `collab` | collaboration UI |
+| `colour` | OCIO in Nuke |
+| `convention` | measured Roto conventions (tangent = 2 × handle) |
+
+## 3. Development set-up (Windows)
+
+- **Python environment.** The project venv is `.venv` (Python 3.11, with CPU torch, transformers, onnx and pytest for model export and tests). Use the bundled uv, with its caches inside the project:
+  ```powershell
+  $env:UV_PYTHON_INSTALL_DIR="D:\ST-ROTO\.tools\uv-python"; $env:UV_CACHE_DIR="D:\ST-ROTO\.tools\uv-cache"
+  ```
+- **Packages imported inside Nuke** live in `.tools/nuke-py311`, with cp311 wheels unpacked: onnxruntime-gpu **1.26.0** (the last build for CUDA 12; 1.27+ need CUDA 13 and fall back to CPU without a warning), numpy, opencv-python-headless and openexr. `.tools/nuke-py311-dml` holds onnxruntime-directml 1.24.4.
+- **Loading the development checkout in Nuke.** Add `nuke.pluginAddPath("D:/ST-ROTO/nuke_plugin")` to `~/.nuke/init.py`. Don't combine this with an installed copy.
+- **Models.** Model downloads need the owner's approval (master prompt §15). The approved set is SAM 2.1 tiny and large, and ViTMatte-S. The pipeline is:
+  1. `tools/models/download_models.py <name>` fetches the model at a pinned revision, with checksums written to `models/manifests/<name>.json`.
+  2. `tools/models/export_sam2_video_onnx.py` exports the video tracker graphs (and fp16 memory attention); `export_sam2_onnx.py` exports image graphs; `export_vitmatte_onnx.py` exports ViTMatte.
+  3. `tools/models/register_exports.py` writes `models/manifests/<name>.exports.json`, the checksums the registry and the installer check.
+
+  Weights and exports are never committed.
+
+## 4. Tests
+
+| Suite | Command | Notes |
+|---|---|---|
+| Unit (about 260) | `.venv\Scripts\python.exe -m pytest` | CI runs it on Python 3.7–3.11 with only `requirements-dev.txt`: import AI packages lazily or `pytest.importorskip` them, and check with `tools/dev/pytest_without_ort.py` |
+| Headless Nuke (47) | `.venv\Scripts\python.exe -I tools\run_nuke_tests.py` | Each test runs in its own Nuke process because of the Non-commercial 10-node budget. Tests are functions `test_*(res)` in `tests/nuke/run_nuke_tests.py`, listed in `TESTS`; results go to `tests/nuke/out/`. Tests with `directml` in their name run with `ST_ROTO_RUNTIME=directml`. |
+| GUI (7) | e.g. `Nuke17.1.exe --nc "tests/nuke/gui_track_slice.py"` | Real Nuke UI; screenshots via screen capture (GL widgets grab black) |
+| Acceptance | `.venv\Scripts\python.exe -I tools/acceptance/run_acceptance.py` | about 20 minutes: defects, unit, Nuke, GUI, installer end to end in temporary folders, offline watch. Writes `docs/acceptance/run_<UTC>.md` |
+
+**Synthetic test data.** `research/probes/2026-11-15_video/make_synthetic_video.py` regenerates the 48-frame shot with exact truth (the frames are git-ignored). Real-footage tools (`tools/benchmark/`) need the SA-V subset (CC BY 4.0, D-031) in `data/benchmarks/sa-v`, which the owner fetches after accepting Meta's form.
+
+**Rules for tests:**
+- Use temporary folders for everything: projects, installer `--base` / `--home`, and `ST_ROTO_KEY_DIR`.
+- Never touch the real `~/.nuke`, `%LOCALAPPDATA%\ST-ROTO` or signing keys.
+- Look objects up by name, not by order.
+
+## 5. Adding a feature: checklist
+
+1. **Find the requirement** (`REQUIREMENTS_REGISTER.md`, the master prompt section) and add a task to `TASK_BOARD.md`.
+2. **Measure before trusting.** Write a probe in `research/probes/<date>_<topic>/` with a `RESULTS.md` that states what was measured, on what data, and its limits. AI ports must be validated against the upstream PyTorch reference.
+3. **Put logic in the core** (pure, unit-tested) and keep the Nuke adapter thin.
+4. **Change state only through the command bus**, as one batch per user action, so it is one undo step.
+5. **Nuke side:**
+   - Wrap every callback in try/except and write errors to the status knob (exceptions in `executeInMainThread` are swallowed).
+   - Keep the 10-node budget in mind: each `nuke.toNode` or `nuke.nodes.X` costs 1, and `thisNode()` is free.
+   - Old nodes may lack new knobs, so check `name in group.knobs()`.
+   - AI-only knobs go into `AI_KNOBS`.
+6. **Add tests:** unit tests, plus a headless Nuke test for anything that touches Nuke.
+7. **Update the user guide and manual, and the registers** (TASK_BOARD, REQUIREMENTS, DECISION/RISK when relevant, DEVELOPMENT_LOG including your own mistakes).
+8. **Commit** only through `tools/dev/commit_checked.ps1 -MessageFile <file>`. It refuses commits that contain personal data. Push, then check CI with `gh run list --limit 1`.
+
+## 6. Releases
+
+1. Bump `VERSION`.
+2. Build:
+   ```
+   .venv\Scripts\python.exe -I tools\installer\st_roto_setup.py package --out dist\release\ST-ROTO-<v>.zip --models tiny
+   .venv\Scripts\python.exe -I tools\installer\st_roto_setup.py package-model --model sam2.1-hiera-large --out dist\release\ST-ROTO-model-sam2.1-hiera-large.zip
+   .venv\Scripts\python.exe -I tools\installer\st_roto_setup.py package-model --model vitmatte-small-composition-1k --out dist\release\ST-ROTO-model-vitmatte-small-composition-1k.zip
+   .venv\Scripts\python.exe -I tools\installer\build_exe.py      (then copy dist\ST-ROTO-Setup.exe to dist\release)
+   ```
+   Model zips are stored, not compressed. GitHub accepts at most 2 GiB per file, and the large model is 2,045,556,195 bytes.
+3. Test the built files with the built exe in temporary folders, as in `research/probes/2026-11-18_release`: install, Nuke loads the installed copy, models verify, track, uninstall.
+4. Write `docs/releases/<v>.md` with the SHA-256 of each file. Keep `NOTICE` complete for every bundled third-party component.
+5. Publish:
+   - `gh release create v<v> <files> --target <full sha> --prerelease --draft`;
+   - compare the asset digests with the local checksums;
+   - then `gh release edit v<v> --draft=false`.
+
+**The installer** (`tools/installer/st_roto_setup.py`) uses the standard library only and runs with Nuke's own Python or as the PyInstaller exe:
+- Commands: `package`, `package-model`, `install`, `install-model`, `upgrade`, `rollback`, `repair`, `uninstall`, `status`.
+- It installs per user into `%LOCALAPPDATA%\ST-ROTO\<version>`.
+- It registers a marked block in `~/.nuke/init.py`.
+- It verifies every file by SHA-256, and checks model packages against the version's export manifest.
+- On upgrade it carries separately installed models over when the new version expects the same files.
+
+## 7. Conventions
+
+- **Roto:** tangent = 2 × the Bezier handle offset, and `leftTangent` points to the previous point. Add keys **before** `Shape.append()`. The canonical image space is y down; Nuke is y up (`st_roto_nuke.convention`).
+- **Paths:** pass forward slashes to Nuke file knobs. Compare Read paths case-insensitively (Nuke reports `d:/…/%04d`).
+- **Windows:** never call `os.kill(pid, 0)`, because it kills the process; use `st_roto.persistence._pid_alive`. Never build unique names from a timestamp alone: the clock has about 2 ms resolution.
+- **Honest reporting:** every fallback (CPU instead of GPU, reduced render, skipped frame, protected shape) appears in the status text.
+- **Licensing:** add a model only with the owner's approval and a licence review (`MODEL_REGISTER.md`, `LICENCE_REGISTER.md`). Pin revisions and record checksums.

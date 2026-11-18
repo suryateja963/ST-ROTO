@@ -784,6 +784,9 @@ def test_cancel_and_resume_track(res):
     rd = nuke.nodes.Read(file=VIDEO + "/frame_####.png", first=0, last=n - 1)
     proj = os.path.join(tempfile.mkdtemp(), "resume.stroto")
     g = stnode.create(rd, proj)
+    # T-123: with an empty 'scene cuts' knob Track first renders every frame for cut detection; this test counts
+    # renders to cancel DURING tracking, so the cuts are given (none) and detection does not run
+    g["stroto_stop_cuts"].setValue(False)
     g["stroto_click"].setValue([meta["click_xy"][0], vh - meta["click_xy"][1]]); stnode.on_add_point(g, 1)
     real_renderer = stnode._renderer
     calls = {"n": 0}
@@ -1030,6 +1033,58 @@ def test_vitmatte_mattes(res):
     res["meta_method"] = json.loads(__import__("OpenEXR").File(jm.result["files"][0]).header()["st_roto"])["method"]
     res["iou_vs_gt_at_0.5"] = round(iou(a > 0.5, gt), 4)
     ok &= res["meta_method"] == "vitmatte" and 0 < res["soft_px"] < 0.05 * a.size and res["iou_vs_gt_at_0.5"] > 0.97
+    return bool(ok)
+
+
+def test_scene_cuts(res):
+    """T-123: a shot with a hard cut at frame 6 (frames 6-11: the synthetic shot with channels swapped and inverted,
+    i.e. another 'shot' with structure the tracker could follow). Track with an empty 'scene cuts' knob detects the
+    cut, stops the object at it and fills the knob; Detect cuts finds the same; Re-track on frame 2 stays inside
+    frames 0-5."""
+    if not os.path.exists(VIDEO + "/meta.json"):
+        res["skipped"] = "synthetic frames not generated"; return True
+    import st_roto_nuke.node as stnode
+    from st_roto_nuke import session
+    meta = json.load(open(VIDEO + "/meta.json"))
+    vw, vh = meta["w"], meta["h"]
+    seq = tempfile.mkdtemp().replace("\\", "/")
+    for f in range(12):
+        img = cv2.imread(VIDEO + "/frame_%04d.png" % f, cv2.IMREAD_COLOR)
+        if f >= 6:
+            img = 255 - img[:, :, [1, 2, 0]]                  # another "shot": colours swapped and inverted
+        cv2.imwrite(seq + "/cut_%04d.png" % f, img)
+    nuke.root()["format"].setValue("HD_720")
+    rd = nuke.nodes.Read(file=seq + "/cut_####.png", first=0, last=11)
+    proj = os.path.join(tempfile.mkdtemp(), "cuts.stroto")
+    g = stnode.create(rd, proj)
+    res["knobs"] = all(k in g.knobs() for k in ("stroto_cuts", "stroto_stop_cuts", "stroto_detect_cuts"))
+    gt0 = cv2.imread(VIDEO + "/gt_0000.png", cv2.IMREAD_GRAYSCALE) > 127
+    ys, xs = np.nonzero(gt0)
+    g["stroto_object"].setValue("target")
+    nuke.frame(0)
+    g["stroto_box"].setValue([xs.min() - 4.0, vh - ys.max() - 5.0, xs.max() + 5.0, vh - ys.min() + 4.0])
+    stnode.on_set_box(g)
+    job = stnode.on_track(g, background=False)
+    res["track_status"] = g["stroto_status"].value()
+    if job is None or job.status != "done":
+        res["error"] = job.error if job else "no job"; return False
+    res["knob_after_track"] = g["stroto_cuts"].value()
+    store, bus = session.project(proj)
+    obj = store.objects(store.conn.execute("SELECT id FROM shots").fetchone()["id"])[0]
+    sid = store.shapes(obj["id"])[0]["id"]
+    res["key_frames"] = sorted(k["frame"] for k in store.keys(sid))
+    ok = (res["knobs"] and res["knob_after_track"] == "6" and res["key_frames"] == list(range(6))
+          and "stopped at scene cut: target at 6" in res["track_status"])
+    g["stroto_cuts"].setValue("")
+    dj = stnode.on_detect_cuts(g, background=False)
+    res["detect_status"] = g["stroto_status"].value()
+    ok &= dj is not None and dj.status == "done" and g["stroto_cuts"].value() == "6"
+    nuke.frame(2)
+    rj = stnode.on_retrack(g, background=False)
+    res["retrack_status"] = g["stroto_status"].value()
+    res["key_frames_after_retrack"] = sorted(k["frame"] for k in store.keys(sid))
+    ok &= (rj is not None and rj.status == "done" and "frames 0-5 only" in res["retrack_status"]
+           and res["key_frames_after_retrack"] == list(range(6)))
     return bool(ok)
 
 
@@ -2912,7 +2967,8 @@ TESTS = (test_export_animated_shape, test_st_roto_node_track_slice, test_repeate
          test_matte_outputs, test_prompt_from_mask, test_model_manager,
          test_delivery_package, test_stereo_views, test_extra_channels, test_review_overlay_and_presets,
          test_node_family, test_alembic_export, test_model_versions, test_edge_colour_and_chatter,
-         test_stereo_resume, test_multicam_cameras, test_crypto_shapes_and_propagation, test_directml_track)
+         test_stereo_resume, test_multicam_cameras, test_crypto_shapes_and_propagation, test_directml_track,
+         test_scene_cuts)
 
 
 def main():

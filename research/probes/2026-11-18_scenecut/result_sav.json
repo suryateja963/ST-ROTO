@@ -1,0 +1,126 @@
+{
+ "videos": 30,
+ "frames": 2846,
+ "a_false_cuts": {
+  "videos_with_false_cuts": 4,
+  "false_cuts": 7,
+  "pairs_checked": 2816,
+  "detail": {
+   "sav_006251": [
+    [
+     25,
+     {
+      "frame": 25,
+      "hist": 0.4531,
+      "diff": 0.1495,
+      "local": 0.148,
+      "cut": true,
+      "why": ""
+     }
+    ],
+    [
+     104,
+     {
+      "frame": 104,
+      "hist": 0.4323,
+      "diff": 0.1969,
+      "local": 0.0015,
+      "cut": true,
+      "why": ""
+     }
+    ]
+   ],
+   "sav_025674": [
+    [
+     13,
+     {
+      "frame": 13,
+      "hist": 0.3754,
+      "diff": 0.096,
+      "local": 0.0929,
+      "cut": true,
+      "why": ""
+     }
+    ],
+    [
+     30,
+     {
+      "frame": 30,
+      "hist": 0.3759,
+      "diff": 0.1247,
+      "local": 0.1135,
+      "cut": true,
+      "why": ""
+     }
+    ]
+   ],
+   "sav_047467": [
+    [
+     25,
+     {
+      "frame": 25,
+      "hist": 0.6068,
+      "diff": 0.1935,
+      "local": 0.1868,
+      "cut": true,
+      "why": ""
+     }
+    ]
+   ],
+   "sav_050687": [
+    [
+     10,
+     {
+      "frame": 10,
+      "hist": 0.3733,
+      "diff": 0.1635,
+      "local": 0.0723,
+      "cut": true,
+      "why": ""
+     }
+    ],
+    [
+     23,
+     {
+      "frame": 23,
+      "hist": 0.6003,
+      "diff": 0.214,
+      "local": 0.0488,
+      "cut": true,
+      "why": ""
+     }
+    ]
+   ]
+  }
+ },
+ "b_real_cuts": {
+  "junctions": 30,
+  "found": 29,
+  "missed": [
+   [
+    "sav_014662",
+    "sav_015283",
+    {
+     "frame": 12,
+     "hist": 0.2552,
+     "diff": 0.1892,
+     "local": 0.0441,
+     "cut": false,
+     "why": ""
+    }
+   ]
+  ],
+  "extra_cuts": [
+   [
+    "sav_049199",
+    "sav_050687",
+    22
+   ]
+  ]
+ },
+ "c_flashes": {
+  "white_flash_cuts": 31,
+  "one_frame_of_another_video_cuts": 31,
+  "sequences": 30
+ }
+}

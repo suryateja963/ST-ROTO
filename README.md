@@ -31,19 +31,19 @@ The same `ST-ROTO-Setup.exe` repairs (2), rolls back to the previous version (3)
 removes only ST-ROTO's files and its block in `init.py`.
 
 **Requirements:** Windows 10/11 64-bit; Nuke 17.1 (Nuke 16 / 17.0 use the same Python 3.11 but are untested; Nuke 15
-and older are not supported by this package); an NVIDIA GPU with a recent driver (CUDA 12) for fast tracking - without
-one ST-ROTO runs on the CPU (slow). The large model needs ~7 GB of free GPU memory; with *model = auto* ST-ROTO uses
-it where it fits and the tiny model elsewhere. AMD / Intel GPUs are not supported yet.
+and older are not supported by this package); a graphics card for fast tracking: NVIDIA (CUDA 12, fastest) or, from the next release, AMD / Intel via
+DirectML - without one ST-ROTO runs on the CPU (slow). The large model needs ~7 GB of free GPU memory; with *model = auto* ST-ROTO uses
+it where it fits and the tiny model elsewhere.
 
 ## Use
 
-Read the **[user guide](docs/USER_GUIDE_v0.md)**. In short: select your Read node, create **ST_Roto**, type an object
+Read the **[manual](docs/MANUAL.md)** (quick version: [user guide](docs/USER_GUIDE_v0.md)). In short: select your Read node, create **ST_Roto**, type an object
 name, set a box and/or include click on the object, press **Load model** then **Track**. Fix frames with
 **Re-prompt here** or by editing the shape and pressing **Re-track object**; your own keys are never overwritten.
 **Render mattes (EXR)**, **Export shapes**, **Export Alembic**, **Delivery package** hand the work on.
 
 Also: several objects per node, holdout / garbage roles, stereo and multi-camera, Cryptomatte and motion-vector tools
-for CG plates, edge decontamination and despill, project backups and crash recovery, model manager.
+for CG plates, scene-cut detection and AMD / Intel GPUs via DirectML (both from the next release; 0.1.0 has neither), edge decontamination and despill, project backups and crash recovery, model manager.
 
 ## Licences
 
@@ -65,6 +65,7 @@ model). No NVIDIA software is included: ST-ROTO uses the CUDA libraries that shi
 
 ## Build from source (developers)
 
+Start with the **[developer guide](docs/DEVELOPER_GUIDE.md)**. 
 The repository holds the code only; model files and the Python packages used inside Nuke are not committed. Developer
 set-up and the model export pipeline: `CLAUDE.md` (Commands) and `tools/models/`. Release files are built with
 `tools/installer/st_roto_setup.py package` / `package-model` and `tools/installer/build_exe.py`.

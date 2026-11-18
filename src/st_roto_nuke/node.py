@@ -175,6 +175,19 @@ def create(source=None, project_path: str = ""):
     ex_.setTooltip("Frames the AI must not process or change in Track and Re-track, e.g. '12-14, 30' (flash frames, "
                    "cuts, frames you will roto by hand). Existing keys there stay as they are.")
     group.addKnob(ex_)
+    # scene cuts (T-123): Track / Re-track never carry an object across a hard cut
+    cu = nuke.String_Knob("stroto_cuts", "scene cuts")
+    cu.setTooltip("Frames that START a new shot, e.g. '48, 120'. Filled by 'Detect cuts' (or by the first Track when "
+                  "empty); type or correct them yourself. With 'stop at scene cuts' on, Track stops every object "
+                  "at the next cut after its prompt frame (prompt it again after the cut) and Re-track works only "
+                  "inside the shot segment holding the current frame. Dissolves / fades are not detected.")
+    group.addKnob(cu)
+    stc = nuke.Boolean_Knob("stroto_stop_cuts", "stop at scene cuts"); stc.setValue(True); stc.clearFlag(nuke.STARTLINE)
+    group.addKnob(stc)
+    dc = _button(group, "stroto_detect_cuts", "Detect cuts", "n.on_detect_cuts(nuke.thisNode())", new_line=False)
+    dc.setTooltip("Looks at every frame of the source (small colour thumbnails, no AI) and fills 'scene cuts'. "
+                  "Flashes and one-frame glitches are not cuts. Measured on real footage: research/probes/"
+                  "2026-11-18_scenecut.")
     # stereo / multi-view (T-109, REQ-115)
     sv = nuke.Boolean_Knob("stroto_stereo", "track every view (stereo)")
     sv.setTooltip("For scripts with several views (stereo): Track tracks each prompted object in EVERY view, "
@@ -354,7 +367,7 @@ AI_KNOBS = ("stroto_click", "stroto_add_inc", "stroto_add_exc", "stroto_clear", 
             "stroto_retrack_flagged", "stroto_retrack_model", "stroto_range_mode", "stroto_range_from",
             "stroto_range_to", "stroto_lock_range", "stroto_unlock_range", "stroto_exclude",
             "stroto_prompt_from", "stroto_prompt_source", "stroto_prompt_use", "stroto_stereo", "stroto_prompt_view",
-            "stroto_cameras")
+            "stroto_cameras", "stroto_cuts", "stroto_stop_cuts", "stroto_detect_cuts")
 AI_ENV = "ST_ROTO_AI"
 
 
@@ -850,6 +863,88 @@ def _is_oom(err):
     import sys
     rt = sys.modules.get("st_roto_ai.runtime")
     return bool(rt is not None and rt.is_out_of_memory(err))
+
+
+def _cuts(group):
+    """(stop_at_cuts, cut frames from the knob or None if the knob is empty) - T-123. Raises ValueError."""
+    from st_roto import scenecut
+    if "stroto_cuts" not in group.knobs():                   # nodes made before T-123
+        return False, None
+    stop = bool(group["stroto_stop_cuts"].value())
+    text = group["stroto_cuts"].value().strip()
+    return stop, (scenecut.parse(text) if text else None)
+
+
+def _detect_cuts(get_rgb, frames, job=None):
+    """Thumbnails of `frames` through get_rgb (unreadable / excluded frames skipped) -> (cuts, report, checked)."""
+    from st_roto import scenecut
+    thumbs, used = [], []
+    for i, f in enumerate(frames):
+        if job is not None:
+            job.check()
+            job.report(i / float(max(1, len(frames))), "scene cuts: frame %d" % f)
+        try:
+            thumbs.append(scenecut.thumbnail(get_rgb(f)))
+            used.append(f)
+        except pixels.FrameUnavailable:
+            continue
+    cuts, rep = scenecut.detect(thumbs, used)
+    return cuts, rep, used
+
+
+def _trim_at_cuts(objects, cuts, last):
+    """Forward Track results: drop every object's keys from the next cut after its first key on (the tracker would
+    have followed something in the next shot). -> {name: first dropped frame}."""
+    from st_roto import scenecut
+    stopped = {}
+    for r in objects:
+        if not r.get("keys"):
+            continue
+        start = min(int(f) for f in r["keys"])
+        end = scenecut.segment(start, cuts, start, last)[1]
+        if end < last:                                       # the object's shot segment ends at a cut
+            stopped[r["name"]] = end + 1
+        if any(int(f) > end for f in r["keys"]):
+            r["keys"] = {f: p for f, p in r["keys"].items() if int(f) <= end}
+            r["parts"] = [{f: p for f, p in part.items() if int(f) <= end} for part in r.get("parts") or []]
+            r["parts"] = [p for p in r["parts"] if p]
+            r["absent_frames"] = [f for f in r.get("absent_frames") or [] if int(f) <= end]
+    return stopped
+
+
+def on_detect_cuts(group, background: bool = True):
+    """'Detect cuts' (T-123): thumbnails of every source frame -> scene cuts into the knob (no AI, no undo needed:
+    it only fills a knob the artist can edit)."""
+    try:
+        src = _inner(group, "src", None)
+        write = _inner(group, "write", "STROTO_pixels")
+        first, last = int(src.firstFrame()), int(src.lastFrame())
+        ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name()), "width": int(src.width()),
+               "height": int(src.height()), "group": group, "excluded": set(_excluded(group)),
+               "view": prompt_view(group)}
+    except (ValueError, NodeBudgetError) as e:
+        _status(group, "error: scene cuts: %s" % e); return None
+    get_rgb = _renderer(ctx, background)
+    frames = list(range(first, last + 1))
+
+    def work(job):
+        return _detect_cuts(get_rgb, frames, job)
+
+    def apply(job):
+        from st_roto import scenecut
+        cuts, rep, used = job.result
+        group["stroto_cuts"].setValue(scenecut.format_cuts(cuts))
+        flashes = [r["frame"] for r in rep if r["why"]]
+        msg = ("scene cuts: %s (%d frames checked)" % (scenecut.format_cuts(cuts), len(used)) if cuts else
+               "scene cuts: none found (%d frames checked)" % len(used))
+        if flashes:
+            msg += "; flashes / one-frame jumps ignored at %s" % ", ".join(str(f) for f in flashes)
+        if len(used) < len(frames):
+            msg += "; %d frames unreadable or excluded, not checked" % (len(frames) - len(used))
+        job.applied = msg
+        group["stroto_status"].setValue(msg)
+
+    return _run(group, "scene cuts", work, apply, background)
 
 
 def _excluded(group):
@@ -1827,6 +1922,10 @@ def on_track(group, background: bool = True, resume: bool = False):
         ctx["excluded"] = set(_excluded(group))
     except ValueError as e:
         _status(group, "error: exclude frames: %s" % e); return None
+    try:
+        stop_cuts, cut_list = _cuts(group)                  # T-123
+    except ValueError as e:
+        _status(group, "error: %s" % e); return None
     get_rgb = _renderer(ctx, background)
     ctx["model"], ctx["device"], ctx["model_note"] = plan_model(ctx["model"], ctx["device"])
     if stereo:
@@ -1836,6 +1935,23 @@ def on_track(group, background: bool = True, resume: bool = False):
             _status(group, "error: %s" % e); return None
 
     def work(job):
+        """T-123: scene cuts first (detected now if the knob is empty), then track only as far as the last object's
+        shot segment reaches; keys past each object's next cut are dropped in apply."""
+        info = {"cuts": cut_list or [], "detected": None}
+        run_frames = frames
+        if stop_cuts and not resume:
+            if cut_list is None:
+                info["cuts"], _rep, _used = _detect_cuts(get_rgb, frames, job)
+                info["detected"] = info["cuts"]
+            if info["cuts"]:
+                from st_roto import scenecut
+                end = max(scenecut.segment(o["frame"], info["cuts"], frames[0], frames[-1])[1] for o in ctx["objects"])
+                run_frames = [f for f in frames if f <= end]
+        res = track_work(job, run_frames)
+        res["cut_info"] = info
+        return res
+
+    def track_work(job, frames):
         def run(device, again):
             if stereo:
                 return _track_stereo(job, ctx, frames, get_rgb, background, device, all_views, ck=ck, resume=again)
@@ -1869,6 +1985,11 @@ def on_track(group, background: bool = True, resume: bool = False):
             # T-109: several views but one tracked: the shapes are right for that view only, so they show only there
             for r in result["objects"]:
                 r.setdefault("view", ctx["view"]); r.setdefault("pair", r["name"])
+        ci = result.get("cut_info") or {}
+        stopped = _trim_at_cuts(result["objects"], ci.get("cuts") or [], ctx["last"]) if stop_cuts else {}
+        if ci.get("detected") is not None and "stroto_cuts" in group.knobs():
+            from st_roto import scenecut
+            group["stroto_cuts"].setValue(scenecut.format_cuts(ci["detected"]))
         ids = apply_results(bus, shot_id, result["objects"])
         rep = _sync(group, store, shot_id, ctx["roto"]["curves"], ctx["height"])
         if stereo and ctx.get("rig"):                       # T-120: shapes vs their epipolar lines, every frame
@@ -1893,6 +2014,11 @@ def on_track(group, background: bool = True, resume: bool = False):
         for extra in (ctx.get("model_note"), result.get("oom_fallback")):
             if extra:
                 msg += "; " + extra
+        if stopped:
+            msg += "; stopped at scene cut%s: %s (prompt the object again after the cut)" % (
+                "s" if len(stopped) > 1 else "", ", ".join("%s at %d" % (n, f) for n, f in sorted(stopped.items())))
+        if ci.get("detected"):
+            msg += "; scene cuts detected: %s" % ", ".join(str(c) for c in ci["detected"])
         if result["device_fallback"]:
             msg += " (FALLBACK: %s)" % result["device_reason"]
         if rep["conflicts"]:
@@ -2191,6 +2317,20 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
         lo, hi = _range(group, first, last)
         width = int(src.width())
         anchors = {}
+        stop_cuts, cut_list = _cuts(group)                  # T-123: stay inside the shot segment of this frame
+        seg = None
+        if stop_cuts and cut_list:
+            from st_roto import scenecut
+            here = fix["frame"] if fix is not None else int(nuke.frame())
+            seg = scenecut.segment(here, cut_list, first, last)
+            if seg != (first, last):
+                lo, hi = max(lo, seg[0]), min(hi, seg[1])
+                if lo > hi:
+                    raise ValueError("the re-track range %d-%d lies outside the shot segment %d-%d holding frame "
+                                     "%d (scene cuts at %s)" % (_range(group, first, last) + seg + (here, scenecut
+                                                                                                  .format_cuts(cut_list))))
+            else:
+                seg = None
         if (lo, hi) != (first, last):                       # T-097: range-limited re-track
             from st_roto import views as _views
             frames = list(range(lo, hi + 1))
@@ -2199,7 +2339,8 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
                 if main is None:
                     continue
                 ks = {k["frame"]: k["points"] for k in store.keys(main["id"])}
-                a = {f: ks[f] for f in (lo - 1, hi + 1) if first <= f <= last and ks.get(f)}
+                a = {f: ks[f] for f in (lo - 1, hi + 1) if first <= f <= last and ks.get(f)
+                     and (seg is None or seg[0] <= f <= seg[1])}       # never a guide from across a scene cut
                 if a:
                     anchors[main["id"]] = a
             extra = sorted(set(f for a in anchors.values() for f in a))
@@ -2231,7 +2372,7 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
             fixes = {sid: fix}
         ctx = {"write": write, "pixel_path": pixels.temp_pixel_path(group.name()), "width": width, "height": height,
                "group": group, "excluded": set(_excluded(group)), "range": (lo, hi) if anchors or (lo, hi) != (first, last)
-               else None}
+               else None, "cut_seg": seg}
     except (ValueError, NodeBudgetError) as e:
         _status(group, "error: %s" % e); return None
     try:
@@ -2292,6 +2433,8 @@ def on_retrack(group, background: bool = True, every_object: bool = False, fix=N
         msg = "re-tracked %s; model %s, device %s" % (" | ".join(parts), model, job.result["device"])
         if ctx.get("range"):
             msg += "; frames %d-%d only (keys outside unchanged)" % ctx["range"]
+            if ctx.get("cut_seg"):
+                msg += " - the shot segment between scene cuts (T-123; untick 'stop at scene cuts' to cross them)"
         msg += _sequence_note(ctx, job.result.get("missing_frames"))
         for extra in (model_note, job.result.get("oom_fallback")):
             if extra:
