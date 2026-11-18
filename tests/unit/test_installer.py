@@ -102,3 +102,92 @@ def test_uninstall_removes_init_py_it_created(tmp_path):
     assert os.path.exists(os.path.join(home, ".nuke", "init.py"))
     setup.uninstall(str(tmp_path / "b"), home)
     assert not os.path.exists(os.path.join(home, ".nuke", "init.py"))
+
+
+# ------------------------------------------------------------------ model packages (release 0.1.0, D-046)
+def big_model(repo, name="sam2.1-hiera-large", data=b"large" * 20):
+    """A separately shipped model in the fake checkout + the export manifest the version expects for it."""
+    rel = "video/vencoder.onnx"
+    p = os.path.join(repo, "models", "onnx", name, *rel.split("/"))
+    os.makedirs(os.path.dirname(p), exist_ok=True)
+    open(p, "wb").write(data)
+    exp = {"files": {rel: {"bytes": len(data), "sha256": setup.sha256(p)}}}
+    open(os.path.join(repo, "models", "manifests", name + ".exports.json"), "w").write(json.dumps(exp))
+    return name
+
+
+def test_model_package_installs_next_to_the_main_package(env):
+    repo = fake_repo(str(env["tmp"] / "repo"), "0.1.0")
+    name = big_model(repo)
+    rel = env["tmp"] / "release"; rel.mkdir()
+    pkg = setup.build_package(repo, str(rel / "ST-ROTO-0.1.0.zip"))["zip"]
+    m = setup.build_model_package(repo, name, str(rel / ("ST-ROTO-model-%s.zip" % name)))
+    zn = zipfile.ZipFile(m["zip"]).namelist()
+    assert setup.MODEL_MANIFEST in zn and "payload/models/onnx/%s/video/vencoder.onnx" % name in zn
+    assert not any("sam2.1-hiera-large" in n for n in zipfile.ZipFile(pkg).namelist() if "onnx/" in n)
+    assert setup.model_packages_near(pkg) == [m["zip"]]
+    r = setup.install_with_models(pkg, setup.model_packages_near(pkg), env["base"], env["home"])
+    assert r["models"][0]["model"] == name
+    st = setup.status(env["base"], env["home"])
+    assert st["models"] == [name, "sam2.1-hiera-tiny"]
+    assert setup.verify(env["base"])["bad"] == []                      # the model is covered by verify / repair
+    # damaged model file -> repair re-installs it from the model package next to the main package
+    victim = os.path.join(env["base"], "0.1.0", "models", "onnx", name, "video", "vencoder.onnx")
+    open(victim, "wb").write(b"broken")
+    assert setup.verify(env["base"])["bad"] == [("models/onnx/%s/video/vencoder.onnx" % name, "changed")]
+    fix = setup.repair(pkg, env["base"], env["home"])
+    assert fix["still_bad"] == [] and any(name in f for f in fix["fixed"])
+
+
+def test_model_package_checked_against_the_version(env):
+    repo = fake_repo(str(env["tmp"] / "repo"), "0.1.0")
+    pkg = setup.build_package(repo, str(env["tmp"] / "p.zip"))["zip"]
+    other = fake_repo(str(env["tmp"] / "other"), "0.1.0")
+    name = big_model(other, data=b"another export")              # same name, different files than 0.1.0 expects
+    m = setup.build_model_package(other, name, str(env["tmp"] / "m.zip"))["zip"]
+    with pytest.raises(ValueError, match="install ST-ROTO itself first"):
+        setup.install_model(m, env["base"])
+    setup.install(pkg, env["base"], env["home"])
+    with pytest.raises(ValueError, match="does not know the model"):       # 0.1.0 has no manifest for it
+        setup.install_model(m, env["base"])
+    big_model(repo, data=b"the real export")                              # now it does, with other checksums
+    pkg = setup.build_package(repo, str(env["tmp"] / "p2.zip"))["zip"]
+    setup.install(pkg, env["base"], env["home"])
+    with pytest.raises(ValueError, match="does not match"):
+        setup.install_model(m, env["base"])
+    assert not os.path.exists(os.path.join(env["base"], "0.1.0", "models", "onnx", name))
+
+
+def test_damaged_model_package_installs_nothing(env):
+    repo = fake_repo(str(env["tmp"] / "repo"), "0.1.0")
+    name = big_model(repo)
+    pkg = setup.build_package(repo, str(env["tmp"] / "p.zip"))["zip"]
+    m = setup.build_model_package(repo, name, str(env["tmp"] / "m.zip"))["zip"]
+    bad = str(env["tmp"] / "bad.zip")
+    with zipfile.ZipFile(m) as zin, zipfile.ZipFile(bad, "w") as zout:
+        for n in zin.namelist():
+            zout.writestr(n, b"tampered!" if n.endswith(".onnx") else zin.read(n))
+    setup.install(pkg, env["base"], env["home"])
+    with pytest.raises(ValueError, match="damaged"):
+        setup.install_model(bad, env["base"])
+    assert not os.path.exists(os.path.join(env["base"], "0.1.0", "models", "onnx", name))
+    assert [d for d in os.listdir(env["base"]) if d.startswith("st_roto_model_")] == []   # work folder removed
+
+
+def test_upgrade_carries_separately_installed_models(env):
+    r1 = fake_repo(str(env["tmp"] / "r1"), "0.1.0")
+    name = big_model(r1)
+    pkg1 = setup.build_package(r1, str(env["tmp"] / "1.zip"))["zip"]
+    m = setup.build_model_package(r1, name, str(env["tmp"] / "m.zip"))["zip"]
+    setup.install(pkg1, env["base"], env["home"])
+    setup.install_model(m, env["base"])
+    r2 = fake_repo(str(env["tmp"] / "r2"), "0.2.0", b"# new\n")
+    big_model(r2)                                                # 0.2.0 expects the same export
+    r = setup.install(setup.build_package(r2, str(env["tmp"] / "2.zip"))["zip"], env["base"], env["home"])
+    assert r["models_carried_over"] == [name]
+    assert setup.verify(env["base"])["bad"] == []
+    r3 = fake_repo(str(env["tmp"] / "r3"), "0.3.0", b"# newer\n")
+    big_model(r3, data=b"re-exported")                           # 0.3.0 expects a new export: not carried
+    r = setup.install(setup.build_package(r3, str(env["tmp"] / "3.zip"))["zip"], env["base"], env["home"])
+    assert r["models_carried_over"] == []
+    assert name not in setup.status(env["base"], env["home"])["models"]

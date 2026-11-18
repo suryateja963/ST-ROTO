@@ -17,6 +17,43 @@ facebook/sam2.1-hiera-large revision 665f8e2a): models/onnx/<model>/video/consta
 They were removed from the working tree in commit d5bffac. Model weights are otherwise not distributed
 with this repository; they are downloaded by the user with recorded checksums (models/manifests/).
 
+-------------------------------------------------------------------------------
+Third-party material contained in the release downloads (ST-ROTO-<version>.zip and
+ST-ROTO-model-*.zip), not in the source repository
+-------------------------------------------------------------------------------
+
+AI models (folder models/onnx/). Modified: converted from the original PyTorch checkpoints to ONNX by
+ST-ROTO's tools/models scripts (the video tracker split into several graphs; the memory-attention graph
+also in float16). Checksums of every file: models/manifests/<model>.exports.json.
+
+  SAM 2.1 Hiera tiny and large, Meta Platforms, Inc. and affiliates. Apache License, Version 2.0.
+  https://github.com/facebookresearch/sam2 ; Hugging Face facebook/sam2.1-hiera-tiny (revision de431c40),
+  facebook/sam2.1-hiera-large (revision 665f8e2a).
+
+  ViTMatte-S (vitmatte-small-composition-1k), Hust Vision Lab (hustvl). Weights: Apache License, Version 2.0;
+  code: MIT. https://github.com/hustvl/ViTMatte ; Hugging Face hustvl/vitmatte-small-composition-1k
+  (revision 6a58ad76). CAVEAT: these weights were trained on the Composition-1k dataset (Adobe Deep Image
+  Matting), whose terms are reported to be non-commercial. The weights' own licence permits commercial use;
+  whether the training data's terms affect your use is for you to decide. ViTMatte is optional: ST-ROTO's
+  default edges (guided filter) use no learned model.
+
+Python packages run inside Nuke (folder .tools/nuke-py311/), unmodified binary distributions from PyPI;
+each package's full licence text is in its *.dist-info folder:
+
+  onnxruntime-gpu 1.26.0, Microsoft Corporation - MIT License (third-party notices:
+    onnxruntime/ThirdPartyNotices.txt)
+  numpy 2.4.6, NumPy Developers - BSD-3-Clause (bundled parts: 0BSD, MIT, Zlib, CC0-1.0)
+  opencv-python-headless 5.0.0.93, OpenCV team - Apache License 2.0 (third-party notices:
+    LICENSE-3RD-PARTY.txt in its dist-info)
+  OpenEXR 3.5.4 (Python binding, incl. Imath), Contributors to the OpenEXR Project - BSD-3-Clause
+  protobuf 7.36.2, Google LLC - BSD-3-Clause
+  flatbuffers 25.12.19, Google LLC - Apache License 2.0
+  packaging 26.3, Donald Stufft and individual contributors - Apache License 2.0 or BSD-2-Clause
+  msvcp140 (Microsoft Visual C++ runtime, shipped inside the packages above under Microsoft's
+    redistribution terms)
+
+Not included: NVIDIA CUDA / cuDNN. ST-ROTO uses the copies installed with Nuke.
+
 
 Benchmark data (not distributed with ST-ROTO; used locally for calibration, D-031):
 SA-V dataset (Segment Anything Video), Meta AI, licensed under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/), https://ai.meta.com/datasets/segment-anything-video/ .

@@ -9,7 +9,7 @@
 
 ## Install with the setup (recommended)
 
-Put `ST-ROTO-Setup.exe` and the `ST-ROTO-<version>.zip` package in one folder and double-click the .exe: choose 1 to install (no administrator rights; files go to `%LOCALAPPDATA%\ST-ROTO`, and one marked block is added to `%USERPROFILE%\.nuke\init.py`). The same menu repairs, rolls back to the previous version or uninstalls (which removes only ST-ROTO's block and files). Command line: `ST-ROTO-Setup.exe status | install --source <zip> | upgrade | rollback | repair | uninstall`. Windows may warn that the .exe is not signed.
+Download the release files from GitHub (Releases): `ST-ROTO-Setup.exe`, `ST-ROTO-<version>.zip` (with the tiny model) and, if you want them, the model packages `ST-ROTO-model-sam2.1-hiera-large.zip` (more accurate, ~7 GB GPU memory) and `ST-ROTO-model-vitmatte-small-composition-1k.zip` (learned soft edges; see its licence note in NOTICE). Put them in one folder and double-click the .exe: choose 1 to install everything in the folder (every file is checked by SHA-256; a model package that does not belong to this version is refused; `ST-ROTO-Setup.exe install-model --source <model zip>` adds one later, and an upgrade keeps installed models the new version still uses) (no administrator rights; files go to `%LOCALAPPDATA%\ST-ROTO`, and one marked block is added to `%USERPROFILE%\.nuke\init.py`). The same menu repairs, rolls back to the previous version or uninstalls (which removes only ST-ROTO's block and files). Command line: `ST-ROTO-Setup.exe status | install --source <zip> | upgrade | rollback | repair | uninstall`. Windows may warn that the .exe is not signed.
 
 ## Enable the plugin manually (development checkout)
 

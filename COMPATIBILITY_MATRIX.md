@@ -1,6 +1,6 @@
 # Compatibility Matrix
 
-First issue, 2026-11-15. **Nothing has been tested. No ST-ROTO code exists.** The only entries other than "Not yet tested" are those fixed by Foundry's published edition restrictions.
+First issue 2026-11-15; updated 2026-11-18 (release 0.1.0). **ST-ROTO is tested only on Nuke 17.1v3 Non-commercial, Windows 11, NVIDIA RTX 5060 Laptop** (unit, 45 headless Nuke and 7 GUI tests; `docs/ACCEPTANCE.md`). Every other row is unverified. The only entries other than "Not yet tested" are those fixed by Foundry's published edition restrictions.
 
 Status vocabulary (§5.1): Fully supported · Supported with limitations · Experimental · Unsupported · Not yet tested.
 

@@ -520,3 +520,15 @@ T-114; benchmark methodology: T-107) and old test counts; corrected, with the re
 (chatter reduction opt-in, vector propagation uses renderer vectors not live-action optical flow, Alembic not checked in
 a third-party application). OQ-11 closed as overtaken (T-011c/T-044). Full acceptance run after T-109..T-121
 (`docs/acceptance/run_2026-11-18T044943Z.md`): all 6 steps PASS. Statuses unchanged: 3 met, 16 partly, 1 not met.
+
+## 2026-11-18 - T-122 first public release 0.1.0 (D-046)
+
+Owner decided: version 0.1.0 (not 1.0: section 30), public GitHub pre-release now (R-23 accepted for distribution),
+tiny in the main zip, SAM 2.1 large and ViTMatte-S as separate downloads (the large model alone is 2.05 GB; GitHub
+refuses files over 2 GiB). The setup learned model packages (`package-model`, `install-model`, installed
+automatically when next to the main zip; checked against the package and the version's export manifest; covered by
+verify / repair; carried over on upgrade). Found while preparing: NOTICE did not credit the bundled Python packages or
+ViTMatte (now does); the installed copy had no VERSION file, so it would have reported 0.1.0-dev (now packaged);
+the README still said "No product code exists yet" (rewritten for users). My own release check first failed on its
+own assertion (the Track status does not name the model); it now checks the loaded ONNX sessions: all 6 from the
+installed large model. Not tested: a second computer.
