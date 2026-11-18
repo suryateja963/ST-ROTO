@@ -1,0 +1,79 @@
+{
+ "utc": "2026-11-18T044943Z",
+ "commit": "45b4782",
+ "steps": {
+  "defects": {
+   "ok": true,
+   "seconds": 0,
+   "detail": "11 defects, 1 open (DEF-009), 0 open release blockers",
+   "criteria": [
+    20
+   ]
+  },
+  "unit": {
+   "ok": true,
+   "seconds": 531.3,
+   "detail": "................................                                         [100%]",
+   "criteria": [
+    3,
+    6,
+    9,
+    10,
+    11,
+    13,
+    15,
+    17
+   ]
+  },
+  "nuke_headless": {
+   "ok": true,
+   "seconds": 773.9,
+   "detail": "45/45 pass",
+   "criteria": [
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14
+   ]
+  },
+  "gui": {
+   "ok": true,
+   "seconds": 101.2,
+   "detail": "gui_track_slice.py PASS; gui_ai_toggle.py PASS; gui_panel_collab.py PASS; gui_timeline.py PASS; gui_model_panel.py PASS; gui_review_overlay.py PASS; gui_model_versions.py PASS",
+   "criteria": [
+    2,
+    3,
+    4,
+    9,
+    13,
+    17
+   ]
+  },
+  "installer": {
+   "ok": true,
+   "seconds": 70.2,
+   "detail": "package ok; install ok; nuke_runs_installed_copy ok; uninstall ok; owner_setup_untouched ok",
+   "criteria": [
+    1,
+    2
+   ]
+  },
+  "offline": {
+   "ok": true,
+   "seconds": 24.5,
+   "detail": "Python network events 0; external connections seen 0 (Nuke's own; firewall rule D-040 blocks them)",
+   "criteria": [
+    12
+   ]
+  }
+ }
+}

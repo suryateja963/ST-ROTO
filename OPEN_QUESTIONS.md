@@ -52,7 +52,7 @@ Requirement: free, open source, permits commercial use, modification, redistribu
 
 ## Still open
 
-- **OQ-11** First verifiable milestone (Claude to propose, now that the route is known).
+- **OQ-11** *(Closed 2026-11-18: overtaken.)* First verifiable milestone. The candidate below was reached in T-011c / T-044 (SAM 2.1 in-process in Nuke on the RTX 5060 via ONNX Runtime CUDA, animated native Roto shapes) with VRAM and time measured in T-092.
 - **OQ-16** *(Answered 2026-11-17 → D-035: confirmed.)* Confirm reading of D-024: supervisor lock override allowed only when the lock holder is offline/idle.
 - **OQ-17** *(Answered 2026-11-17 → D-036: 15 minutes.)* Idle/offline threshold before a supervisor may override a lock.
 - **OQ-23** *(Answered → D-031: approved.)* (2026-11-16) Benchmark/calibration data under D-020: approve the licence of an SA-V subset (CC BY 4.0, masks, ~20-50 validation videos into `D:\ST-ROTO\data\benchmarks`)? Needed for T-068 (`docs/RESEARCH_2026-11-16_BENCHMARK_DATASETS.md`).

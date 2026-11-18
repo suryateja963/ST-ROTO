@@ -512,3 +512,11 @@ Measured Nuke's camera model first (Nuke 17 3D; the classic path rendered nothin
 ## 2026-11-18 - T-121 shapes from Cryptomatte, propagation along motion vectors
 
 Cryptomatte coverage per frame through the tracker's own shape builder gives shapes at IoU 0.9975 (0.9994 with 24 points). Propagating a key along the vectors broke at the fast occluder: plain per-point warping 0.98 -> 0.03 in one frame. My first robust fix made it worse (0.0): its least-squares start was poisoned by the occluder (fitted scale 0.16); starting from the median vector fixed it (0.955 after 19 frames). In Nuke with AI disabled both work as one undo step, and propagation stops before the artist's next key.
+
+## 2026-11-18 - Register corrections and acceptance rerun
+
+docs/ACCEPTANCE.md listed gaps already closed (edge decontamination / spill / chatter: T-115; model versions + rollback:
+T-114; benchmark methodology: T-107) and old test counts; corrected, with the remaining gaps stated more precisely
+(chatter reduction opt-in, vector propagation uses renderer vectors not live-action optical flow, Alembic not checked in
+a third-party application). OQ-11 closed as overtaken (T-011c/T-044). Full acceptance run after T-109..T-121
+(`docs/acceptance/run_2026-11-18T044943Z.md`): all 6 steps PASS. Statuses unchanged: 3 met, 16 partly, 1 not met.
