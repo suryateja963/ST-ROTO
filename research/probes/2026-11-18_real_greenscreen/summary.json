@@ -1,0 +1,640 @@
+{
+ "SHOT-112": {
+  "frames": 23,
+  "tracking": {
+   "tiny": {
+    "frames": 23,
+    "iou_mean": 0.992,
+    "iou_min": 0.9891,
+    "iou_core_holes_filled_mean": 0.9935,
+    "iou_core_holes_filled_min": 0.9917,
+    "iou_core_mean": 0.9935,
+    "iou_core_min": 0.9917,
+    "bf3_mean": 0.834,
+    "bf3_min": 0.6665,
+    "temporal_iou_jitter": 0.0007,
+    "frames_core_below_0.9": [],
+    "review_flags": {
+     "woman": {
+      "lost": [],
+      "check": []
+     }
+    },
+    "flags_on_bad_frames": [],
+    "object_leak_onto_certain_background_pct": {
+     "woman": 0.012
+    },
+    "frames_without_object": {
+     "woman": []
+    }
+   },
+   "large": {
+    "frames": 23,
+    "iou_mean": 0.9914,
+    "iou_min": 0.9898,
+    "iou_core_holes_filled_mean": 0.9929,
+    "iou_core_holes_filled_min": 0.9918,
+    "iou_core_mean": 0.9929,
+    "iou_core_min": 0.9918,
+    "bf3_mean": 0.8452,
+    "bf3_min": 0.7387,
+    "temporal_iou_jitter": 0.0004,
+    "frames_core_below_0.9": [],
+    "review_flags": {
+     "woman": {
+      "lost": [],
+      "check": []
+     }
+    },
+    "flags_on_bad_frames": [],
+    "object_leak_onto_certain_background_pct": {
+     "woman": 0.015
+    },
+    "frames_without_object": {
+     "woman": []
+    }
+   }
+  },
+  "mattes": {
+   "guided": {
+    "sad_band": 3.8596,
+    "mse_band": 0.1655,
+    "sad_all": 6.712
+   },
+   "frames": 23
+  },
+  "seconds": {
+   "tiny": 58.3,
+   "large": 324.79999999999995
+  }
+ },
+ "SHOT-113": {
+  "frames": 37,
+  "tracking": {
+   "tiny": {
+    "frames": 37,
+    "iou_mean": 0.9118,
+    "iou_min": 0.8799,
+    "iou_core_holes_filled_mean": 0.9893,
+    "iou_core_holes_filled_min": 0.9716,
+    "iou_core_mean": 0.9163,
+    "iou_core_min": 0.8864,
+    "bf3_mean": 0.7179,
+    "bf3_min": 0.5893,
+    "temporal_iou_jitter": 0.0132,
+    "frames_core_below_0.9": [
+     21,
+     22,
+     23,
+     24,
+     28,
+     31,
+     32,
+     33
+    ],
+    "review_flags": {
+     "woman": {
+      "lost": [],
+      "check": []
+     }
+    },
+    "flags_on_bad_frames": [],
+    "object_leak_onto_certain_background_pct": {
+     "woman": 7.766
+    },
+    "frames_without_object": {
+     "woman": []
+    }
+   },
+   "large": {
+    "frames": 37,
+    "iou_mean": 0.9098,
+    "iou_min": 0.8733,
+    "iou_core_holes_filled_mean": 0.9872,
+    "iou_core_holes_filled_min": 0.9688,
+    "iou_core_mean": 0.9143,
+    "iou_core_min": 0.8801,
+    "bf3_mean": 0.7194,
+    "bf3_min": 0.5975,
+    "temporal_iou_jitter": 0.0134,
+    "frames_core_below_0.9": [
+     14,
+     16,
+     20,
+     21,
+     22,
+     23,
+     24,
+     27,
+     28,
+     29,
+     30,
+     31,
+     32,
+     33
+    ],
+    "review_flags": {
+     "woman": {
+      "lost": [],
+      "check": []
+     }
+    },
+    "flags_on_bad_frames": [],
+    "object_leak_onto_certain_background_pct": {
+     "woman": 7.783
+    },
+    "frames_without_object": {
+     "woman": []
+    }
+   }
+  },
+  "mattes": {
+   "decon_spill": {
+    "sad_band": 7.9931,
+    "mse_band": 0.1834,
+    "sad_all": 31.581
+   },
+   "guided": {
+    "sad_band": 7.9931,
+    "mse_band": 0.1834,
+    "sad_all": 31.581
+   },
+   "frames": 37,
+   "despill": {
+    "edge_green_excess_plain": 0.08544,
+    "edge_green_excess_decon_spill": 0.0,
+    "core_rgb_change_mean": 0.01367
+   }
+  },
+  "seconds": {
+   "tiny": 89.8,
+   "large": 692.7
+  }
+ },
+ "SHOT-114": {
+  "frames": 103,
+  "tracking": {
+   "tiny": {
+    "frames": 103,
+    "iou_mean": 0.9916,
+    "iou_min": 0.9843,
+    "iou_core_holes_filled_mean": 0.9943,
+    "iou_core_holes_filled_min": 0.9838,
+    "iou_core_mean": 0.9945,
+    "iou_core_min": 0.9869,
+    "bf3_mean": 0.8062,
+    "bf3_min": 0.6686,
+    "temporal_iou_jitter": 0.0009,
+    "frames_core_below_0.9": [],
+    "review_flags": {
+     "woman": {
+      "lost": [],
+      "check": []
+     },
+     "man": {
+      "lost": [],
+      "check": [
+       1,
+       2,
+       3,
+       4,
+       5
+      ]
+     }
+    },
+    "flags_on_bad_frames": [],
+    "object_leak_onto_certain_background_pct": {
+     "woman": 0.012,
+     "man": 0.535
+    },
+    "frames_without_object": {
+     "woman": [],
+     "man": [
+      0
+     ]
+    }
+   },
+   "large": {
+    "frames": 103,
+    "iou_mean": 0.99,
+    "iou_min": 0.9821,
+    "iou_core_holes_filled_mean": 0.9927,
+    "iou_core_holes_filled_min": 0.9818,
+    "iou_core_mean": 0.9929,
+    "iou_core_min": 0.9848,
+    "bf3_mean": 0.8081,
+    "bf3_min": 0.6739,
+    "temporal_iou_jitter": 0.0008,
+    "frames_core_below_0.9": [],
+    "review_flags": {
+     "woman": {
+      "lost": [],
+      "check": []
+     },
+     "man": {
+      "lost": [],
+      "check": [
+       1,
+       2,
+       3,
+       4,
+       5
+      ]
+     }
+    },
+    "flags_on_bad_frames": [],
+    "object_leak_onto_certain_background_pct": {
+     "woman": 0.009,
+     "man": 0.519
+    },
+    "frames_without_object": {
+     "woman": [],
+     "man": [
+      0
+     ]
+    }
+   }
+  },
+  "mattes": {
+   "guided": {
+    "sad_band": 5.9674,
+    "mse_band": 0.1113,
+    "sad_all": 10.4732
+   },
+   "frames": 103,
+   "holdout": {
+    "frames": 103,
+    "max_abs_err": 0.21685,
+    "mean_abs_err": 1e-05,
+    "frames_where_holdout_removed_pixels": 3
+   }
+  },
+  "seconds": {
+   "tiny": 399.8,
+   "large": 3856.9
+  }
+ },
+ "SHOT-115": {
+  "frames": 26,
+  "tracking": {
+   "tiny": {
+    "frames": 26,
+    "iou_mean": 0.9902,
+    "iou_min": 0.9876,
+    "iou_core_holes_filled_mean": 0.9949,
+    "iou_core_holes_filled_min": 0.992,
+    "iou_core_mean": 0.9931,
+    "iou_core_min": 0.9907,
+    "bf3_mean": 0.8043,
+    "bf3_min": 0.7547,
+    "temporal_iou_jitter": 0.0004,
+    "frames_core_below_0.9": [],
+    "review_flags": {
+     "woman": {
+      "lost": [],
+      "check": []
+     }
+    },
+    "flags_on_bad_frames": [],
+    "object_leak_onto_certain_background_pct": {
+     "woman": 0.365
+    },
+    "frames_without_object": {
+     "woman": []
+    }
+   },
+   "large": {
+    "frames": 26,
+    "iou_mean": 0.9892,
+    "iou_min": 0.988,
+    "iou_core_holes_filled_mean": 0.9939,
+    "iou_core_holes_filled_min": 0.9923,
+    "iou_core_mean": 0.992,
+    "iou_core_min": 0.9909,
+    "bf3_mean": 0.8195,
+    "bf3_min": 0.7786,
+    "temporal_iou_jitter": 0.0003,
+    "frames_core_below_0.9": [],
+    "review_flags": {
+     "woman": {
+      "lost": [],
+      "check": []
+     }
+    },
+    "flags_on_bad_frames": [],
+    "object_leak_onto_certain_background_pct": {
+     "woman": 0.401
+    },
+    "frames_without_object": {
+     "woman": []
+    }
+   }
+  },
+  "mattes": {
+   "decon_spill": {
+    "sad_band": 4.7245,
+    "mse_band": 0.1025,
+    "sad_all": 6.6833
+   },
+   "guided": {
+    "sad_band": 4.7245,
+    "mse_band": 0.1025,
+    "sad_all": 6.6833
+   },
+   "hard": {
+    "sad_band": 4.8486,
+    "mse_band": 0.129,
+    "sad_all": 7.0008
+   },
+   "vitmatte": {
+    "sad_band": 6.1105,
+    "mse_band": 0.1277,
+    "sad_all": 8.3192
+   },
+   "frames": 26,
+   "despill": {
+    "edge_green_excess_plain": 0.04889,
+    "edge_green_excess_decon_spill": 0.0,
+    "core_rgb_change_mean": 0.00083
+   }
+  },
+  "seconds": {
+   "tiny": 67.3,
+   "large": 838.1999999999999
+  }
+ },
+ "SHOT-116": {
+  "frames": 27,
+  "tracking": {
+   "tiny": {
+    "frames": 27,
+    "iou_mean": 0.988,
+    "iou_min": 0.9828,
+    "iou_core_holes_filled_mean": 0.9952,
+    "iou_core_holes_filled_min": 0.9908,
+    "iou_core_mean": 0.9911,
+    "iou_core_min": 0.9858,
+    "bf3_mean": 0.7911,
+    "bf3_min": 0.7455,
+    "temporal_iou_jitter": 0.0005,
+    "frames_core_below_0.9": [],
+    "review_flags": {
+     "woman": {
+      "lost": [],
+      "check": []
+     }
+    },
+    "flags_on_bad_frames": [],
+    "object_leak_onto_certain_background_pct": {
+     "woman": 0.587
+    },
+    "frames_without_object": {
+     "woman": []
+    }
+   },
+   "large": {
+    "frames": 27,
+    "iou_mean": 0.9864,
+    "iou_min": 0.9837,
+    "iou_core_holes_filled_mean": 0.9935,
+    "iou_core_holes_filled_min": 0.9917,
+    "iou_core_mean": 0.9895,
+    "iou_core_min": 0.9867,
+    "bf3_mean": 0.8127,
+    "bf3_min": 0.7812,
+    "temporal_iou_jitter": 0.0003,
+    "frames_core_below_0.9": [],
+    "review_flags": {
+     "woman": {
+      "lost": [],
+      "check": []
+     }
+    },
+    "flags_on_bad_frames": [],
+    "object_leak_onto_certain_background_pct": {
+     "woman": 0.529
+    },
+    "frames_without_object": {
+     "woman": []
+    }
+   }
+  },
+  "mattes": {
+   "decon_spill": {
+    "sad_band": 4.8151,
+    "mse_band": 0.1046,
+    "sad_all": 7.9754
+   },
+   "guided": {
+    "sad_band": 4.8151,
+    "mse_band": 0.1046,
+    "sad_all": 7.9754
+   },
+   "hard": {
+    "sad_band": 4.921,
+    "mse_band": 0.129,
+    "sad_all": 8.363
+   },
+   "vitmatte": {
+    "sad_band": 6.3671,
+    "mse_band": 0.1359,
+    "sad_all": 9.3659
+   },
+   "frames": 27,
+   "despill": {
+    "edge_green_excess_plain": 0.04139,
+    "edge_green_excess_decon_spill": 0.0,
+    "core_rgb_change_mean": 0.00097
+   }
+  },
+  "seconds": {
+   "tiny": 67.2,
+   "large": 831.0999999999999
+  }
+ },
+ "SHOT-117": {
+  "frames": 51,
+  "tracking": {
+   "tiny": {
+    "frames": 51,
+    "iou_mean": 0.9875,
+    "iou_min": 0.9797,
+    "iou_core_holes_filled_mean": 0.9891,
+    "iou_core_holes_filled_min": 0.9447,
+    "iou_core_mean": 0.9907,
+    "iou_core_min": 0.9827,
+    "bf3_mean": 0.6937,
+    "bf3_min": 0.5614,
+    "temporal_iou_jitter": 0.0012,
+    "frames_core_below_0.9": [],
+    "review_flags": {
+     "woman": {
+      "lost": [],
+      "check": []
+     },
+     "man": {
+      "lost": [],
+      "check": []
+     }
+    },
+    "flags_on_bad_frames": [],
+    "object_leak_onto_certain_background_pct": {
+     "woman": 0.005,
+     "man": 0.585
+    },
+    "frames_without_object": {
+     "woman": [],
+     "man": []
+    }
+   },
+   "large": {
+    "frames": 51,
+    "iou_mean": 0.9872,
+    "iou_min": 0.9772,
+    "iou_core_holes_filled_mean": 0.9887,
+    "iou_core_holes_filled_min": 0.9444,
+    "iou_core_mean": 0.9903,
+    "iou_core_min": 0.9802,
+    "bf3_mean": 0.7473,
+    "bf3_min": 0.6093,
+    "temporal_iou_jitter": 0.0011,
+    "frames_core_below_0.9": [],
+    "review_flags": {
+     "woman": {
+      "lost": [],
+      "check": []
+     },
+     "man": {
+      "lost": [],
+      "check": []
+     }
+    },
+    "flags_on_bad_frames": [],
+    "object_leak_onto_certain_background_pct": {
+     "woman": 0.004,
+     "man": 0.546
+    },
+    "frames_without_object": {
+     "woman": [],
+     "man": []
+    }
+   }
+  },
+  "mattes": {
+   "guided": {
+    "sad_band": 8.0287,
+    "mse_band": 0.1521,
+    "sad_all": 14.5247
+   },
+   "frames": 51,
+   "holdout": {
+    "frames": 51,
+    "max_abs_err": 0.21282,
+    "mean_abs_err": 2e-06,
+    "frames_where_holdout_removed_pixels": 0
+   }
+  },
+  "seconds": {
+   "tiny": 145.0,
+   "large": 1948.6999999999998
+  }
+ },
+ "SHOT-118": {
+  "frames": 22,
+  "tracking": {
+   "tiny": {
+    "frames": 22,
+    "iou_mean": 0.8892,
+    "iou_min": 0.709,
+    "iou_core_holes_filled_mean": 0.9195,
+    "iou_core_holes_filled_min": 0.7064,
+    "iou_core_mean": 0.8935,
+    "iou_core_min": 0.7115,
+    "bf3_mean": 0.7171,
+    "bf3_min": 0.6092,
+    "temporal_iou_jitter": 0.0393,
+    "frames_core_below_0.9": [
+     0,
+     16,
+     17,
+     18,
+     19,
+     21
+    ],
+    "review_flags": {
+     "crew": {
+      "lost": [],
+      "check": []
+     },
+     "couple": {
+      "lost": [],
+      "check": []
+     }
+    },
+    "flags_on_bad_frames": [],
+    "object_leak_onto_certain_background_pct": {
+     "crew": 1.322,
+     "couple": 3.76
+    },
+    "frames_without_object": {
+     "crew": [],
+     "couple": []
+    }
+   },
+   "large": {
+    "frames": 22,
+    "iou_mean": 0.9442,
+    "iou_min": 0.9306,
+    "iou_core_holes_filled_mean": 0.9786,
+    "iou_core_holes_filled_min": 0.9723,
+    "iou_core_mean": 0.9491,
+    "iou_core_min": 0.9355,
+    "bf3_mean": 0.7564,
+    "bf3_min": 0.7129,
+    "temporal_iou_jitter": 0.0025,
+    "frames_core_below_0.9": [],
+    "review_flags": {
+     "crew": {
+      "lost": [],
+      "check": []
+     },
+     "couple": {
+      "lost": [],
+      "check": []
+     }
+    },
+    "flags_on_bad_frames": [],
+    "object_leak_onto_certain_background_pct": {
+     "crew": 1.266,
+     "couple": 3.686
+    },
+    "frames_without_object": {
+     "crew": [],
+     "couple": []
+    }
+   }
+  },
+  "mattes": {
+   "decon_spill": {
+    "sad_band": 4.0515,
+    "mse_band": 0.1181,
+    "sad_all": 8.5406
+   },
+   "guided": {
+    "sad_band": 4.0515,
+    "mse_band": 0.1181,
+    "sad_all": 8.5406
+   },
+   "frames": 22,
+   "despill": {
+    "edge_green_excess_plain": 0.09734,
+    "edge_green_excess_decon_spill": 0.0,
+    "core_rgb_change_mean": 0.01012
+   }
+  },
+  "seconds": {
+   "tiny": 69.0,
+   "large": 395.3
+  }
+ }
+}

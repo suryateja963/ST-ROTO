@@ -546,3 +546,7 @@ Full Nuke suite after T-116/T-123: 46/47 - test_cancel_and_resume_track failed b
 ## 2026-11-18 - T-125 install guide and generated API reference
 
 Owner asked again for the full manual and developer docs; MANUAL.md and DEVELOPER_GUIDE.md already existed (T-124), so the remaining documentation gaps of acceptance 19 were filled: INSTALL.md and a generated API reference. While generating it, found my own scene-cut docstring saying the thresholds were set on synthetic data - they were set on the real SA-V footage; corrected.
+
+## 2026-11-18 - T-126 owner's green-screen shots
+
+First real production footage (owner's, permission for testing, no images in git). My mistakes on the way: the first boundary score counted the frame edge where the body leaves the frame (fixed: border strip ignored); my first prompt check placed the crew box on empty floor (fixed before the runs); my ViTMatte check script used the wrong model root; my hair "result" first ranked ViTMatte worst - a crop showed the key, not ViTMatte, was the problem, so no hair ranking is claimed. Real defects found: review flags silent on a real failure (DEF-012), ViTMatte out of memory at 4K (DEF-013, fixed with tiles), guided mattes 16 s/frame at 4K (DEF-014). The batch took ~2.5 h, mostly the large-model matte passes at 4K.

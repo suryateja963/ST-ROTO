@@ -1,0 +1,22 @@
+{
+ "device": "cpu",
+ "half_crop": [
+  1076,
+  1273
+ ],
+ "half_one_pass_s": 4.0,
+ "half_tiled512_s": 2.64,
+ "half_tiles_vs_one_pass": {
+  "mean_abs_diff_in_unknown": 0.03562,
+  "p99_abs_diff": 0.26,
+  "max_abs_diff": 0.8518,
+  "unknown_px": 89048
+ },
+ "full_crop": [
+  2123,
+  2490
+ ],
+ "full_tiled1024_s": 19.82,
+ "full_ok": true,
+ "passed": false
+}

@@ -37,8 +37,54 @@ def fit_size(w, h, box=None):
     return (max(1, int(w * s)), max(1, int(h * s)))
 
 
+VITMATTE_TILE, VITMATTE_OVERLAP = 1024, 256          # overlap 256: closest to the keyed reference (tile study)
+
+
+def _vitmatte_tiled(vm, rgb, tri, tile=VITMATTE_TILE, overlap=VITMATTE_OVERLAP):
+    """ViTMatte-S in overlapping tiles (found on real 4K plates: one pass over a close-up's unknown zone asked the
+    GPU for 10.5 GB - its global attention grows with the square of the area). Tiles without unknown pixels keep the
+    trimap; overlaps are blended with linear ramps. A region that fits one tile runs in one pass, exactly as before."""
+    import numpy as np
+    h, w = tri.shape
+    if h <= tile and w <= tile:
+        return vm.alpha(rgb, tri)
+    step = tile - overlap
+    acc = np.zeros((h, w), np.float64)
+    wsum = np.zeros((h, w), np.float64)
+
+    def starts(n):
+        s = list(range(0, max(1, n - tile) + 1, step))
+        if s[-1] + tile < n:
+            s.append(n - tile)
+        return s
+    for ty in starts(h):
+        for tx in starts(w):
+            sl = (slice(ty, min(h, ty + tile)), slice(tx, min(w, tx + tile)))
+            t = tri[sl]
+            a = vm.alpha(rgb[sl], t) if (t == 0.5).any() else t.astype(np.float32)
+            th, tw = t.shape
+            ry = np.minimum(1.0, (np.minimum(np.arange(th), th - 1 - np.arange(th)) + 1) / float(overlap))
+            rx = np.minimum(1.0, (np.minimum(np.arange(tw), tw - 1 - np.arange(tw)) + 1) / float(overlap))
+            if ty == 0:
+                ry[:th // 2] = 1.0
+            if ty + th >= h:
+                ry[th // 2:] = 1.0
+            if tx == 0:
+                rx[:tw // 2] = 1.0
+            if tx + tw >= w:
+                rx[tw // 2:] = 1.0
+            wt = ry[:, None] * rx[None, :]
+            acc[sl] += a * wt
+            wsum[sl] += wt
+    out = (acc / np.maximum(wsum, 1e-9)).astype(np.float32)
+    out[tri >= 1.0] = 1.0
+    out[tri <= 0.0] = 0.0
+    return out
+
+
 def _vitmatte_crop(vm, guide, mask, inner=6, outer=20, margin=8):
-    """ViTMatte-S on the bounding box of the unknown zone only (cost scales with the outline, not the frame)."""
+    """ViTMatte-S on the bounding box of the unknown zone only (cost scales with the outline, not the frame), in
+    tiles when that box is larger than one tile (_vitmatte_tiled)."""
     from st_roto_ai.vitmatte import trimap_from_mask
     import numpy as np
     alpha = mask.astype("float32")
@@ -48,7 +94,7 @@ def _vitmatte_crop(vm, guide, mask, inner=6, outer=20, margin=8):
         return alpha
     y0, y1 = max(0, ys.min() - margin), min(mask.shape[0], ys.max() + margin + 1)
     x0, x1 = max(0, xs.min() - margin), min(mask.shape[1], xs.max() + margin + 1)
-    a = vm.alpha(guide[y0:y1, x0:x1], tri_full[y0:y1, x0:x1])
+    a = _vitmatte_tiled(vm, guide[y0:y1, x0:x1], tri_full[y0:y1, x0:x1])
     alpha[y0:y1, x0:x1] = a
     return alpha
 

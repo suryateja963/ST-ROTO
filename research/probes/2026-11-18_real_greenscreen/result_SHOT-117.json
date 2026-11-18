@@ -1,0 +1,2169 @@
+{
+ "shot": "SHOT-117",
+ "frames": 51,
+ "runs": {
+  "tiny": {
+   "ok": true,
+   "exception": "",
+   "steps": [
+    {
+     "step": "track",
+     "seconds": 145.0,
+     "status": "done: woman: 51 keys (64 points), holes not represented on frames 0-2, 11-12, 39-40, 46-48, 0 frames without object | man: 51 keys (64 points), holes not represented on frames 3-4, 6, 10-12, 14-16, 20, 25-34, 42, 0 frames without object; device cuda; this Nuke edition renders at most 1920x1080, so the AI saw frames reduced to 1920x1012 (from 4096x2160); shapes are full resolution, accuracy slightly lower"
+    }
+   ],
+   "scene_cuts_knob": ""
+  },
+  "large": {
+   "ok": true,
+   "exception": "",
+   "steps": [
+    {
+     "step": "track",
+     "seconds": 168.8,
+     "status": "done: woman: 51 keys (64 points), holes not represented on frames 0, 0 frames without object | man: 51 keys (64 points), holes not represented on frames 3-4, 6, 8, 10-12, 14-16, 23, 25-34, 36, 41, 45, 48, 0 frames without object; device cuda; this Nuke edition renders at most 1920x1080, so the AI saw frames reduced to 1920x1012 (from 4096x2160); shapes are full resolution, accuracy slightly lower"
+    },
+    {
+     "step": "mattes guided",
+     "seconds": 924.0,
+     "status": "mattes: 51 frames 1920x1012 -> D:/ST-ROTO/tmp/greenscreen/SHOT-117_large/mattes_guided/Read1_mattes.####.exr (layers: man, woman; guided-filter edges, 924.0 s) (fitted from 4096x2160); RGB premultiplied; this Nuke edition renders at most 1920x1080, so the AI saw frames reduced to 1920x1012 (from 4096x2160); shapes are full resolution, accuracy slightly lower"
+    },
+    {
+     "step": "role",
+     "seconds": 0.0,
+     "status": "man is now holdout (cut out of the combined matte)"
+    },
+    {
+     "step": "mattes holdout",
+     "seconds": 855.9,
+     "status": "mattes: 51 frames 1920x1012 -> D:/ST-ROTO/tmp/greenscreen/SHOT-117_large/mattes_holdout/Read1_mattes.####.exr (layers: man, woman; guided-filter edges, 855.9 s) (fitted from 4096x2160); RGB premultiplied; this Nuke edition renders at most 1920x1080, so the AI saw frames reduced to 1920x1012 (from 4096x2160); shapes are full resolution, accuracy slightly lower"
+    }
+   ],
+   "scene_cuts_knob": ""
+  }
+ },
+ "tracking": {
+  "tiny": {
+   "frames": 51,
+   "iou_mean": 0.9875,
+   "iou_min": 0.9797,
+   "iou_core_holes_filled_mean": 0.9891,
+   "iou_core_holes_filled_min": 0.9447,
+   "iou_core_mean": 0.9907,
+   "iou_core_min": 0.9827,
+   "bf3_mean": 0.6937,
+   "bf3_min": 0.5614,
+   "temporal_iou_jitter": 0.0012,
+   "frames_core_below_0.9": [],
+   "review_flags": {
+    "woman": {
+     "lost": [],
+     "check": []
+    },
+    "man": {
+     "lost": [],
+     "check": []
+    }
+   },
+   "flags_on_bad_frames": [],
+   "object_leak_onto_certain_background_pct": {
+    "woman": 0.005,
+    "man": 0.585
+   },
+   "frames_without_object": {
+    "woman": [],
+    "man": []
+   },
+   "per_frame": [
+    {
+     "frame": 0,
+     "iou": 0.9873,
+     "iou_core_holes_filled": 0.9899,
+     "iou_core": 0.9899,
+     "bf3": 0.6087,
+     "screen_ratio": 0.435,
+     "uncertain_px_pct": 0.36,
+     "objects": {
+      "woman": {
+       "area_px": 784983,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 363180,
+       "on_certain_background_pct": 0.19
+      },
+      "overlap_between_objects_px": 96
+     }
+    },
+    {
+     "frame": 1,
+     "iou": 0.9899,
+     "iou_core_holes_filled": 0.9924,
+     "iou_core": 0.9924,
+     "bf3": 0.6811,
+     "screen_ratio": 0.435,
+     "uncertain_px_pct": 0.34,
+     "objects": {
+      "woman": {
+       "area_px": 801708,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 373471,
+       "on_certain_background_pct": 0.16
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 2,
+     "iou": 0.99,
+     "iou_core_holes_filled": 0.9927,
+     "iou_core": 0.9927,
+     "bf3": 0.704,
+     "screen_ratio": 0.434,
+     "uncertain_px_pct": 0.36,
+     "objects": {
+      "woman": {
+       "area_px": 798518,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 398918,
+       "on_certain_background_pct": 0.16
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 3,
+     "iou": 0.9901,
+     "iou_core_holes_filled": 0.9939,
+     "iou_core": 0.9932,
+     "bf3": 0.7149,
+     "screen_ratio": 0.434,
+     "uncertain_px_pct": 0.43,
+     "objects": {
+      "woman": {
+       "area_px": 792249,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 437043,
+       "on_certain_background_pct": 0.35
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 4,
+     "iou": 0.9861,
+     "iou_core_holes_filled": 0.993,
+     "iou_core": 0.9897,
+     "bf3": 0.6721,
+     "screen_ratio": 0.435,
+     "uncertain_px_pct": 0.52,
+     "objects": {
+      "woman": {
+       "area_px": 797731,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 476538,
+       "on_certain_background_pct": 1.05
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 5,
+     "iou": 0.9896,
+     "iou_core_holes_filled": 0.9931,
+     "iou_core": 0.9932,
+     "bf3": 0.7661,
+     "screen_ratio": 0.436,
+     "uncertain_px_pct": 0.58,
+     "objects": {
+      "woman": {
+       "area_px": 821808,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 491739,
+       "on_certain_background_pct": 0.28
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 6,
+     "iou": 0.9906,
+     "iou_core_holes_filled": 0.9939,
+     "iou_core": 0.9938,
+     "bf3": 0.795,
+     "screen_ratio": 0.436,
+     "uncertain_px_pct": 0.54,
+     "objects": {
+      "woman": {
+       "area_px": 836263,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 486641,
+       "on_certain_background_pct": 0.3
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 7,
+     "iou": 0.9907,
+     "iou_core_holes_filled": 0.9937,
+     "iou_core": 0.9937,
+     "bf3": 0.8014,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.48,
+     "objects": {
+      "woman": {
+       "area_px": 831361,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 468173,
+       "on_certain_background_pct": 0.34
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 8,
+     "iou": 0.9897,
+     "iou_core_holes_filled": 0.993,
+     "iou_core": 0.993,
+     "bf3": 0.7705,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.49,
+     "objects": {
+      "woman": {
+       "area_px": 822081,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 459805,
+       "on_certain_background_pct": 0.43
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 9,
+     "iou": 0.9892,
+     "iou_core_holes_filled": 0.9923,
+     "iou_core": 0.9923,
+     "bf3": 0.723,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.49,
+     "objects": {
+      "woman": {
+       "area_px": 815957,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 460529,
+       "on_certain_background_pct": 0.31
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 10,
+     "iou": 0.988,
+     "iou_core_holes_filled": 0.993,
+     "iou_core": 0.9911,
+     "bf3": 0.6813,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.49,
+     "objects": {
+      "woman": {
+       "area_px": 818298,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 471379,
+       "on_certain_background_pct": 0.74
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 11,
+     "iou": 0.9856,
+     "iou_core_holes_filled": 0.9928,
+     "iou_core": 0.9891,
+     "bf3": 0.6678,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.56,
+     "objects": {
+      "woman": {
+       "area_px": 817519,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 494066,
+       "on_certain_background_pct": 1.21
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 12,
+     "iou": 0.9888,
+     "iou_core_holes_filled": 0.9938,
+     "iou_core": 0.9925,
+     "bf3": 0.7144,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.6,
+     "objects": {
+      "woman": {
+       "area_px": 825799,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 513849,
+       "on_certain_background_pct": 0.57
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 13,
+     "iou": 0.9891,
+     "iou_core_holes_filled": 0.9929,
+     "iou_core": 0.9929,
+     "bf3": 0.7223,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.63,
+     "objects": {
+      "woman": {
+       "area_px": 824351,
+       "on_certain_background_pct": 0.02
+      },
+      "man": {
+       "area_px": 520168,
+       "on_certain_background_pct": 0.34
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 14,
+     "iou": 0.9872,
+     "iou_core_holes_filled": 0.9911,
+     "iou_core": 0.9911,
+     "bf3": 0.7056,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.6,
+     "objects": {
+      "woman": {
+       "area_px": 816947,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 544072,
+       "on_certain_background_pct": 0.34
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 15,
+     "iou": 0.9866,
+     "iou_core_holes_filled": 0.9909,
+     "iou_core": 0.9909,
+     "bf3": 0.7055,
+     "screen_ratio": 0.439,
+     "uncertain_px_pct": 0.63,
+     "objects": {
+      "woman": {
+       "area_px": 803476,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 578897,
+       "on_certain_background_pct": 0.43
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 16,
+     "iou": 0.9867,
+     "iou_core_holes_filled": 0.991,
+     "iou_core": 0.991,
+     "bf3": 0.742,
+     "screen_ratio": 0.439,
+     "uncertain_px_pct": 0.66,
+     "objects": {
+      "woman": {
+       "area_px": 791406,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 598670,
+       "on_certain_background_pct": 0.36
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 17,
+     "iou": 0.986,
+     "iou_core_holes_filled": 0.9903,
+     "iou_core": 0.9903,
+     "bf3": 0.7227,
+     "screen_ratio": 0.438,
+     "uncertain_px_pct": 0.66,
+     "objects": {
+      "woman": {
+       "area_px": 791164,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 582876,
+       "on_certain_background_pct": 0.38
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 18,
+     "iou": 0.9884,
+     "iou_core_holes_filled": 0.9909,
+     "iou_core": 0.9919,
+     "bf3": 0.785,
+     "screen_ratio": 0.438,
+     "uncertain_px_pct": 0.54,
+     "objects": {
+      "woman": {
+       "area_px": 798749,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 548824,
+       "on_certain_background_pct": 0.29
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 19,
+     "iou": 0.9871,
+     "iou_core_holes_filled": 0.9462,
+     "iou_core": 0.9905,
+     "bf3": 0.721,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.56,
+     "objects": {
+      "woman": {
+       "area_px": 803251,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 555672,
+       "on_certain_background_pct": 0.37
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 20,
+     "iou": 0.9874,
+     "iou_core_holes_filled": 0.9447,
+     "iou_core": 0.991,
+     "bf3": 0.7353,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.63,
+     "objects": {
+      "woman": {
+       "area_px": 798785,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 571548,
+       "on_certain_background_pct": 0.37
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 21,
+     "iou": 0.9868,
+     "iou_core_holes_filled": 0.9909,
+     "iou_core": 0.991,
+     "bf3": 0.7476,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.69,
+     "objects": {
+      "woman": {
+       "area_px": 785429,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 572546,
+       "on_certain_background_pct": 0.37
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 22,
+     "iou": 0.9879,
+     "iou_core_holes_filled": 0.9923,
+     "iou_core": 0.9923,
+     "bf3": 0.8029,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.7,
+     "objects": {
+      "woman": {
+       "area_px": 784035,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 557025,
+       "on_certain_background_pct": 0.33
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 23,
+     "iou": 0.9898,
+     "iou_core_holes_filled": 0.993,
+     "iou_core": 0.993,
+     "bf3": 0.845,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.52,
+     "objects": {
+      "woman": {
+       "area_px": 789024,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 550078,
+       "on_certain_background_pct": 0.3
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 24,
+     "iou": 0.99,
+     "iou_core_holes_filled": 0.9931,
+     "iou_core": 0.9931,
+     "bf3": 0.8322,
+     "screen_ratio": 0.436,
+     "uncertain_px_pct": 0.47,
+     "objects": {
+      "woman": {
+       "area_px": 797398,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 559215,
+       "on_certain_background_pct": 0.29
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 25,
+     "iou": 0.9903,
+     "iou_core_holes_filled": 0.9941,
+     "iou_core": 0.9936,
+     "bf3": 0.8552,
+     "screen_ratio": 0.436,
+     "uncertain_px_pct": 0.5,
+     "objects": {
+      "woman": {
+       "area_px": 797502,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 584352,
+       "on_certain_background_pct": 0.42
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 26,
+     "iou": 0.985,
+     "iou_core_holes_filled": 0.9922,
+     "iou_core": 0.9888,
+     "bf3": 0.7312,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.55,
+     "objects": {
+      "woman": {
+       "area_px": 787002,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 602027,
+       "on_certain_background_pct": 1.06
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 27,
+     "iou": 0.9815,
+     "iou_core_holes_filled": 0.9692,
+     "iou_core": 0.9849,
+     "bf3": 0.6961,
+     "screen_ratio": 0.438,
+     "uncertain_px_pct": 0.51,
+     "objects": {
+      "woman": {
+       "area_px": 793552,
+       "on_certain_background_pct": 0.02
+      },
+      "man": {
+       "area_px": 599756,
+       "on_certain_background_pct": 2.21
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 28,
+     "iou": 0.9797,
+     "iou_core_holes_filled": 0.9811,
+     "iou_core": 0.9827,
+     "bf3": 0.6894,
+     "screen_ratio": 0.439,
+     "uncertain_px_pct": 0.45,
+     "objects": {
+      "woman": {
+       "area_px": 807801,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 569647,
+       "on_certain_background_pct": 2.64
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 29,
+     "iou": 0.9806,
+     "iou_core_holes_filled": 0.9878,
+     "iou_core": 0.9831,
+     "bf3": 0.6569,
+     "screen_ratio": 0.44,
+     "uncertain_px_pct": 0.43,
+     "objects": {
+      "woman": {
+       "area_px": 834474,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 526364,
+       "on_certain_background_pct": 2.79
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 30,
+     "iou": 0.9822,
+     "iou_core_holes_filled": 0.9898,
+     "iou_core": 0.9847,
+     "bf3": 0.6422,
+     "screen_ratio": 0.44,
+     "uncertain_px_pct": 0.42,
+     "objects": {
+      "woman": {
+       "area_px": 858038,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 483399,
+       "on_certain_background_pct": 2.32
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 31,
+     "iou": 0.986,
+     "iou_core_holes_filled": 0.9917,
+     "iou_core": 0.9885,
+     "bf3": 0.665,
+     "screen_ratio": 0.44,
+     "uncertain_px_pct": 0.37,
+     "objects": {
+      "woman": {
+       "area_px": 875185,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 446398,
+       "on_certain_background_pct": 1.54
+      },
+      "overlap_between_objects_px": 3
+     }
+    },
+    {
+     "frame": 32,
+     "iou": 0.9865,
+     "iou_core_holes_filled": 0.9905,
+     "iou_core": 0.989,
+     "bf3": 0.603,
+     "screen_ratio": 0.44,
+     "uncertain_px_pct": 0.35,
+     "objects": {
+      "woman": {
+       "area_px": 876390,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 423536,
+       "on_certain_background_pct": 0.71
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 33,
+     "iou": 0.9896,
+     "iou_core_holes_filled": 0.993,
+     "iou_core": 0.992,
+     "bf3": 0.6776,
+     "screen_ratio": 0.44,
+     "uncertain_px_pct": 0.34,
+     "objects": {
+      "woman": {
+       "area_px": 872818,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 413015,
+       "on_certain_background_pct": 0.45
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 34,
+     "iou": 0.9903,
+     "iou_core_holes_filled": 0.9931,
+     "iou_core": 0.9929,
+     "bf3": 0.6941,
+     "screen_ratio": 0.439,
+     "uncertain_px_pct": 0.36,
+     "objects": {
+      "woman": {
+       "area_px": 863865,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 406048,
+       "on_certain_background_pct": 0.26
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 35,
+     "iou": 0.9894,
+     "iou_core_holes_filled": 0.9921,
+     "iou_core": 0.9921,
+     "bf3": 0.7004,
+     "screen_ratio": 0.439,
+     "uncertain_px_pct": 0.38,
+     "objects": {
+      "woman": {
+       "area_px": 857910,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 400073,
+       "on_certain_background_pct": 0.28
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 36,
+     "iou": 0.9904,
+     "iou_core_holes_filled": 0.9929,
+     "iou_core": 0.9929,
+     "bf3": 0.7,
+     "screen_ratio": 0.438,
+     "uncertain_px_pct": 0.37,
+     "objects": {
+      "woman": {
+       "area_px": 852129,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 403846,
+       "on_certain_background_pct": 0.2
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 37,
+     "iou": 0.9895,
+     "iou_core_holes_filled": 0.9921,
+     "iou_core": 0.9921,
+     "bf3": 0.6722,
+     "screen_ratio": 0.438,
+     "uncertain_px_pct": 0.38,
+     "objects": {
+      "woman": {
+       "area_px": 839091,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 413115,
+       "on_certain_background_pct": 0.21
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 38,
+     "iou": 0.9884,
+     "iou_core_holes_filled": 0.9913,
+     "iou_core": 0.9913,
+     "bf3": 0.6034,
+     "screen_ratio": 0.438,
+     "uncertain_px_pct": 0.4,
+     "objects": {
+      "woman": {
+       "area_px": 817377,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 426916,
+       "on_certain_background_pct": 0.37
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 39,
+     "iou": 0.9868,
+     "iou_core_holes_filled": 0.9898,
+     "iou_core": 0.9898,
+     "bf3": 0.5614,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.41,
+     "objects": {
+      "woman": {
+       "area_px": 792299,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 446632,
+       "on_certain_background_pct": 0.4
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 40,
+     "iou": 0.986,
+     "iou_core_holes_filled": 0.9892,
+     "iou_core": 0.9891,
+     "bf3": 0.5672,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.41,
+     "objects": {
+      "woman": {
+       "area_px": 774270,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 461223,
+       "on_certain_background_pct": 0.37
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 41,
+     "iou": 0.9865,
+     "iou_core_holes_filled": 0.9891,
+     "iou_core": 0.9895,
+     "bf3": 0.617,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.41,
+     "objects": {
+      "woman": {
+       "area_px": 771692,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 470178,
+       "on_certain_background_pct": 0.38
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 42,
+     "iou": 0.987,
+     "iou_core_holes_filled": 0.9896,
+     "iou_core": 0.9897,
+     "bf3": 0.6378,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.37,
+     "objects": {
+      "woman": {
+       "area_px": 788375,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 464158,
+       "on_certain_background_pct": 0.5
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 43,
+     "iou": 0.9884,
+     "iou_core_holes_filled": 0.9909,
+     "iou_core": 0.9909,
+     "bf3": 0.6778,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.35,
+     "objects": {
+      "woman": {
+       "area_px": 794409,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 448124,
+       "on_certain_background_pct": 0.35
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 44,
+     "iou": 0.9868,
+     "iou_core_holes_filled": 0.9896,
+     "iou_core": 0.9896,
+     "bf3": 0.6,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.36,
+     "objects": {
+      "woman": {
+       "area_px": 781822,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 429825,
+       "on_certain_background_pct": 0.33
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 45,
+     "iou": 0.9869,
+     "iou_core_holes_filled": 0.9897,
+     "iou_core": 0.9897,
+     "bf3": 0.5829,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.35,
+     "objects": {
+      "woman": {
+       "area_px": 773807,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 414617,
+       "on_certain_background_pct": 0.37
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 46,
+     "iou": 0.9872,
+     "iou_core_holes_filled": 0.99,
+     "iou_core": 0.99,
+     "bf3": 0.6223,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.36,
+     "objects": {
+      "woman": {
+       "area_px": 775026,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 404382,
+       "on_certain_background_pct": 0.28
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 47,
+     "iou": 0.9876,
+     "iou_core_holes_filled": 0.9904,
+     "iou_core": 0.9904,
+     "bf3": 0.6303,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.36,
+     "objects": {
+      "woman": {
+       "area_px": 782377,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 398029,
+       "on_certain_background_pct": 0.26
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 48,
+     "iou": 0.9877,
+     "iou_core_holes_filled": 0.9904,
+     "iou_core": 0.9904,
+     "bf3": 0.6494,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.36,
+     "objects": {
+      "woman": {
+       "area_px": 792870,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 402588,
+       "on_certain_background_pct": 0.34
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 49,
+     "iou": 0.988,
+     "iou_core_holes_filled": 0.9906,
+     "iou_core": 0.9906,
+     "bf3": 0.6642,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.36,
+     "objects": {
+      "woman": {
+       "area_px": 791203,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 415549,
+       "on_certain_background_pct": 0.28
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 50,
+     "iou": 0.9874,
+     "iou_core_holes_filled": 0.9901,
+     "iou_core": 0.9901,
+     "bf3": 0.6135,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.37,
+     "objects": {
+      "woman": {
+       "area_px": 785488,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 435446,
+       "on_certain_background_pct": 0.27
+      },
+      "overlap_between_objects_px": 0
+     }
+    }
+   ]
+  },
+  "large": {
+   "frames": 51,
+   "iou_mean": 0.9872,
+   "iou_min": 0.9772,
+   "iou_core_holes_filled_mean": 0.9887,
+   "iou_core_holes_filled_min": 0.9444,
+   "iou_core_mean": 0.9903,
+   "iou_core_min": 0.9802,
+   "bf3_mean": 0.7473,
+   "bf3_min": 0.6093,
+   "temporal_iou_jitter": 0.0011,
+   "frames_core_below_0.9": [],
+   "review_flags": {
+    "woman": {
+     "lost": [],
+     "check": []
+    },
+    "man": {
+     "lost": [],
+     "check": []
+    }
+   },
+   "flags_on_bad_frames": [],
+   "object_leak_onto_certain_background_pct": {
+    "woman": 0.004,
+    "man": 0.546
+   },
+   "frames_without_object": {
+    "woman": [],
+    "man": []
+   },
+   "per_frame": [
+    {
+     "frame": 0,
+     "iou": 0.9863,
+     "iou_core_holes_filled": 0.989,
+     "iou_core": 0.989,
+     "bf3": 0.6607,
+     "screen_ratio": 0.435,
+     "uncertain_px_pct": 0.36,
+     "objects": {
+      "woman": {
+       "area_px": 785985,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 361220,
+       "on_certain_background_pct": 0.27
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 1,
+     "iou": 0.9891,
+     "iou_core_holes_filled": 0.9917,
+     "iou_core": 0.9917,
+     "bf3": 0.7547,
+     "screen_ratio": 0.435,
+     "uncertain_px_pct": 0.34,
+     "objects": {
+      "woman": {
+       "area_px": 801636,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 373369,
+       "on_certain_background_pct": 0.22
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 2,
+     "iou": 0.9891,
+     "iou_core_holes_filled": 0.9919,
+     "iou_core": 0.9919,
+     "bf3": 0.7699,
+     "screen_ratio": 0.434,
+     "uncertain_px_pct": 0.36,
+     "objects": {
+      "woman": {
+       "area_px": 798798,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 397655,
+       "on_certain_background_pct": 0.17
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 3,
+     "iou": 0.9887,
+     "iou_core_holes_filled": 0.9924,
+     "iou_core": 0.9918,
+     "bf3": 0.7489,
+     "screen_ratio": 0.434,
+     "uncertain_px_pct": 0.43,
+     "objects": {
+      "woman": {
+       "area_px": 791693,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 435552,
+       "on_certain_background_pct": 0.33
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 4,
+     "iou": 0.985,
+     "iou_core_holes_filled": 0.9918,
+     "iou_core": 0.9885,
+     "bf3": 0.7025,
+     "screen_ratio": 0.435,
+     "uncertain_px_pct": 0.52,
+     "objects": {
+      "woman": {
+       "area_px": 797073,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 475207,
+       "on_certain_background_pct": 1.02
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 5,
+     "iou": 0.9877,
+     "iou_core_holes_filled": 0.9912,
+     "iou_core": 0.9915,
+     "bf3": 0.7548,
+     "screen_ratio": 0.436,
+     "uncertain_px_pct": 0.58,
+     "objects": {
+      "woman": {
+       "area_px": 820479,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 490266,
+       "on_certain_background_pct": 0.29
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 6,
+     "iou": 0.9898,
+     "iou_core_holes_filled": 0.9932,
+     "iou_core": 0.9932,
+     "bf3": 0.828,
+     "screen_ratio": 0.436,
+     "uncertain_px_pct": 0.54,
+     "objects": {
+      "woman": {
+       "area_px": 836072,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 485300,
+       "on_certain_background_pct": 0.29
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 7,
+     "iou": 0.9901,
+     "iou_core_holes_filled": 0.9932,
+     "iou_core": 0.9932,
+     "bf3": 0.8728,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.48,
+     "objects": {
+      "woman": {
+       "area_px": 831145,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 465769,
+       "on_certain_background_pct": 0.23
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 8,
+     "iou": 0.9888,
+     "iou_core_holes_filled": 0.9922,
+     "iou_core": 0.9922,
+     "bf3": 0.8147,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.49,
+     "objects": {
+      "woman": {
+       "area_px": 821815,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 457857,
+       "on_certain_background_pct": 0.36
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 9,
+     "iou": 0.9894,
+     "iou_core_holes_filled": 0.9925,
+     "iou_core": 0.9925,
+     "bf3": 0.8199,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.49,
+     "objects": {
+      "woman": {
+       "area_px": 817679,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 459333,
+       "on_certain_background_pct": 0.34
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 10,
+     "iou": 0.9886,
+     "iou_core_holes_filled": 0.9936,
+     "iou_core": 0.9917,
+     "bf3": 0.8436,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.49,
+     "objects": {
+      "woman": {
+       "area_px": 820571,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 469179,
+       "on_certain_background_pct": 0.69
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 11,
+     "iou": 0.9866,
+     "iou_core_holes_filled": 0.9938,
+     "iou_core": 0.9901,
+     "bf3": 0.8023,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.56,
+     "objects": {
+      "woman": {
+       "area_px": 820482,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 491749,
+       "on_certain_background_pct": 1.17
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 12,
+     "iou": 0.9892,
+     "iou_core_holes_filled": 0.9943,
+     "iou_core": 0.993,
+     "bf3": 0.8355,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.6,
+     "objects": {
+      "woman": {
+       "area_px": 826718,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 514453,
+       "on_certain_background_pct": 0.64
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 13,
+     "iou": 0.9901,
+     "iou_core_holes_filled": 0.9937,
+     "iou_core": 0.9937,
+     "bf3": 0.8633,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.63,
+     "objects": {
+      "woman": {
+       "area_px": 825355,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 518114,
+       "on_certain_background_pct": 0.22
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 14,
+     "iou": 0.9893,
+     "iou_core_holes_filled": 0.9931,
+     "iou_core": 0.9931,
+     "bf3": 0.8434,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.6,
+     "objects": {
+      "woman": {
+       "area_px": 818274,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 543690,
+       "on_certain_background_pct": 0.21
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 15,
+     "iou": 0.9869,
+     "iou_core_holes_filled": 0.9912,
+     "iou_core": 0.9912,
+     "bf3": 0.7659,
+     "screen_ratio": 0.439,
+     "uncertain_px_pct": 0.63,
+     "objects": {
+      "woman": {
+       "area_px": 803943,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 575604,
+       "on_certain_background_pct": 0.21
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 16,
+     "iou": 0.9864,
+     "iou_core_holes_filled": 0.9906,
+     "iou_core": 0.9906,
+     "bf3": 0.7741,
+     "screen_ratio": 0.439,
+     "uncertain_px_pct": 0.66,
+     "objects": {
+      "woman": {
+       "area_px": 791778,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 596479,
+       "on_certain_background_pct": 0.26
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 17,
+     "iou": 0.9861,
+     "iou_core_holes_filled": 0.9904,
+     "iou_core": 0.9904,
+     "bf3": 0.732,
+     "screen_ratio": 0.438,
+     "uncertain_px_pct": 0.66,
+     "objects": {
+      "woman": {
+       "area_px": 792050,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 580183,
+       "on_certain_background_pct": 0.27
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 18,
+     "iou": 0.9873,
+     "iou_core_holes_filled": 0.9898,
+     "iou_core": 0.9908,
+     "bf3": 0.7877,
+     "screen_ratio": 0.438,
+     "uncertain_px_pct": 0.54,
+     "objects": {
+      "woman": {
+       "area_px": 799284,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 545186,
+       "on_certain_background_pct": 0.2
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 19,
+     "iou": 0.9878,
+     "iou_core_holes_filled": 0.9466,
+     "iou_core": 0.9912,
+     "bf3": 0.7767,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.56,
+     "objects": {
+      "woman": {
+       "area_px": 804115,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 555741,
+       "on_certain_background_pct": 0.36
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 20,
+     "iou": 0.9872,
+     "iou_core_holes_filled": 0.9444,
+     "iou_core": 0.991,
+     "bf3": 0.7778,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.63,
+     "objects": {
+      "woman": {
+       "area_px": 799521,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 568433,
+       "on_certain_background_pct": 0.22
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 21,
+     "iou": 0.9874,
+     "iou_core_holes_filled": 0.9915,
+     "iou_core": 0.9916,
+     "bf3": 0.8084,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.69,
+     "objects": {
+      "woman": {
+       "area_px": 786377,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 571994,
+       "on_certain_background_pct": 0.35
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 22,
+     "iou": 0.988,
+     "iou_core_holes_filled": 0.9923,
+     "iou_core": 0.9923,
+     "bf3": 0.8282,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.7,
+     "objects": {
+      "woman": {
+       "area_px": 783622,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 557441,
+       "on_certain_background_pct": 0.3
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 23,
+     "iou": 0.9895,
+     "iou_core_holes_filled": 0.9927,
+     "iou_core": 0.9927,
+     "bf3": 0.8642,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.52,
+     "objects": {
+      "woman": {
+       "area_px": 789276,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 548212,
+       "on_certain_background_pct": 0.22
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 24,
+     "iou": 0.9898,
+     "iou_core_holes_filled": 0.993,
+     "iou_core": 0.993,
+     "bf3": 0.892,
+     "screen_ratio": 0.436,
+     "uncertain_px_pct": 0.47,
+     "objects": {
+      "woman": {
+       "area_px": 798552,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 557023,
+       "on_certain_background_pct": 0.21
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 25,
+     "iou": 0.9888,
+     "iou_core_holes_filled": 0.9927,
+     "iou_core": 0.9921,
+     "bf3": 0.8567,
+     "screen_ratio": 0.436,
+     "uncertain_px_pct": 0.5,
+     "objects": {
+      "woman": {
+       "area_px": 795714,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 584236,
+       "on_certain_background_pct": 0.43
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 26,
+     "iou": 0.9853,
+     "iou_core_holes_filled": 0.9924,
+     "iou_core": 0.989,
+     "bf3": 0.7757,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.55,
+     "objects": {
+      "woman": {
+       "area_px": 788168,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 600954,
+       "on_certain_background_pct": 1.05
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 27,
+     "iou": 0.98,
+     "iou_core_holes_filled": 0.9676,
+     "iou_core": 0.9834,
+     "bf3": 0.7136,
+     "screen_ratio": 0.438,
+     "uncertain_px_pct": 0.51,
+     "objects": {
+      "woman": {
+       "area_px": 791507,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 598458,
+       "on_certain_background_pct": 2.15
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 28,
+     "iou": 0.9772,
+     "iou_core_holes_filled": 0.9784,
+     "iou_core": 0.9802,
+     "bf3": 0.6488,
+     "screen_ratio": 0.439,
+     "uncertain_px_pct": 0.45,
+     "objects": {
+      "woman": {
+       "area_px": 805436,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 567373,
+       "on_certain_background_pct": 2.59
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 29,
+     "iou": 0.9778,
+     "iou_core_holes_filled": 0.9849,
+     "iou_core": 0.9803,
+     "bf3": 0.6414,
+     "screen_ratio": 0.44,
+     "uncertain_px_pct": 0.43,
+     "objects": {
+      "woman": {
+       "area_px": 831134,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 525119,
+       "on_certain_background_pct": 2.75
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 30,
+     "iou": 0.9804,
+     "iou_core_holes_filled": 0.9879,
+     "iou_core": 0.9828,
+     "bf3": 0.6482,
+     "screen_ratio": 0.44,
+     "uncertain_px_pct": 0.42,
+     "objects": {
+      "woman": {
+       "area_px": 855861,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 482938,
+       "on_certain_background_pct": 2.3
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 31,
+     "iou": 0.983,
+     "iou_core_holes_filled": 0.9886,
+     "iou_core": 0.9854,
+     "bf3": 0.6199,
+     "screen_ratio": 0.44,
+     "uncertain_px_pct": 0.37,
+     "objects": {
+      "woman": {
+       "area_px": 871907,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 445253,
+       "on_certain_background_pct": 1.53
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 32,
+     "iou": 0.9861,
+     "iou_core_holes_filled": 0.99,
+     "iou_core": 0.9886,
+     "bf3": 0.631,
+     "screen_ratio": 0.44,
+     "uncertain_px_pct": 0.35,
+     "objects": {
+      "woman": {
+       "area_px": 876643,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 422264,
+       "on_certain_background_pct": 0.69
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 33,
+     "iou": 0.9877,
+     "iou_core_holes_filled": 0.9911,
+     "iou_core": 0.9902,
+     "bf3": 0.7005,
+     "screen_ratio": 0.44,
+     "uncertain_px_pct": 0.34,
+     "objects": {
+      "woman": {
+       "area_px": 871328,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 411470,
+       "on_certain_background_pct": 0.42
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 34,
+     "iou": 0.9882,
+     "iou_core_holes_filled": 0.9911,
+     "iou_core": 0.9909,
+     "bf3": 0.7402,
+     "screen_ratio": 0.439,
+     "uncertain_px_pct": 0.36,
+     "objects": {
+      "woman": {
+       "area_px": 861562,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 404793,
+       "on_certain_background_pct": 0.19
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 35,
+     "iou": 0.9893,
+     "iou_core_holes_filled": 0.992,
+     "iou_core": 0.992,
+     "bf3": 0.7481,
+     "screen_ratio": 0.439,
+     "uncertain_px_pct": 0.38,
+     "objects": {
+      "woman": {
+       "area_px": 858239,
+       "on_certain_background_pct": 0.02
+      },
+      "man": {
+       "area_px": 398990,
+       "on_certain_background_pct": 0.19
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 36,
+     "iou": 0.9894,
+     "iou_core_holes_filled": 0.992,
+     "iou_core": 0.992,
+     "bf3": 0.7743,
+     "screen_ratio": 0.438,
+     "uncertain_px_pct": 0.37,
+     "objects": {
+      "woman": {
+       "area_px": 852060,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 402345,
+       "on_certain_background_pct": 0.17
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 37,
+     "iou": 0.9887,
+     "iou_core_holes_filled": 0.9913,
+     "iou_core": 0.9913,
+     "bf3": 0.7292,
+     "screen_ratio": 0.438,
+     "uncertain_px_pct": 0.38,
+     "objects": {
+      "woman": {
+       "area_px": 838459,
+       "on_certain_background_pct": 0.02
+      },
+      "man": {
+       "area_px": 412735,
+       "on_certain_background_pct": 0.2
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 38,
+     "iou": 0.9875,
+     "iou_core_holes_filled": 0.9904,
+     "iou_core": 0.9904,
+     "bf3": 0.6481,
+     "screen_ratio": 0.438,
+     "uncertain_px_pct": 0.4,
+     "objects": {
+      "woman": {
+       "area_px": 817291,
+       "on_certain_background_pct": 0.02
+      },
+      "man": {
+       "area_px": 424653,
+       "on_certain_background_pct": 0.25
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 39,
+     "iou": 0.9874,
+     "iou_core_holes_filled": 0.9904,
+     "iou_core": 0.9904,
+     "bf3": 0.642,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.41,
+     "objects": {
+      "woman": {
+       "area_px": 792918,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 446702,
+       "on_certain_background_pct": 0.38
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 40,
+     "iou": 0.9864,
+     "iou_core_holes_filled": 0.9895,
+     "iou_core": 0.9895,
+     "bf3": 0.6093,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.41,
+     "objects": {
+      "woman": {
+       "area_px": 775703,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 460069,
+       "on_certain_background_pct": 0.35
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 41,
+     "iou": 0.9867,
+     "iou_core_holes_filled": 0.9893,
+     "iou_core": 0.9898,
+     "bf3": 0.6662,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.41,
+     "objects": {
+      "woman": {
+       "area_px": 772840,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 468950,
+       "on_certain_background_pct": 0.36
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 42,
+     "iou": 0.9878,
+     "iou_core_holes_filled": 0.99,
+     "iou_core": 0.9905,
+     "bf3": 0.7161,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.37,
+     "objects": {
+      "woman": {
+       "area_px": 790217,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 461998,
+       "on_certain_background_pct": 0.33
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 43,
+     "iou": 0.9883,
+     "iou_core_holes_filled": 0.9908,
+     "iou_core": 0.9908,
+     "bf3": 0.7446,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.35,
+     "objects": {
+      "woman": {
+       "area_px": 795816,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 447090,
+       "on_certain_background_pct": 0.38
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 44,
+     "iou": 0.9873,
+     "iou_core_holes_filled": 0.9901,
+     "iou_core": 0.9901,
+     "bf3": 0.6999,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.36,
+     "objects": {
+      "woman": {
+       "area_px": 783613,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 429069,
+       "on_certain_background_pct": 0.37
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 45,
+     "iou": 0.9881,
+     "iou_core_holes_filled": 0.9908,
+     "iou_core": 0.9908,
+     "bf3": 0.704,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.35,
+     "objects": {
+      "woman": {
+       "area_px": 776321,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 413320,
+       "on_certain_background_pct": 0.34
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 46,
+     "iou": 0.9881,
+     "iou_core_holes_filled": 0.9909,
+     "iou_core": 0.9909,
+     "bf3": 0.7255,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.36,
+     "objects": {
+      "woman": {
+       "area_px": 776955,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 403211,
+       "on_certain_background_pct": 0.25
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 47,
+     "iou": 0.9881,
+     "iou_core_holes_filled": 0.9908,
+     "iou_core": 0.9908,
+     "bf3": 0.6769,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.36,
+     "objects": {
+      "woman": {
+       "area_px": 784281,
+       "on_certain_background_pct": 0.02
+      },
+      "man": {
+       "area_px": 396990,
+       "on_certain_background_pct": 0.27
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 48,
+     "iou": 0.9881,
+     "iou_core_holes_filled": 0.9908,
+     "iou_core": 0.9908,
+     "bf3": 0.7057,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.36,
+     "objects": {
+      "woman": {
+       "area_px": 794343,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 400815,
+       "on_certain_background_pct": 0.26
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 49,
+     "iou": 0.9883,
+     "iou_core_holes_filled": 0.9908,
+     "iou_core": 0.9908,
+     "bf3": 0.7235,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.36,
+     "objects": {
+      "woman": {
+       "area_px": 792629,
+       "on_certain_background_pct": 0.01
+      },
+      "man": {
+       "area_px": 414648,
+       "on_certain_background_pct": 0.27
+      },
+      "overlap_between_objects_px": 0
+     }
+    },
+    {
+     "frame": 50,
+     "iou": 0.9882,
+     "iou_core_holes_filled": 0.9908,
+     "iou_core": 0.9908,
+     "bf3": 0.7009,
+     "screen_ratio": 0.437,
+     "uncertain_px_pct": 0.37,
+     "objects": {
+      "woman": {
+       "area_px": 787790,
+       "on_certain_background_pct": 0.0
+      },
+      "man": {
+       "area_px": 434865,
+       "on_certain_background_pct": 0.34
+      },
+      "overlap_between_objects_px": 0
+     }
+    }
+   ]
+  }
+ },
+ "mattes": {
+  "guided": {
+   "sad_band": 8.0287,
+   "mse_band": 0.1521,
+   "sad_all": 14.5247
+  },
+  "frames": 51,
+  "holdout": {
+   "frames": 51,
+   "max_abs_err": 0.21282,
+   "mean_abs_err": 2e-06,
+   "frames_where_holdout_removed_pixels": 0
+  }
+ }
+}

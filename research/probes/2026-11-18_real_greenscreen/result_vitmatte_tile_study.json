@@ -1,0 +1,52 @@
+{
+ "SHOT-115": {
+  "hard_shape": {
+   "sad_vs_key_band": 5.73,
+   "mse_vs_key_band": 0.0539
+  },
+  "one_pass": {
+   "sad_vs_key_band": 13.77,
+   "mse_vs_key_band": 0.0708
+  },
+  "tiles_512_ov128": {
+   "sad_vs_key_band": 14.26,
+   "mse_vs_key_band": 0.0697,
+   "mean_abs_diff_vs_one_pass": 0.0439
+  },
+  "tiles_512_ov256": {
+   "sad_vs_key_band": 12.82,
+   "mse_vs_key_band": 0.0604,
+   "mean_abs_diff_vs_one_pass": 0.0456
+  },
+  "tiles_768_ov256": {
+   "sad_vs_key_band": 12.77,
+   "mse_vs_key_band": 0.0597,
+   "mean_abs_diff_vs_one_pass": 0.0356
+  }
+ },
+ "SHOT-116": {
+  "hard_shape": {
+   "sad_vs_key_band": 5.06,
+   "mse_vs_key_band": 0.0469
+  },
+  "one_pass": {
+   "sad_vs_key_band": 14.72,
+   "mse_vs_key_band": 0.075
+  },
+  "tiles_512_ov128": {
+   "sad_vs_key_band": 14.62,
+   "mse_vs_key_band": 0.0696,
+   "mean_abs_diff_vs_one_pass": 0.0446
+  },
+  "tiles_512_ov256": {
+   "sad_vs_key_band": 14.34,
+   "mse_vs_key_band": 0.0666,
+   "mean_abs_diff_vs_one_pass": 0.0421
+  },
+  "tiles_768_ov256": {
+   "sad_vs_key_band": 13.31,
+   "mse_vs_key_band": 0.0605,
+   "mean_abs_diff_vs_one_pass": 0.0402
+  }
+ }
+}
