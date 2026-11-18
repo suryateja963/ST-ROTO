@@ -52,7 +52,7 @@ Two rules hold everywhere:
 
 ## 2. Installing and checking your machine
 
-Follow the release notes or `README.md`. In short:
+The full installation guide, including Nuke versions and editions, studios and the command line, is `docs/INSTALL.md`. In short:
 1. Download `ST-ROTO-Setup.exe`, `ST-ROTO-<version>.zip` and, if you want them, the model packages, all into one folder.
 2. Run the .exe and choose **1**.
 3. Restart Nuke.

@@ -37,6 +37,8 @@ it where it fits and the tiny model elsewhere.
 
 ## Use
 
+Full installation guide (Nuke versions and editions, studios, command line): **[docs/INSTALL.md](docs/INSTALL.md)**.
+
 Read the **[manual](docs/MANUAL.md)** (quick version: [user guide](docs/USER_GUIDE_v0.md)). In short: select your Read node, create **ST_Roto**, type an object
 name, set a box and/or include click on the object, press **Load model** then **Track**. Fix frames with
 **Re-prompt here** or by editing the shape and pressing **Re-track object**; your own keys are never overwritten.
@@ -65,7 +67,7 @@ model). No NVIDIA software is included: ST-ROTO uses the CUDA libraries that shi
 
 ## Build from source (developers)
 
-Start with the **[developer guide](docs/DEVELOPER_GUIDE.md)**. 
+Start with the **[developer guide](docs/DEVELOPER_GUIDE.md)**; every public function is in the generated **[API reference](docs/API_REFERENCE.md)**. 
 The repository holds the code only; model files and the Python packages used inside Nuke are not committed. Developer
 set-up and the model export pipeline: `CLAUDE.md` (Commands) and `tools/models/`. Release files are built with
 `tools/installer/st_roto_setup.py package` / `package-model` and `tools/installer/build_exe.py`.

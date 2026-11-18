@@ -12,7 +12,8 @@ Method (classic shot-boundary detection, made robust for VFX plates):
 * flashes, one- or two-frame glitches and strobes are NOT cuts: if the frame before the jump matches a frame
   shortly after it (within FLASH_SPAN), the content came back.
 Dissolves / fades are gradual and are not detected (documented limit); the artist can type cut frames by hand.
-Thresholds were set on synthetic sequences and checked on real footage (research/probes/2026-11-18_scenecut)."""
+Thresholds were chosen on real footage (30 SA-V videos; no held-out set) and checked on synthetic sequences
+(research/probes/2026-11-18_scenecut, tests/unit/test_scenecut.py)."""
 import numpy as np
 
 THUMB = (36, 64)              # rows, columns
